@@ -14,7 +14,7 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   --spotlight: 0.34;
-  --print: clamp(5.15rem, 6vw, 6.2rem);
+  --print: clamp(7.7rem, 9.1vw, 9.8rem);
   --gutter: clamp(3.25rem, 6vw, 6.75rem);
 }
 
@@ -461,25 +461,28 @@ button {
 .cabinet {
   position: absolute;
   z-index: 4;
-  top: 0;
+  top: 50%;
   right: calc(100% + 0.4rem);
-  bottom: 0;
+  bottom: auto;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   width: max-content;
-  max-width: calc(var(--print) * 1.88);
+  max-width: none;
+  height: auto;
+  padding: 1.6rem 0.85rem 1.9rem 1.15rem;
   overflow: hidden;
   pointer-events: none;
+  transform: translateY(-50%);
 }
 
 .cabinet-fan {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  height: 100%;
+  height: auto;
   margin: 0;
-  padding: 0.35rem 0;
+  padding: 0;
   list-style: none;
 }
 
@@ -491,11 +494,9 @@ button {
   flex: none;
   width: var(--print);
   height: calc(var(--print) * 1.26);
-  margin-left: calc(var(--print) * -0.62);
-  padding: 0.18rem;
-  border: 1px solid color-mix(in srgb, var(--ink) 16%, var(--rule));
-  background: color-mix(in srgb, var(--paper) 72%, var(--ink));
-  box-shadow: 0 12px 22px color-mix(in srgb, var(--ink) 11%, transparent);
+  margin-left: calc(var(--print) * -0.58);
+  border: 0;
+  background: transparent;
   transform: translate3d(58%, 0, 0) rotate(calc(var(--tilt) * 0.28)) scale(0.965);
   transform-origin: right center;
   opacity: 0;
@@ -510,8 +511,91 @@ button {
 }
 
 .cabinet-print:last-child {
-  width: calc(var(--print) * 1.07);
-  height: calc(var(--print) * 1.36);
+  width: calc(var(--print) * 1.12);
+  height: calc(var(--print) * 1.42);
+}
+
+.cabinet-shadow {
+  position: absolute;
+  z-index: 0;
+  inset: 22% 14% 10%;
+  border-radius: 2rem;
+  background: rgb(0 0 0 / 48%);
+  filter: blur(22px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.cabinet-lens {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.cabinet-lens::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    148deg,
+    color-mix(in srgb, #fff 72%, transparent),
+    color-mix(in srgb, #fff 18%, transparent) 32%,
+    transparent 58%,
+    color-mix(in srgb, #fff 22%, transparent)
+  );
+  -webkit-backdrop-filter: blur(12px) saturate(1.65);
+  backdrop-filter: blur(12px) saturate(1.65);
+  -webkit-mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 10px,
+      #000 16px,
+      transparent 34px,
+      transparent calc(100% - 34px),
+      #000 calc(100% - 16px),
+      #000 calc(100% - 10px),
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      transparent 0,
+      #000 10px,
+      #000 16px,
+      transparent 30px,
+      transparent calc(100% - 30px),
+      #000 calc(100% - 16px),
+      #000 calc(100% - 10px),
+      transparent 100%
+    );
+  -webkit-mask-composite: source-over;
+  mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 10px,
+      #000 16px,
+      transparent 34px,
+      transparent calc(100% - 34px),
+      #000 calc(100% - 16px),
+      #000 calc(100% - 10px),
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      transparent 0,
+      #000 10px,
+      #000 16px,
+      transparent 30px,
+      transparent calc(100% - 30px),
+      #000 calc(100% - 16px),
+      #000 calc(100% - 10px),
+      transparent 100%
+    );
+  mask-composite: add;
 }
 
 .cabinet-mat {
@@ -519,7 +603,15 @@ button {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--rule);
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
+  -webkit-mask-image:
+    linear-gradient(to bottom, transparent, #000 16px, #000 calc(100% - 16px), transparent),
+    linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to bottom, transparent, #000 16px, #000 calc(100% - 16px), transparent),
+    linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent);
+  mask-composite: intersect;
 }
 
 .cabinet-mat img,
@@ -1450,15 +1542,19 @@ button {
 
   .cabinet {
     position: static;
+    top: auto;
+    bottom: auto;
     display: grid;
     grid-template-rows: 0fr;
     width: auto;
     max-width: none;
     height: auto;
     margin: 0 0 0 3.05rem;
+    padding: 0;
     overflow: hidden;
     opacity: 0;
     pointer-events: none;
+    transform: none;
     transition:
       grid-template-rows 400ms var(--ease-drawer),
       opacity 240ms var(--ease-out);
@@ -1500,8 +1596,8 @@ button {
   .timeline-row.is-open .cabinet-print,
   .project-row:has(:focus-visible) .cabinet-print,
   .timeline-row:has(:focus-visible) .cabinet-print {
-    width: 5.4rem;
-    height: 6.75rem;
+    width: 8.75rem;
+    height: 11rem;
     margin-left: 0;
     transform: none;
     opacity: 1;
@@ -1651,6 +1747,19 @@ button {
   }
 
   .site-footer .copyright { font-size: 0.61rem; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .cabinet-lens::before {
+    background: color-mix(in srgb, var(--paper) 78%, var(--ink));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .cabinet-shadow {
+    opacity: 0.4;
+    filter: blur(10px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

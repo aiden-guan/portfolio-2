@@ -23,15 +23,18 @@ export function Cabinet({ images, label }: { images: PortfolioImage[]; label: st
                 } as CSSProperties
               }
             >
-              <div className="cabinet-mat">
-                <Image
-                  alt={image.alt || `${label}, image ${index + 1}`}
-                  draggable={false}
-                  fill
-                  sizes="(max-width: 880px) 88px, 120px"
-                  src={image.src}
-                  unoptimized={image.src.startsWith("/api/")}
-                />
+              <div className="cabinet-shadow" aria-hidden="true" />
+              <div className="cabinet-lens">
+                <div className="cabinet-mat">
+                  <Image
+                    alt={image.alt || `${label}, image ${index + 1}`}
+                    draggable={false}
+                    fill
+                    sizes="(max-width: 880px) 180px, 340px"
+                    src={image.src}
+                    unoptimized={image.src.startsWith("/api/")}
+                  />
+                </div>
               </div>
             </li>
           );
