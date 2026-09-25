@@ -1,12 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { getPortfolioContent } from "@/lib/portfolio-content";
+import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 
-const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ??
-  (productionHost ? `https://${productionHost}` : "http://localhost:3000");
+const siteUrl = getSiteUrl();
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile, seo } = await getPortfolioContent();

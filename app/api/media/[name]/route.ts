@@ -8,13 +8,30 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ name: string }> },
 ) {
-  if (!isContentStoreConfigured()) {
-    return new Response("Not found", { status: 404 });
-  }
-
   const { name } = await params;
   const pathname = mediaPathname(name);
   if (!pathname) return new Response("Not found", { status: 404 });
+
+  if (!isContentStoreConfigured()) {
+    // In local development without Blob credentials, proxy media from production
+    try {
+      const upstream = await fetch(
+        `https://aidenguan.com/api/media/${encodeURIComponent(name)}`,
+      );
+      if (upstream.ok && upstream.body) {
+        return new Response(upstream.body, {
+          headers: {
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "Content-Type":
+              upstream.headers.get("Content-Type") || "application/octet-stream",
+          },
+        });
+      }
+    } catch {
+      // Fall through to 404 if offline or upstream fails
+    }
+    return new Response("Not found", { status: 404 });
+  }
 
   const result = await get(pathname, { access: "private" });
   if (!result || result.statusCode !== 200) {

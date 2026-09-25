@@ -1,9 +1,7 @@
 import type { MetadataRoute } from "next";
+import { getSiteUrl } from "@/lib/site-url";
 
-const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ??
-  (productionHost ? `https://${productionHost}` : "http://localhost:3000");
+const siteUrl = getSiteUrl();
 
 export default function robots(): MetadataRoute.Robots {
   return {

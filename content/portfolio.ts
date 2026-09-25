@@ -76,10 +76,9 @@ export type PortfolioContent = {
 export const defaultPortfolio: PortfolioContent = {
   profile: {
     name: "Aiden Guan",
-    mark: "A/G—26",
-    descriptor: "Product builder.",
-    introduction:
-      "I study business at UC Berkeley and build software, businesses, and games.",
+    mark: "AG—26",
+    descriptor: "Student",
+    introduction: "Business Admin + Data Science @ Berkeley",
     email: "aidenguan@berkeley.edu",
     location: "Berkeley, California",
     locationLabel: "Berkeley",
@@ -107,57 +106,94 @@ export const defaultPortfolio: PortfolioContent = {
   },
   projects: [
     {
-      name: "SideSpace",
-      status: "Building",
-      summary: "A marketplace for local attention.",
-      detail: "Book storefronts, creators, routes, and other local places.",
-      stack: ["Next.js", "PostgreSQL", "Stripe", "Supabase"],
-      links: [
-        { label: "live", href: "https://www.sidespace.ad" },
+      name: "AGNotify",
+      status: "Retired",
+      summary: "Sneaker Reselling Cookgroup",
+      detail:
+        "Release alerts, consignment, and group chat. Started with $500, reached $45k ARR, then exited.",
+      stack: ["Whop", "Discord"],
+      links: [],
+      images: [
         {
-          label: "source",
-          href: "https://github.com/kv1514/sidespace-marketplace",
+          src: "/api/media/92b066b9-1584-4eff-8cb4-527340d9515b.png",
+          alt: "AGNotify",
+        },
+        {
+          src: "/api/media/808c7e08-9078-4bdd-92fb-28c5bd0f5c9f.png",
+          alt: "AGNotify 2",
+        },
+        {
+          src: "/api/media/d134caff-e344-44c6-973d-e4831948b368.png",
+          alt: "AGNotify 3",
+        },
+      ],
+    },
+    {
+      name: "AntiAgent",
+      status: "Actively Maintaining",
+      summary:
+        "Intelligent 'Approved for Me' safety supervisor and gatekeeper for Google Antigravity",
+      detail:
+        "AntiAgent brings OpenAI's/ChatGPT's \"Approved for Me\" safety paradigm to Google Antigravity. It operates as an autonomous supervisor subagent embedded directly into Antigravity's lifecycle hooks (PreToolUse).\n\nAlso allows for users to have Auto-PR & CI Monitoring (similar to Claude Code)",
+      stack: ["Python", "HTML"],
+      links: [
+        {
+          label: "live",
+          href: "https://github.com/aiden-guan/AntiAgent",
+        },
+      ],
+      images: [
+        {
+          src: "/api/media/dd90ad3a-8240-424c-a5cf-f6bdf52acd42.png",
+          alt: "AntiAgent",
+        },
+      ],
+    },
+    {
+      name: "PigeonBox",
+      status: "In progress",
+      summary: "AI Powered Inbox - Open Tracking, Autodraft, all local.",
+      detail: "Made to kill Superhuman + Mailsuite",
+      stack: ["TypeScript", "JavaScript", "Convex"],
+      links: [
+        {
+          label: "live",
+          href: "https://github.com/aiden-guan/gmail-intelligence",
         },
       ],
       images: [],
     },
     {
-      name: "Million Dollar Leaderboard",
-      status: "Live",
-      summary: "A million-pixel canvas you can own.",
-      detail: "Buy a square, add a name and link, then explore the public board.",
-      stack: ["Next.js", "Stripe", "PostgreSQL"],
-      links: [{ label: "live", href: "https://milliondollarboard.lol" }],
+      name: "HarmonyLabs",
+      status: "In progress",
+      summary: "Facial Harmony Vision Model",
+      detail:
+        "Research backed web-app that measures facial geometry that compares those measurements with research-backed attractiveness, aesthetic-harmony, and proportional references. Stronger evidence receives greater influence.",
+      stack: ["Convex", "MediaPipe", "TypeScript"],
+      links: [
+        {
+          label: "live",
+          href: "https://useharmonylabs.vercel.app/",
+        },
+        {
+          label: "source",
+          href: "https://github.com/aiden-guan/HarmonyLabs",
+        },
+      ],
       images: [],
     },
     {
-      name: "Corgi / BarkOff",
+      name: "BarkOff",
       status: "1st place",
       summary: "A live one-on-one bark battle.",
-      detail:
-        "Webcams, audio controls, and two dogs in a pixel ring. Built with Dylan for Grok Student Build Night.",
+      detail: "Who can bark the best? Made for SpaceXAI Build Night w friends",
       stack: ["React", "Web Audio", "Computer vision"],
-      links: [{ label: "source", href: "https://github.com/dylann4500/corgi" }],
-      images: [],
-    },
-    {
-      name: "RewardRelay",
-      status: "Open source",
-      summary: "A referral board for students.",
-      detail:
-        "Student offers across rides, food, money, travel, shopping, and tools.",
-      stack: ["React", "TypeScript", "PostgreSQL"],
-      links: [{ label: "source", href: "https://github.com/aiden-guan/riderelay" }],
-      images: [],
-    },
-    {
-      name: "AGNotify",
-      status: "Merged",
-      summary: "A private community for sneaker resellers.",
-      detail:
-        "Release alerts, consignment, and group chat. Started with $500, reached $45k ARR, then merged.",
-      stack: ["Community", "Operations", "Commerce"],
-      links: [{ label: "live", href: "https://whop.com/agnotify" }],
+      links: [
+        {
+          label: "source",
+          href: "https://github.com/dylann4500/corgi",
+        },
+      ],
       images: [],
     },
   ],
