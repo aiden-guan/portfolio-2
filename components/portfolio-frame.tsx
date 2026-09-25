@@ -450,7 +450,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
       openZoom(print);
       return;
     }
-    if (print || pointerOnGalleryRow(zoomedRow.current, x, y)) {
+    if (pointerOnGalleryRow(zoomedRow.current, x, y)) {
       clearGap();
       return;
     }
@@ -468,7 +468,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
         openZoom(next);
         return;
       }
-      if (next || pointerOnGalleryRow(zoomedRow.current, latest.x, latest.y)) return;
+      if (pointerOnGalleryRow(zoomedRow.current, latest.x, latest.y)) return;
       dismissZoom();
     }, 90);
   }
