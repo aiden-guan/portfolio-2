@@ -107,7 +107,12 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     setIsClosing(false);
     zoomedPrint.current?.classList.remove("is-source");
     const row = zoomedRow.current;
-    if (row && !row.matches(":hover")) row.classList.remove("is-open");
+    if (
+      row &&
+      !pointerOnGalleryRow(row, pointer.current.x, pointer.current.y)
+    ) {
+      row.classList.remove("is-open");
+    }
     restoreGalleryPrints();
     zoomedRow.current = null;
     zoomedPrint.current = null;
@@ -380,6 +385,18 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     return hit instanceof Element ? hit : null;
   }
 
+  function pointerOnGalleryRow(row: HTMLElement | null, x: number, y: number) {
+    if (!row) return false;
+    const hit = elementUnder(x, y);
+    if (!hit) return false;
+
+    if (hit.closest(".cabinet")) {
+      return hit.closest(".cabinet-print")?.closest("[data-cabinet-id]") === row;
+    }
+
+    return hit.closest("article")?.closest("[data-cabinet-id]") === row;
+  }
+
   function pointerInsideControls(x: number, y: number) {
     const bounds = [
       controls.current?.getBoundingClientRect(),
@@ -433,7 +450,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
       openZoom(print);
       return;
     }
-    if (hit?.closest(".cabinet") || print || zoomedRow.current?.matches(":hover")) {
+    if (print || pointerOnGalleryRow(zoomedRow.current, x, y)) {
       clearGap();
       return;
     }
@@ -451,7 +468,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
         openZoom(next);
         return;
       }
-      if (again?.closest(".cabinet") || next) return;
+      if (next || pointerOnGalleryRow(zoomedRow.current, latest.x, latest.y)) return;
       dismissZoom();
     }, 90);
   }
