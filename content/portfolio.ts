@@ -10,10 +10,30 @@ export type ProjectLink = {
   href: string;
 };
 
+export type ImageFit = "contain" | "cover";
+
 export type PortfolioImage = {
   src: string;
   alt: string;
+  fit?: ImageFit;
+  focusX?: number;
+  focusY?: number;
 };
+
+export function imageFrame(image: Pick<PortfolioImage, "fit" | "focusX" | "focusY">) {
+  const fit: ImageFit = image.fit === "cover" ? "cover" : "contain";
+  const focusX = clampFocus(image.focusX);
+  const focusY = clampFocus(image.focusY);
+  return {
+    fit,
+    position: `${focusX}% ${focusY}%`,
+  };
+}
+
+function clampFocus(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 50;
+  return Math.min(100, Math.max(0, value));
+}
 
 export const MAX_PROJECT_IMAGES = 6;
 

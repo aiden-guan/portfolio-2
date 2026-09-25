@@ -1,8 +1,8 @@
 "use client";
 
-import { type DragEvent, useId, useRef, useState } from "react";
+import { type DragEvent, type PointerEvent as ReactPointerEvent, useId, useRef, useState } from "react";
 import Image from "next/image";
-import { MAX_PROJECT_IMAGES, type PortfolioImage } from "@/content/portfolio";
+import { imageFrame, MAX_PROJECT_IMAGES, type PortfolioImage } from "@/content/portfolio";
 
 function errorMessage(payload: unknown, fallback: string) {
   if (
@@ -64,6 +64,7 @@ export function AdminImageEditor({
         next.push({
           src: payload.src,
           alt: position === 1 ? nameForAlt : `${nameForAlt} ${position}`,
+          fit: "contain",
         });
         onChange([...next]);
       }
@@ -86,6 +87,38 @@ export function AdminImageEditor({
     if (!item) return;
     next.splice(target, 0, item);
     onChange(next);
+  }
+
+  function updateImage(index: number, patch: Partial<PortfolioImage>) {
+    onChange(images.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
+  }
+
+  function onPreviewPointerDown(event: ReactPointerEvent<HTMLDivElement>, index: number) {
+    const image = images[index];
+    if (!image || imageFrame(image).fit !== "cover") return;
+    const preview = event.currentTarget;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const originX = image.focusX ?? 50;
+    const originY = image.focusY ?? 50;
+    preview.setPointerCapture(event.pointerId);
+
+    const onMove = (moveEvent: PointerEvent) => {
+      const rect = preview.getBoundingClientRect();
+      const dx = ((moveEvent.clientX - startX) / Math.max(rect.width, 1)) * 100;
+      const dy = ((moveEvent.clientY - startY) / Math.max(rect.height, 1)) * 100;
+      updateImage(index, {
+        fit: "cover",
+        focusX: clampPercent(originX - dx),
+        focusY: clampPercent(originY - dy),
+      });
+    };
+    const onUp = () => {
+      preview.removeEventListener("pointermove", onMove);
+      preview.removeEventListener("pointerup", onUp);
+    };
+    preview.addEventListener("pointermove", onMove);
+    preview.addEventListener("pointerup", onUp);
   }
 
   function onDrop(event: DragEvent<HTMLDivElement>) {
@@ -113,8 +146,8 @@ export function AdminImageEditor({
         <div>
           <h3>Images</h3>
           <p className="editor-hint editor-image-hint">
-            They stay hidden until someone hovers the row, then slide out to the left. The last
-            image sits on top. Save after uploading.
+            Uploads keep their full frame. Choose Fill card if you want to crop one, then drag
+            the photo to set what stays visible. The last image sits on top. Save after editing.
           </p>
         </div>
         <div>
@@ -150,29 +183,50 @@ export function AdminImageEditor({
 
       {images.length > 0 ? (
         <div className="editor-image-grid">
-          {images.map((image, index) => (
+          {images.map((image, index) => {
+            const frame = imageFrame(image);
+            return (
             <article className="editor-image-card" key={`${image.src}-${index}`}>
-              <div className="editor-image-preview">
+              <div
+                className={`editor-image-preview${frame.fit === "cover" ? " is-movable" : ""}`}
+                onPointerDown={(event) => onPreviewPointerDown(event, index)}
+              >
                 <Image
                   alt=""
                   fill
                   sizes="160px"
                   src={image.src}
+                  style={{ objectFit: frame.fit, objectPosition: frame.position }}
                   unoptimized={image.src.startsWith("/api/")}
                 />
               </div>
+              <div className="editor-fit-toggle" role="group" aria-label={`Framing for image ${index + 1}`}>
+                <button
+                  className="editor-button editor-button-small"
+                  type="button"
+                  aria-pressed={frame.fit === "contain"}
+                  onClick={() => updateImage(index, { fit: "contain" })}
+                >
+                  Whole image
+                </button>
+                <button
+                  className="editor-button editor-button-small"
+                  type="button"
+                  aria-pressed={frame.fit === "cover"}
+                  onClick={() => updateImage(index, { fit: "cover" })}
+                >
+                  Fill card
+                </button>
+              </div>
+              <p className="editor-image-note">
+                {frame.fit === "cover" ? "Drag the photo to set the crop." : "The full photo stays visible."}
+              </p>
               <label className="editor-field" htmlFor={`${inputId}-alt-${index}`}>
                 <span className="editor-label">Description</span>
                 <input
                   id={`${inputId}-alt-${index}`}
                   value={image.alt}
-                  onChange={(event) =>
-                    onChange(
-                      images.map((item, itemIndex) =>
-                        itemIndex === index ? { ...item, alt: event.target.value } : item,
-                      ),
-                    )
-                  }
+                  onChange={(event) => updateImage(index, { alt: event.target.value })}
                 />
               </label>
               <div className="editor-image-actions">
@@ -204,13 +258,18 @@ export function AdminImageEditor({
                 </button>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <p className="editor-empty-state">No images yet. Drop some here, or add them.</p>
       )}
     </div>
   );
+}
+
+function clampPercent(value: number) {
+  return Math.min(100, Math.max(0, Math.round(value)));
 }
 
 function isUploadedImage(value: unknown): value is { src: string } {

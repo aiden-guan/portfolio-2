@@ -1,6 +1,5 @@
 import type { CSSProperties } from "react";
-import Image from "next/image";
-import type { PortfolioImage } from "@/content/portfolio";
+import { imageFrame, type PortfolioImage } from "@/content/portfolio";
 
 export function Cabinet({ images, label }: { images: PortfolioImage[]; label: string }) {
   if (images.length === 0) return null;
@@ -16,23 +15,19 @@ export function Cabinet({ images, label }: { images: PortfolioImage[]; label: st
               key={`${image.src}-${index}`}
               style={
                 {
-                  zIndex: index + 1,
                   "--tilt": `${tilt.toFixed(2)}deg`,
                   "--i": index,
                   "--count": images.length,
                 } as CSSProperties
               }
             >
-              <div className="cabinet-shadow" aria-hidden="true" />
               <div className="cabinet-lens">
-                <div className="cabinet-mat">
-                  <Image
+                <div className={`cabinet-photo${imageFrame(image).fit === "cover" ? " is-cover" : " is-contain"}`}>
+                  <img
                     alt={image.alt || `${label}, image ${index + 1}`}
                     draggable={false}
-                    fill
-                    sizes="(max-width: 880px) 180px, 340px"
                     src={image.src}
-                    unoptimized={image.src.startsWith("/api/")}
+                    style={imageStyle(image)}
                   />
                 </div>
               </div>
@@ -42,4 +37,12 @@ export function Cabinet({ images, label }: { images: PortfolioImage[]; label: st
       </ul>
     </div>
   );
+}
+
+function imageStyle(image: PortfolioImage): CSSProperties {
+  const frame = imageFrame(image);
+  return {
+    objectFit: frame.fit,
+    objectPosition: frame.position,
+  };
 }

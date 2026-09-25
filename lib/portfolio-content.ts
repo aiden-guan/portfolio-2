@@ -74,6 +74,12 @@ function readImageSrc(value: unknown) {
   }
 }
 
+function readFocus(value: unknown) {
+  const number = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(number)) return 50;
+  return Math.min(100, Math.max(0, Math.round(number)));
+}
+
 function readImages(value: unknown): PortfolioImage[] {
   if (!Array.isArray(value)) return [];
 
@@ -83,7 +89,12 @@ function readImages(value: unknown): PortfolioImage[] {
     const src = readImageSrc(item.src);
     if (!src) continue;
     const alt = typeof item.alt === "string" ? item.alt.trim().slice(0, 180) : "";
-    images.push({ src, alt });
+    const image: PortfolioImage = { src, alt, fit: item.fit === "cover" ? "cover" : "contain" };
+    const focusX = readFocus(item.focusX);
+    const focusY = readFocus(item.focusY);
+    if (focusX !== 50) image.focusX = focusX;
+    if (focusY !== 50) image.focusY = focusY;
+    images.push(image);
   }
 
   return images;
