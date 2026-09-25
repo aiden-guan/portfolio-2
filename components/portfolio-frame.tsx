@@ -1,37 +1,70 @@
 "use client";
 
 import {
+  type CSSProperties,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
   useEffect,
   useRef,
+  useState,
 } from "react";
 
 const ZOOM_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 const ZOOM_IN_MS = 820;
 const ZOOM_OUT_MS = 560;
 
+type GalleryImage = {
+  src: string;
+  alt: string;
+  fit: string;
+  position: string;
+};
+
+type FrozenPrintStyle = {
+  transform: string;
+  transition: string;
+};
+
 export function PortfolioFrame({ children }: { children: ReactNode }) {
   const frame = useRef<HTMLDivElement>(null);
   const viewer = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
+  const controls = useRef<HTMLDivElement>(null);
   const glideTimer = useRef(0);
   const zoomedRow = useRef<HTMLElement | null>(null);
   const zoomedPrint = useRef<HTMLElement | null>(null);
+  const galleryRow = useRef<HTMLElement | null>(null);
+  const galleryPrints = useRef<HTMLElement[]>([]);
+  const frozenPrintStyles = useRef(new Map<HTMLElement, FrozenPrintStyle>());
+  const activeGalleryIndex = useRef(0);
+  const sourceBox = useRef({ left: 0, top: 0, width: 1, height: 1 });
   const settled = useRef(false);
   const closing = useRef(false);
-  const origin = useRef({ x: 0, y: 0 });
   const stageBox = useRef({ left: 0, top: 0, width: 1, height: 1 });
   const zoomTimer = useRef(0);
   const gapTimer = useRef(0);
   const pointer = useRef({ x: 0, y: 0 });
   const closeZoom = useRef<() => void>(() => {});
   const leaveZoom = useRef<(x: number, y: number) => void>(() => {});
+  const stepGallery = useRef<(direction: -1 | 1) => void>(() => {});
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [galleryTitle, setGalleryTitle] = useState("");
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  const [isActive, setIsActive] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") closeZoom.current();
+      if (event.key === "ArrowLeft" && viewer.current?.classList.contains("is-active")) {
+        event.preventDefault();
+        stepGallery.current(-1);
+      }
+      if (event.key === "ArrowRight" && viewer.current?.classList.contains("is-active")) {
+        event.preventDefault();
+        stepGallery.current(1);
+      }
     };
     const onMove = (event: globalThis.PointerEvent) => {
       leaveZoom.current(event.clientX, event.clientY);
@@ -70,13 +103,20 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
   }
 
   function hideZoom() {
-    viewer.current?.classList.remove("is-active", "is-closing");
-    viewer.current?.setAttribute("aria-hidden", "true");
+    setIsActive(false);
+    setIsClosing(false);
     zoomedPrint.current?.classList.remove("is-source");
     const row = zoomedRow.current;
     if (row && !row.matches(":hover")) row.classList.remove("is-open");
+    restoreGalleryPrints();
     zoomedRow.current = null;
     zoomedPrint.current = null;
+    galleryRow.current = null;
+    galleryPrints.current = [];
+    activeGalleryIndex.current = 0;
+    setGalleryImages([]);
+    setGalleryTitle("");
+    setGalleryIndex(0);
     closing.current = false;
     settled.current = false;
     clearGap();
@@ -100,7 +140,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
 
     const from = print.getBoundingClientRect();
     const maxW = window.innerWidth * 0.8;
-    const maxH = window.innerHeight * 0.78;
+    const maxH = window.innerHeight * 0.68;
     const natural =
       image.naturalWidth > 0 && image.naturalHeight > 0
         ? image.naturalWidth / image.naturalHeight
@@ -128,9 +168,8 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     node.style.height = `${height}px`;
     node.style.transformOrigin = "top left";
     node.style.transform = reduced ? "none" : `translate(${dx}px, ${dy}px) scale(${sx})`;
-    shell.classList.remove("is-closing");
-    shell.classList.add("is-active");
-    shell.setAttribute("aria-hidden", "false");
+    setIsClosing(false);
+    setIsActive(true);
 
     if (reduced || !animate) {
       node.style.transform = "none";
@@ -141,10 +180,15 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     settled.current = false;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
+        if (closing.current) return;
         node.style.transition = `transform ${ZOOM_IN_MS}ms ${ZOOM_EASE}`;
         node.style.transform = "translate(0px, 0px) scale(1)";
         zoomTimer.current = window.setTimeout(() => {
-          if (!closing.current) settled.current = true;
+          if (!closing.current) {
+            settled.current = true;
+            const latest = pointer.current;
+            leaveZoom.current(latest.x, latest.y);
+          }
         }, ZOOM_IN_MS + 40);
       });
     });
@@ -155,13 +199,36 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     gapTimer.current = 0;
   }
 
-  function showPrint(print: HTMLElement, x: number, y: number) {
+  function freezeGalleryPrints(prints: HTMLElement[]) {
+    for (const print of prints) {
+      if (frozenPrintStyles.current.has(print)) continue;
+      const computed = getComputedStyle(print);
+      frozenPrintStyles.current.set(print, {
+        transform: print.style.transform,
+        transition: print.style.transition,
+      });
+      print.style.transition = "none";
+      print.style.transform = computed.transform;
+    }
+  }
+
+  function restoreGalleryPrints() {
+    const frozen = [...frozenPrintStyles.current];
+    frozenPrintStyles.current.clear();
+    for (const [print, style] of frozen) {
+      print.style.transition = style.transition;
+      requestAnimationFrame(() => {
+        print.style.transform = style.transform;
+      });
+    }
+  }
+
+  function showPrint(print: HTMLElement) {
     clearGap();
     window.clearTimeout(zoomTimer.current);
     closing.current = false;
-    origin.current = { x, y };
+    setIsClosing(false);
     if (stage.current) stage.current.style.pointerEvents = "";
-    viewer.current?.classList.remove("is-closing");
 
     zoomedPrint.current?.classList.remove("is-source");
     const row = print.closest<HTMLElement>("[data-cabinet-id]");
@@ -172,6 +239,45 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     zoomedPrint.current = print;
     row?.classList.add("is-open");
     print.classList.add("is-source");
+
+    if (row && row !== galleryRow.current) {
+      restoreGalleryPrints();
+      const entries = [...row.querySelectorAll<HTMLElement>(".cabinet-print")].flatMap(
+        (item) => {
+          const image = item.querySelector("img");
+          if (!(image instanceof HTMLImageElement)) return [];
+          return [
+            {
+              print: item,
+              image: {
+                src: image.currentSrc || image.src,
+                alt: image.alt,
+                fit: image.style.objectFit || "cover",
+                position: image.style.objectPosition || "50% 50%",
+              },
+            },
+          ];
+        },
+      );
+      galleryRow.current = row;
+      galleryPrints.current = entries.map((entry) => entry.print);
+      setGalleryImages(entries.map((entry) => entry.image));
+      const title = row.querySelector(
+        ".project-heading h3, .timeline-organization",
+      )?.textContent;
+      setGalleryTitle(title?.trim() || "Portfolio images");
+    }
+    freezeGalleryPrints(galleryPrints.current);
+    const selectedIndex = Math.max(0, galleryPrints.current.indexOf(print));
+    activeGalleryIndex.current = selectedIndex;
+    setGalleryIndex(selectedIndex);
+    const sourceRect = print.getBoundingClientRect();
+    sourceBox.current = {
+      left: sourceRect.left,
+      top: sourceRect.top,
+      width: sourceRect.width,
+      height: sourceRect.height,
+    };
 
     const shell = viewer.current;
     const node = stage.current;
@@ -229,18 +335,18 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     target.style.objectPosition = source.style.objectPosition || "50% 50%";
   }
 
-  function openZoom(print: HTMLElement, x: number, y: number) {
+  function openZoom(print: HTMLElement) {
     const shell = viewer.current;
     const showing = shell?.classList.contains("is-active") && zoomedPrint.current;
     if (showing && zoomedPrint.current === print && !closing.current) return;
 
     if (showing && zoomedPrint.current !== print) {
-      showPrint(print, x, y);
+      showPrint(print);
       settled.current = true;
       return;
     }
 
-    showPrint(print, x, y);
+    showPrint(print);
     placeStage(print, true);
   }
 
@@ -251,13 +357,35 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
   }
 
+  function pointerInsideSource(x: number, y: number) {
+    const box = sourceBox.current;
+    return (
+      x >= box.left &&
+      x <= box.left + box.width &&
+      y >= box.top &&
+      y <= box.top + box.height
+    );
+  }
+
   function elementUnder(x: number, y: number) {
-    const node = stage.current;
-    const previous = node?.style.pointerEvents ?? "";
-    if (node) node.style.pointerEvents = "none";
+    const shell = viewer.current;
+    const previous = shell?.style.visibility ?? "";
+    if (shell) shell.style.visibility = "hidden";
     const hit = document.elementFromPoint(x, y);
-    if (node && !closing.current) node.style.pointerEvents = previous;
+    if (shell) shell.style.visibility = previous;
     return hit instanceof Element ? hit : null;
+  }
+
+  function pointerInsideControls(x: number, y: number) {
+    const bounds = [
+      controls.current?.getBoundingClientRect(),
+      viewer.current
+        ?.querySelector<HTMLButtonElement>(".print-viewer-close")
+        ?.getBoundingClientRect(),
+    ];
+    return bounds.some(
+      (rect) => rect && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
+    );
   }
 
   function nearestPrint(x: number, y: number) {
@@ -284,9 +412,12 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     pointer.current = { x, y };
     const shell = viewer.current;
     if (!shell?.classList.contains("is-active") || closing.current) return;
-    const moved = Math.hypot(x - origin.current.x, y - origin.current.y);
-    if (!settled.current && moved < 8) return;
-    if (pointerInsideStage(x, y)) {
+    if (!settled.current) return;
+    if (
+      pointerInsideStage(x, y) ||
+      pointerInsideSource(x, y) ||
+      pointerInsideControls(x, y)
+    ) {
       clearGap();
       return;
     }
@@ -295,10 +426,10 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     const direct = hit?.closest<HTMLElement>(".cabinet-print") ?? null;
     const print = direct ?? nearestPrint(x, y);
     if (print && print !== zoomedPrint.current) {
-      openZoom(print, x, y);
+      openZoom(print);
       return;
     }
-    if (hit?.closest(".cabinet") || print) {
+    if (hit?.closest(".cabinet") || print || zoomedRow.current?.matches(":hover")) {
       clearGap();
       return;
     }
@@ -313,7 +444,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
       const next =
         again?.closest<HTMLElement>(".cabinet-print") ?? nearestPrint(latest.x, latest.y);
       if (next && next !== zoomedPrint.current) {
-        openZoom(next, latest.x, latest.y);
+        openZoom(next);
         return;
       }
       if (again?.closest(".cabinet") || next) return;
@@ -332,13 +463,13 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     window.clearTimeout(zoomTimer.current);
     closing.current = true;
     settled.current = false;
-    shell.classList.add("is-closing");
+    setIsClosing(true);
     node.style.pointerEvents = "none";
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const from = print?.getBoundingClientRect();
+    const from = sourceBox.current;
     const box = stageBox.current;
-    if (reduced || !from || from.width < 2) {
+    if (reduced || !print || from.width < 2) {
       hideZoom();
       return;
     }
@@ -355,19 +486,44 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
 
   closeZoom.current = dismissZoom;
 
+  function selectGalleryImage(index: number) {
+    const print = galleryPrints.current[index];
+    if (!print) return;
+    showPrint(print);
+  }
+
+  function moveGallery(direction: -1 | 1) {
+    const count = galleryPrints.current.length;
+    if (count < 2) return;
+    const next = (activeGalleryIndex.current + direction + count) % count;
+    selectGalleryImage(next);
+  }
+
+  stepGallery.current = moveGallery;
+
   function onPointerOver(event: PointerEvent<HTMLDivElement>) {
     armGlide(event);
-    if (!window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 881px)").matches) return;
+    pointer.current = { x: event.clientX, y: event.clientY };
+    if (
+      !window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 881px)").matches
+    ) {
+      return;
+    }
     const target = event.target;
     if (!(target instanceof Element)) return;
     if (viewer.current?.contains(target)) return;
     const print = target.closest<HTMLElement>(".cabinet-print");
     if (!print) return;
-    openZoom(print, event.clientX, event.clientY);
+    openZoom(print);
   }
 
-  function toggleOnCoarsePointer(event: MouseEvent<HTMLDivElement>) {
-    if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+  function toggleGalleryOnClick(event: MouseEvent<HTMLDivElement>) {
+    pointer.current = { x: event.clientX, y: event.clientY };
+    if (
+      window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 881px)").matches
+    ) {
+      return;
+    }
 
     const node = frame.current;
     const target = event.target;
@@ -378,7 +534,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     const print = target.closest<HTMLElement>(".cabinet-print");
     const row = target.closest<HTMLElement>("[data-cabinet-id]");
     if (print && row?.classList.contains("is-open")) {
-      openZoom(print, event.clientX, event.clientY);
+      openZoom(print);
       return;
     }
 
@@ -404,10 +560,19 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
       ref={frame}
       onPointerOver={onPointerOver}
       onPointerLeave={clearGlide}
-      onClick={toggleOnCoarsePointer}
+      onClick={toggleGalleryOnClick}
     >
       {children}
-      <div className="print-viewer" ref={viewer} aria-hidden="true">
+      <div
+        className={`print-viewer${isActive ? " is-active" : ""}${
+          isClosing ? " is-closing" : ""
+        }`}
+        ref={viewer}
+        aria-hidden={!isActive}
+        inert={!isActive}
+        role="group"
+        aria-label={`${galleryTitle || "Portfolio"} image viewer`}
+      >
         <button
           type="button"
           className="print-viewer-scrim"
@@ -422,6 +587,64 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
               <img alt="" className="is-hidden" draggable={false} />
             </div>
           </div>
+        </div>
+        <button
+          type="button"
+          className="print-viewer-close"
+          aria-label="Close image viewer"
+          onClick={() => closeZoom.current()}
+        >
+          <span aria-hidden="true">×</span>
+        </button>
+        <div className="print-viewer-controls" ref={controls}>
+          <button
+            type="button"
+            className="print-viewer-arrow"
+            aria-label="Previous image"
+            disabled={galleryImages.length < 2}
+            onClick={() => moveGallery(-1)}
+          >
+            <span aria-hidden="true">←</span>
+          </button>
+          <div className="print-viewer-selection">
+            <div className="print-viewer-caption" aria-live="polite">
+              <span>{galleryTitle}</span>
+              <span className="print-viewer-count">
+                {galleryImages.length ? `${galleryIndex + 1} / ${galleryImages.length}` : ""}
+              </span>
+            </div>
+            <div className="print-viewer-thumbnails" role="group" aria-label="Choose image">
+              {galleryImages.map((image, index) => (
+                <button
+                  type="button"
+                  className="print-viewer-thumbnail"
+                  key={`${image.src}-${index}`}
+                  aria-label={`View image ${index + 1}${image.alt ? `: ${image.alt}` : ""}`}
+                  aria-pressed={galleryIndex === index}
+                  onClick={() => selectGalleryImage(index)}
+                >
+                  <img
+                    src={image.src}
+                    alt=""
+                    draggable={false}
+                    style={{
+                      objectFit: image.fit as CSSProperties["objectFit"],
+                      objectPosition: image.position,
+                    }}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="print-viewer-arrow"
+            aria-label="Next image"
+            disabled={galleryImages.length < 2}
+            onClick={() => moveGallery(1)}
+          >
+            <span aria-hidden="true">→</span>
+          </button>
         </div>
       </div>
     </div>
