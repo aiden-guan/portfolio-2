@@ -138,7 +138,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
       copyFrame(picture, image);
     }
 
-    const from = print.getBoundingClientRect();
+    const from = imageSurface(print).getBoundingClientRect();
     const maxW = window.innerWidth * 0.8;
     const maxH = window.innerHeight * 0.68;
     const natural =
@@ -271,7 +271,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     const selectedIndex = Math.max(0, galleryPrints.current.indexOf(print));
     activeGalleryIndex.current = selectedIndex;
     setGalleryIndex(selectedIndex);
-    const sourceRect = print.getBoundingClientRect();
+    const sourceRect = imageSurface(print).getBoundingClientRect();
     sourceBox.current = {
       left: sourceRect.left,
       top: sourceRect.top,
@@ -300,6 +300,10 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
       node.style.transform = "translate(0px, 0px) scale(1)";
       settled.current = true;
     }
+  }
+
+  function imageSurface(print: HTMLElement) {
+    return print.querySelector<HTMLElement>(".cabinet-photo") ?? print;
   }
 
   function visiblePicture() {
