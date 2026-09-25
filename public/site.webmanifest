@@ -1,0 +1,16 @@
+{
+  "name": "Aiden Guan",
+  "short_name": "Aiden",
+  "description": "Aiden Guan — product builder.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f5f0",
+  "theme_color": "#f6f5f0",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
