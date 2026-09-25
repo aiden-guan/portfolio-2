@@ -904,7 +904,10 @@ button {
 }
 
 @media (hover: hover) and (pointer: fine) and (min-width: 881px) {
-  .site-frame:is(:has(.project-row:hover), :has(.timeline-row:hover))
+  .site-frame:is(
+      :has(.project-row > article:hover),
+      :has(.timeline-row > article:hover)
+    )
     :is(
       .identity,
       .section-heading,
