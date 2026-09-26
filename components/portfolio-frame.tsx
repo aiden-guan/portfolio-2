@@ -15,6 +15,22 @@ const ZOOM_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 const ZOOM_IN_MS = 620;
 const ZOOM_OUT_MS = 460;
 const HOVER_LAYOUT = "(hover: hover) and (pointer: fine) and (min-width: 881px)";
+const SHIFT_LAYOUT = "(min-width: 881px)";
+const SHIFT_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+const SHIFT_MS = 620;
+const SHIFT_STAGGER = 110;
+const SHIFT_ID = "row-shift";
+// Blocks that stay in the second column; they move vertically as the row restacks.
+const SHIFT_STAY = ".project-detail, .project-meta, .timeline-body, .timeline-layout time";
+// Blocks that sweep across into the second column, along with the fan.
+const SHIFT_SWEEP = ".project-number, .project-heading h3, .project-summary, .timeline-organization, .cabinet";
+
+type RowSnapshot = {
+  row: HTMLElement;
+  on: boolean;
+  box: DOMRect;
+  items: { element: HTMLElement; rect: DOMRect; sweeps: boolean }[];
+};
 
 type GalleryImage = {
   src: string;
@@ -59,6 +75,75 @@ function isReady(media: Media) {
     : media.complete;
 }
 
+// FLIP: record where every block is drawn (mid-flight included), switch
+// layouts, then play each block from its old spot to its new one. Offsets
+// are row-relative because neighbouring rows resize at the same time.
+function morphRows(rows: HTMLElement[]) {
+  const snapshots: RowSnapshot[] = rows.map((row) => ({
+    row,
+    on: !row.classList.contains("is-shifted"),
+    box: row.getBoundingClientRect(),
+    items: [
+      ...[...row.querySelectorAll<HTMLElement>(SHIFT_STAY)].map((element) => ({
+        element,
+        sweeps: false,
+      })),
+      ...[...row.querySelectorAll<HTMLElement>(SHIFT_SWEEP)].map((element) => ({
+        element,
+        sweeps: true,
+      })),
+    ].map((item) => ({ ...item, rect: item.element.getBoundingClientRect() })),
+  }));
+
+  for (const { row, on, items } of snapshots) {
+    for (const target of [row, ...items.map((item) => item.element)]) {
+      for (const animation of target.getAnimations()) {
+        if (animation.id === SHIFT_ID) animation.cancel();
+      }
+    }
+    row.classList.toggle("is-shifted", on);
+  }
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  const plans = snapshots.map((snapshot) => ({
+    ...snapshot,
+    next: snapshot.row.getBoundingClientRect(),
+    lasts: snapshot.items.map((item) => item.element.getBoundingClientRect()),
+  }));
+
+  for (const { row, on, box, items, next, lasts } of plans) {
+    // Opening: the second column drops first, then the title sweeps over it.
+    // Closing: the title sweeps back first, then the column rises.
+    const stayDelay = on ? 0 : SHIFT_STAGGER;
+    const sweepDelay = on ? SHIFT_STAGGER : 0;
+    const play = (target: HTMLElement, keyframes: Keyframe[], delay: number) => {
+      const animation = target.animate(keyframes, {
+        duration: SHIFT_MS,
+        easing: SHIFT_EASE,
+        delay,
+        fill: "backwards",
+      });
+      animation.id = SHIFT_ID;
+    };
+
+    if (Math.abs(box.height - next.height) > 0.5) {
+      play(row, [{ height: `${box.height}px` }, { height: `${next.height}px` }], stayDelay);
+    }
+    items.forEach(({ element, rect, sweeps }, index) => {
+      const last = lasts[index];
+      if (!last) return;
+      const dx = rect.left - box.left - (last.left - next.left);
+      const dy = rect.top - box.top - (last.top - next.top);
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+      play(
+        element,
+        [{ translate: `${dx}px ${dy}px` }, { translate: "0 0" }],
+        sweeps ? sweepDelay : stayDelay,
+      );
+    });
+  }
+}
+
 export function PortfolioFrame({ children }: { children: ReactNode }) {
   const frame = useRef<HTMLDivElement>(null);
   const viewer = useRef<HTMLDivElement>(null);
@@ -80,6 +165,51 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [isActive, setIsActive] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+
+  // Rows reflow to make room for their fan; see .is-shifted in globals.css.
+  useEffect(() => {
+    const node = frame.current;
+    if (!node) return;
+    // Rows without a fan have nothing to make room for.
+    const rows = [...node.querySelectorAll<HTMLElement>("[data-cabinet-id]")].filter(
+      (row) => row.querySelector(".cabinet-print") !== null,
+    );
+    const shiftLayout = window.matchMedia(SHIFT_LAYOUT);
+    const hoverLayout = window.matchMedia(HOVER_LAYOUT);
+
+    const wantsShift = (row: HTMLElement) =>
+      shiftLayout.matches &&
+      (row.classList.contains("is-open") ||
+        row.classList.contains("is-viewing") ||
+        row.querySelector(":focus-visible") !== null ||
+        (hoverLayout.matches && row.matches(":hover")));
+
+    const sync = () => {
+      const changed = rows.filter(
+        (row) => wantsShift(row) !== row.classList.contains("is-shifted"),
+      );
+      if (changed.length > 0) morphRows(changed);
+    };
+    const syncNextFrame = () => requestAnimationFrame(sync);
+
+    const observer = new MutationObserver(sync);
+    for (const row of rows) observer.observe(row, { attributeFilter: ["class"] });
+    node.addEventListener("pointerover", sync);
+    node.addEventListener("pointerleave", sync);
+    node.addEventListener("focusin", syncNextFrame);
+    node.addEventListener("focusout", syncNextFrame);
+    shiftLayout.addEventListener("change", sync);
+    hoverLayout.addEventListener("change", sync);
+    return () => {
+      observer.disconnect();
+      node.removeEventListener("pointerover", sync);
+      node.removeEventListener("pointerleave", sync);
+      node.removeEventListener("focusin", syncNextFrame);
+      node.removeEventListener("focusout", syncNextFrame);
+      shiftLayout.removeEventListener("change", sync);
+      hoverLayout.removeEventListener("change", sync);
+    };
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
