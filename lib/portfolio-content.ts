@@ -90,6 +90,7 @@ function readImages(value: unknown): PortfolioImage[] {
     if (!src) continue;
     const alt = typeof item.alt === "string" ? item.alt.trim().slice(0, 180) : "";
     const image: PortfolioImage = { src, alt, fit: item.fit === "cover" ? "cover" : "contain" };
+    if (item.kind === "video") image.kind = "video";
     const focusX = readFocus(item.focusX);
     const focusY = readFocus(item.focusY);
     if (focusX !== 50) image.focusX = focusX;

@@ -12,9 +12,12 @@ export type ProjectLink = {
 
 export type ImageFit = "contain" | "cover";
 
+// Rows hold images and short videos. `kind` is omitted for images so older
+// content keeps parsing unchanged.
 export type PortfolioImage = {
   src: string;
   alt: string;
+  kind?: "video";
   fit?: ImageFit;
   focusX?: number;
   focusY?: number;
@@ -28,6 +31,10 @@ export function imageFrame(image: Pick<PortfolioImage, "fit" | "focusX" | "focus
     fit,
     position: `${focusX}% ${focusY}%`,
   };
+}
+
+export function isVideo(media: Pick<PortfolioImage, "kind">) {
+  return media.kind === "video";
 }
 
 function clampFocus(value: number | undefined) {

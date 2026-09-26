@@ -862,6 +862,7 @@ export function AdminEditor() {
                     </div>
                     <AdminImageEditor
                       images={project.images}
+                      directUpload={configured}
                       nameForAlt={project.name}
                       onChange={(images) => updateProject(index, { images })}
                     />
@@ -949,6 +950,7 @@ export function AdminEditor() {
                     </div>
                     <AdminImageEditor
                       images={entry.images}
+                      directUpload={configured}
                       nameForAlt={entry.organization}
                       onChange={(images) => updateTimeline(index, { images })}
                     />

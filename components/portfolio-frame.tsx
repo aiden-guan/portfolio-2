@@ -21,7 +21,43 @@ type GalleryImage = {
   alt: string;
   fit: string;
   position: string;
+  kind: MediaKind;
 };
+
+type MediaKind = "image" | "video";
+type Media = HTMLImageElement | HTMLVideoElement;
+
+function printMedia(print: Element | undefined): Media | null {
+  const media = print?.querySelector("img, video");
+  return media instanceof HTMLImageElement || media instanceof HTMLVideoElement ? media : null;
+}
+
+function mediaKind(media: Media): MediaKind {
+  return media instanceof HTMLVideoElement ? "video" : "image";
+}
+
+// Prints load videos with a `#t=` fragment to show a frame; the viewer plays from the start.
+function mediaSrc(media: Media) {
+  return (media.currentSrc || media.src).split("#")[0] ?? "";
+}
+
+function mediaAlt(media: Media) {
+  return media instanceof HTMLImageElement ? media.alt : (media.getAttribute("aria-label") ?? "");
+}
+
+function mediaAspect(media: Media) {
+  const [width, height] =
+    media instanceof HTMLVideoElement
+      ? [media.videoWidth, media.videoHeight]
+      : [media.naturalWidth, media.naturalHeight];
+  return width > 0 && height > 0 ? width / height : null;
+}
+
+function isReady(media: Media) {
+  return media instanceof HTMLVideoElement
+    ? media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+    : media.complete;
+}
 
 export function PortfolioFrame({ children }: { children: ReactNode }) {
   const frame = useRef<HTMLDivElement>(null);
@@ -52,6 +88,8 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
         event.preventDefault();
         closeViewer.current();
       }
+      // Arrow keys seek a focused video instead of changing items.
+      if (event.target instanceof HTMLVideoElement) return;
       if (event.key === "ArrowLeft") {
         event.preventDefault();
         stepGallery.current(-1);
@@ -99,13 +137,44 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     return print.querySelector<HTMLElement>(".cabinet-photo") ?? print;
   }
 
-  function stageImages() {
-    return [...(stage.current?.querySelectorAll("img") ?? [])];
+  function stageSlots() {
+    return [...(stage.current?.querySelectorAll<HTMLElement>(".print-viewer-slot") ?? [])];
   }
 
-  function copyFrame(target: HTMLImageElement, source: HTMLImageElement) {
+  function slotVideo(slot: HTMLElement) {
+    return slot.querySelector("video");
+  }
+
+  // Points a slot at the element matching the source's kind and copies its framing.
+  function fillSlot(slot: HTMLElement, source: Media): Media | null {
+    const kind = mediaKind(source);
+    const target = kind === "video" ? slotVideo(slot) : slot.querySelector("img");
+    if (!target) return null;
+    slot.dataset.kind = kind;
     target.style.objectFit = source.style.objectFit || "contain";
     target.style.objectPosition = source.style.objectPosition || "50% 50%";
+    if (target instanceof HTMLImageElement) target.alt = mediaAlt(source);
+    else target.setAttribute("aria-label", mediaAlt(source));
+    return target;
+  }
+
+  function playVideo(video: HTMLVideoElement) {
+    if (reducedMotion()) return;
+    video.play().catch(() => {});
+  }
+
+  function pauseSlot(slot: HTMLElement) {
+    slotVideo(slot)?.pause();
+  }
+
+  function unloadVideos() {
+    for (const slot of stageSlots()) {
+      const video = slotVideo(slot);
+      if (!video?.hasAttribute("src")) continue;
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    }
   }
 
   // Transform that maps the centred stage back onto a print's thumbnail.
@@ -119,25 +188,28 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
 
   function placeStage(print: HTMLElement) {
     const node = stage.current;
-    const image = print.querySelector("img");
-    if (!node || !(image instanceof HTMLImageElement)) return;
+    const media = printMedia(print);
+    if (!node || !media) return;
 
-    const [front, back] = stageImages();
+    const [front, back] = stageSlots();
     if (front) {
-      front.src = image.currentSrc || image.src;
-      front.alt = image.alt;
+      const target = fillSlot(front, media);
       front.classList.remove("is-hidden");
-      copyFrame(front, image);
+      if (target) {
+        const src = mediaSrc(media);
+        if (target.getAttribute("src") !== src) target.setAttribute("src", src);
+        if (target instanceof HTMLVideoElement) playVideo(target);
+      }
     }
-    back?.classList.add("is-hidden");
+    if (back) {
+      back.classList.add("is-hidden");
+      pauseSlot(back);
+    }
 
     const from = imageSurface(print).getBoundingClientRect();
-    const natural =
-      image.naturalWidth > 0 && image.naturalHeight > 0
-        ? image.naturalWidth / image.naturalHeight
-        : from.width / Math.max(from.height, 1);
+    const natural = mediaAspect(media) ?? from.width / Math.max(from.height, 1);
     const aspect =
-      image.style.objectFit === "cover" ? from.width / Math.max(from.height, 1) : natural;
+      media.style.objectFit === "cover" ? from.width / Math.max(from.height, 1) : natural;
     const maxW = window.innerWidth * 0.8;
     const maxH = window.innerHeight * 0.68;
     let width = maxW;
@@ -167,26 +239,31 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     node.style.transform = "none";
   }
 
-  function crossfade(source: HTMLImageElement) {
-    const images = stageImages();
-    const front = images.find((img) => !img.classList.contains("is-hidden")) ?? images[0];
-    const back = images.find((img) => img !== front);
+  function crossfade(source: Media) {
+    const slots = stageSlots();
+    const front = slots.find((slot) => !slot.classList.contains("is-hidden")) ?? slots[0];
+    const back = slots.find((slot) => slot !== front);
     if (!front || !back) return;
-    const src = source.currentSrc || source.src;
+    const kind = mediaKind(source);
+    const src = mediaSrc(source);
+    pauseSlot(back);
+    const target = fillSlot(back, source);
+    if (!target) return;
     const reveal = () => {
-      if (back.getAttribute("src") !== src) return;
-      copyFrame(back, source);
+      // A later selection may have repointed this slot while it loaded.
+      if (back.dataset.kind !== kind || target.getAttribute("src") !== src) return;
       back.classList.remove("is-hidden");
       front.classList.add("is-hidden");
+      pauseSlot(front);
+      if (target instanceof HTMLVideoElement) playVideo(target);
     };
-    back.alt = source.alt;
-    if (back.getAttribute("src") === src && back.complete) {
+    if (target.getAttribute("src") === src && isReady(target)) {
       reveal();
       return;
     }
-    back.addEventListener("load", reveal, { once: true });
-    back.addEventListener("error", reveal, { once: true });
-    back.setAttribute("src", src);
+    target.addEventListener(kind === "video" ? "loadeddata" : "load", reveal, { once: true });
+    target.addEventListener("error", reveal, { once: true });
+    target.setAttribute("src", src);
   }
 
   function setSource(index: number) {
@@ -201,15 +278,16 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     if (!row || open.current) return;
 
     const prints = [...row.querySelectorAll<HTMLElement>(".cabinet-print")];
-    const images = prints.flatMap((item) => {
-      const image = item.querySelector("img");
-      if (!(image instanceof HTMLImageElement)) return [];
+    const images = prints.flatMap((item): GalleryImage[] => {
+      const media = printMedia(item);
+      if (!media) return [];
       return [
         {
-          src: image.currentSrc || image.src,
-          alt: image.alt,
-          fit: image.style.objectFit || "cover",
-          position: image.style.objectPosition || "50% 50%",
+          src: mediaSrc(media),
+          alt: mediaAlt(media),
+          fit: media.style.objectFit || "cover",
+          position: media.style.objectPosition || "50% 50%",
+          kind: mediaKind(media),
         },
       ];
     });
@@ -254,6 +332,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     setGalleryTitle("");
     setGalleryIndex(0);
     if (stage.current) stage.current.style.transition = "none";
+    unloadVideos();
     const focusTarget = returnFocus.current;
     returnFocus.current = null;
     if (focusTarget?.isConnected) {
@@ -282,12 +361,11 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
   }
 
   function selectGalleryImage(index: number) {
-    const print = galleryPrints.current[index];
-    const image = print?.querySelector("img");
-    if (!open.current || closing.current || !(image instanceof HTMLImageElement)) return;
+    const media = printMedia(galleryPrints.current[index]);
+    if (!open.current || closing.current || !media) return;
     if (index === activeIndex.current) return;
     setSource(index);
-    crossfade(image);
+    crossfade(media);
   }
 
   function moveGallery(direction: -1 | 1) {
@@ -377,8 +455,12 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
         <div className="print-viewer-stage" ref={stage}>
           <div className="print-viewer-lens">
             <div className="print-viewer-mat">
-              <img alt="" draggable={false} />
-              <img alt="" className="is-hidden" draggable={false} />
+              {["", " is-hidden"].map((hidden) => (
+                <div className={`print-viewer-slot${hidden}`} data-kind="image" key={hidden}>
+                  <img alt="" draggable={false} />
+                  <video controls loop muted playsInline preload="auto" />
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -414,19 +496,22 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
                   type="button"
                   className="print-viewer-thumbnail"
                   key={`${image.src}-${index}`}
-                  aria-label={`View image ${index + 1}${image.alt ? `: ${image.alt}` : ""}`}
+                  aria-label={`View ${image.kind} ${index + 1}${image.alt ? `: ${image.alt}` : ""}`}
                   aria-pressed={galleryIndex === index}
                   onClick={() => selectGalleryImage(index)}
                 >
-                  <img
-                    src={image.src}
-                    alt=""
-                    draggable={false}
-                    style={{
-                      objectFit: image.fit as CSSProperties["objectFit"],
-                      objectPosition: image.position,
-                    }}
-                  />
+                  {image.kind === "video" ? (
+                    <video
+                      aria-hidden="true"
+                      muted
+                      playsInline
+                      preload="metadata"
+                      src={`${image.src}#t=0.001`}
+                      style={thumbnailStyle(image)}
+                    />
+                  ) : (
+                    <img src={image.src} alt="" draggable={false} style={thumbnailStyle(image)} />
+                  )}
                 </button>
               ))}
             </div>
@@ -444,4 +529,11 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
+}
+
+function thumbnailStyle(image: GalleryImage): CSSProperties {
+  return {
+    objectFit: image.fit as CSSProperties["objectFit"],
+    objectPosition: image.position,
+  };
 }

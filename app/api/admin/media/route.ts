@@ -2,8 +2,10 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { isContentStoreConfigured } from "@/lib/portfolio-content";
 import {
   MAX_IMAGE_BYTES,
+  MAX_VIDEO_BYTES,
   PortfolioMediaError,
   storePortfolioImage,
+  VIDEO_TYPES,
 } from "@/lib/portfolio-media";
 
 export const runtime = "nodejs";
@@ -34,8 +36,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "Choose an image to add." }, { status: 400, headers: noStore });
   }
 
-  if (file.size > MAX_IMAGE_BYTES) {
-    return Response.json({ error: "Use an image under 4 MB." }, { status: 400, headers: noStore });
+  // Videos over the function body limit go straight to Blob (see ./upload);
+  // this route only takes them in local development.
+  const video = VIDEO_TYPES.has(file.type);
+  if (file.size > (video ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES)) {
+    const error = video ? "Use a video under 100 MB." : "Use an image under 4 MB.";
+    return Response.json({ error }, { status: 400, headers: noStore });
   }
 
   try {

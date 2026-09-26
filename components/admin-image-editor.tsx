@@ -2,7 +2,25 @@
 
 import { type DragEvent, type PointerEvent as ReactPointerEvent, useId, useRef, useState } from "react";
 import Image from "next/image";
-import { imageFrame, MAX_PROJECT_IMAGES, type PortfolioImage } from "@/content/portfolio";
+import { upload } from "@vercel/blob/client";
+import { imageFrame, isVideo, MAX_PROJECT_IMAGES, type PortfolioImage } from "@/content/portfolio";
+
+const VIDEO_EXTENSIONS: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+};
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+const ACCEPT = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+  ...Object.keys(VIDEO_EXTENSIONS),
+].join(",");
+
+class UploadError extends Error {}
 
 function errorMessage(payload: unknown, fallback: string) {
   if (
@@ -19,10 +37,14 @@ function errorMessage(payload: unknown, fallback: string) {
 export function AdminImageEditor({
   images,
   nameForAlt,
+  directUpload,
   onChange,
 }: {
   images: PortfolioImage[];
   nameForAlt: string;
+  // With Blob connected, videos upload straight from the browser, since they
+  // outgrow the serverless request body limit.
+  directUpload: boolean;
   onChange: (images: PortfolioImage[]) => void;
 }) {
   const inputId = useId();
@@ -30,7 +52,45 @@ export function AdminImageEditor({
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
+  const [progress, setProgress] = useState<number | null>(null);
   const atLimit = images.length >= MAX_PROJECT_IMAGES;
+
+  async function uploadVideo(file: File, extension: string) {
+    const pathname = `portfolio/media/${crypto.randomUUID()}.${extension}`;
+    const options = {
+      handleUploadUrl: "/api/admin/media/upload",
+      contentType: file.type,
+      multipart: file.size > 8 * 1024 * 1024,
+      onUploadProgress: ({ percentage }: { percentage: number }) =>
+        setProgress(Math.round(percentage)),
+    };
+
+    try {
+      const blob = await upload(pathname, file, { ...options, access: "public" });
+      return blob.url;
+    } catch (error) {
+      if (!prefersPrivateStore(error)) throw error;
+      await upload(pathname, file, { ...options, access: "private" });
+      return `/api/media/${encodeURIComponent(pathname.split("/").pop() ?? "")}`;
+    }
+  }
+
+  async function uploadFile(file: File) {
+    const extension = VIDEO_EXTENSIONS[file.type];
+    if (extension && file.size > MAX_VIDEO_BYTES) {
+      throw new UploadError("Use a video under 100 MB.");
+    }
+    if (extension && directUpload) return uploadVideo(file, extension);
+
+    const body = new FormData();
+    body.set("file", file);
+    const response = await fetch("/api/admin/media", { method: "POST", body });
+    const payload: unknown = await response.json();
+    if (!response.ok || !isUploadedImage(payload)) {
+      throw new UploadError(errorMessage(payload, "The file could not be added."));
+    }
+    return payload.src;
+  }
 
   async function addFiles(list: FileList | File[]) {
     const incoming = Array.from(list).filter((file) => file.size > 0);
@@ -38,7 +98,7 @@ export function AdminImageEditor({
 
     const room = MAX_PROJECT_IMAGES - images.length;
     if (room <= 0) {
-      setError("A row holds six images.");
+      setError("A row holds six items.");
       return;
     }
 
@@ -50,31 +110,26 @@ export function AdminImageEditor({
 
     try {
       for (const file of accepted) {
-        const body = new FormData();
-        body.set("file", file);
-        const response = await fetch("/api/admin/media", { method: "POST", body });
-        const payload: unknown = await response.json();
-
-        if (!response.ok || !isUploadedImage(payload)) {
-          setError(errorMessage(payload, "The image could not be added."));
-          break;
-        }
-
+        setProgress(null);
+        const src = await uploadFile(file);
         const position = next.length + 1;
-        next.push({
-          src: payload.src,
+        const item: PortfolioImage = {
+          src,
           alt: position === 1 ? nameForAlt : `${nameForAlt} ${position}`,
           fit: "contain",
-        });
+        };
+        if (file.type in VIDEO_EXTENSIONS) item.kind = "video";
+        next.push(item);
         onChange([...next]);
       }
-    } catch {
-      setError("The image could not be added.");
+    } catch (error) {
+      setError(error instanceof UploadError ? error.message : "The file could not be added.");
     } finally {
       setUploading(false);
+      setProgress(null);
       if (inputRef.current) inputRef.current.value = "";
       if (leftOut > 0) {
-        setError((current) => current || "A row holds six images. Extra files were left out.");
+        setError((current) => current || "A row holds six items. Extra files were left out.");
       }
     }
   }
@@ -144,10 +199,11 @@ export function AdminImageEditor({
     >
       <div className="editor-subsection-heading">
         <div>
-          <h3>Images</h3>
+          <h3>Images and videos</h3>
           <p className="editor-hint editor-image-hint">
             Uploads keep their full frame. Choose Fill card if you want to crop one, then drag
-            the photo to set what stays visible. The last image sits on top. Save after editing.
+            it to set what stays visible. The last item sits on top. Videos play muted in the
+            viewer, up to 100 MB. Save after editing.
           </p>
         </div>
         <div>
@@ -156,7 +212,7 @@ export function AdminImageEditor({
             id={inputId}
             className="editor-file-input"
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+            accept={ACCEPT}
             multiple
             disabled={uploading || atLimit}
             tabIndex={-1}
@@ -170,7 +226,7 @@ export function AdminImageEditor({
             disabled={uploading || atLimit}
             onClick={() => inputRef.current?.click()}
           >
-            {uploading ? "Adding…" : "Add images"}
+            {uploading ? (progress === null ? "Adding…" : `Adding… ${progress}%`) : "Add media"}
           </button>
         </div>
       </div>
@@ -191,14 +247,24 @@ export function AdminImageEditor({
                 className={`editor-image-preview${frame.fit === "cover" ? " is-movable" : ""}`}
                 onPointerDown={(event) => onPreviewPointerDown(event, index)}
               >
-                <Image
-                  alt=""
-                  fill
-                  sizes="160px"
-                  src={image.src}
-                  style={{ objectFit: frame.fit, objectPosition: frame.position }}
-                  unoptimized={image.src.startsWith("/api/")}
-                />
+                {isVideo(image) ? (
+                  <video
+                    muted
+                    playsInline
+                    preload="metadata"
+                    src={`${image.src}#t=0.001`}
+                    style={{ objectFit: frame.fit, objectPosition: frame.position }}
+                  />
+                ) : (
+                  <Image
+                    alt=""
+                    fill
+                    sizes="160px"
+                    src={image.src}
+                    style={{ objectFit: frame.fit, objectPosition: frame.position }}
+                    unoptimized={image.src.startsWith("/api/")}
+                  />
+                )}
               </div>
               <div className="editor-fit-toggle" role="group" aria-label={`Framing for image ${index + 1}`}>
                 <button
@@ -207,7 +273,7 @@ export function AdminImageEditor({
                   aria-pressed={frame.fit === "contain"}
                   onClick={() => updateImage(index, { fit: "contain" })}
                 >
-                  Whole image
+                  Whole frame
                 </button>
                 <button
                   className="editor-button editor-button-small"
@@ -219,7 +285,9 @@ export function AdminImageEditor({
                 </button>
               </div>
               <p className="editor-image-note">
-                {frame.fit === "cover" ? "Drag the photo to set the crop." : "The full photo stays visible."}
+                {frame.fit === "cover"
+                  ? `Drag the ${isVideo(image) ? "video" : "photo"} to set the crop.`
+                  : `The full ${isVideo(image) ? "video" : "photo"} stays visible.`}
               </p>
               <label className="editor-field" htmlFor={`${inputId}-alt-${index}`}>
                 <span className="editor-label">Description</span>
@@ -262,9 +330,17 @@ export function AdminImageEditor({
           })}
         </div>
       ) : (
-        <p className="editor-empty-state">No images yet. Drop some here, or add them.</p>
+        <p className="editor-empty-state">No images or videos yet. Drop some here, or add them.</p>
       )}
     </div>
+  );
+}
+
+function prefersPrivateStore(error: unknown) {
+  return (
+    error instanceof Error &&
+    /public/i.test(error.message) &&
+    /access|private|not allowed/i.test(error.message)
   );
 }
 

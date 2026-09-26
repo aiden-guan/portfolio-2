@@ -7,6 +7,7 @@ import { isContentStoreConfigured } from "@/lib/portfolio-content";
 export class PortfolioMediaError extends Error {}
 
 export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
 const IMAGE_TYPES = new Map([
   ["image/jpeg", "jpg"],
@@ -16,7 +17,14 @@ const IMAGE_TYPES = new Map([
   ["image/avif", "avif"],
 ]);
 
+export const VIDEO_TYPES = new Map([
+  ["video/mp4", "mp4"],
+  ["video/webm", "webm"],
+  ["video/quicktime", "mov"],
+]);
+
 const MEDIA_NAME = /^[A-Za-z0-9._-]+$/;
+const VIDEO_PATHNAME = /^portfolio\/media\/[0-9a-f-]{36}\.(mp4|webm|mov)$/;
 
 function hasSignature(bytes: Uint8Array, type: string) {
   if (bytes.length < 12) return false;
@@ -44,6 +52,14 @@ function hasSignature(bytes: Uint8Array, type: string) {
       bytes[10] === 0x42 &&
       bytes[11] === 0x50
     );
+  }
+
+  if (type === "video/mp4" || type === "video/quicktime") {
+    return String.fromCharCode(bytes[4] ?? 0, bytes[5] ?? 0, bytes[6] ?? 0, bytes[7] ?? 0) === "ftyp";
+  }
+
+  if (type === "video/webm") {
+    return bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
   }
 
   if (type === "image/avif") {
@@ -76,14 +92,24 @@ export function mediaPathname(name: string) {
   return `portfolio/media/${decoded}`;
 }
 
+// Pathnames the browser may claim for a direct-to-Blob video upload.
+export function isVideoPathname(pathname: string) {
+  return VIDEO_PATHNAME.test(pathname);
+}
+
 export async function storePortfolioImage(bytes: Uint8Array, type: string) {
-  const extension = IMAGE_TYPES.get(type);
+  const video = VIDEO_TYPES.has(type);
+  const extension = IMAGE_TYPES.get(type) ?? VIDEO_TYPES.get(type);
   if (!extension || bytes.byteLength === 0 || !hasSignature(bytes, type)) {
-    throw new PortfolioMediaError("Use a JPEG, PNG, WebP, GIF, or AVIF.");
+    throw new PortfolioMediaError("Use a JPEG, PNG, WebP, GIF, AVIF, MP4, WebM, or MOV.");
   }
 
-  if (bytes.byteLength > MAX_IMAGE_BYTES) {
+  if (!video && bytes.byteLength > MAX_IMAGE_BYTES) {
     throw new PortfolioMediaError("Use an image under 4 MB.");
+  }
+
+  if (video && bytes.byteLength > MAX_VIDEO_BYTES) {
+    throw new PortfolioMediaError("Use a video under 100 MB.");
   }
 
   const filename = `${randomUUID()}.${extension}`;
