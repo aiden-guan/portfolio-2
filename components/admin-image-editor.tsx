@@ -11,6 +11,9 @@ const VIDEO_EXTENSIONS: Record<string, string> = {
   "video/quicktime": "mov",
 };
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+const UPLOAD_PREPARATION_TIMEOUT_MS = 60 * 1000;
+const IMAGE_UPLOAD_TIMEOUT_MS = 60 * 1000;
+const VIDEO_UPLOAD_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const ACCEPT = [
   "image/jpeg",
   "image/png",
@@ -57,21 +60,41 @@ export function AdminImageEditor({
 
   async function uploadVideo(file: File, extension: string) {
     const pathname = `portfolio/media/${crypto.randomUUID()}.${extension}`;
+    const controller = new AbortController();
+    let uploadStarted = false;
+    let timeout = window.setTimeout(() => controller.abort(), UPLOAD_PREPARATION_TIMEOUT_MS);
     const options = {
       handleUploadUrl: "/api/admin/media/upload",
       contentType: file.type,
       multipart: file.size > 8 * 1024 * 1024,
-      onUploadProgress: ({ percentage }: { percentage: number }) =>
-        setProgress(Math.round(percentage)),
+      abortSignal: controller.signal,
+      onUploadProgress: ({ percentage }: { percentage: number }) => {
+        uploadStarted = true;
+        setProgress(Math.round(percentage));
+        window.clearTimeout(timeout);
+        timeout = window.setTimeout(() => controller.abort(), VIDEO_UPLOAD_IDLE_TIMEOUT_MS);
+      },
     };
 
     try {
-      const blob = await upload(pathname, file, { ...options, access: "public" });
-      return blob.url;
+      try {
+        const blob = await upload(pathname, file, { ...options, access: "public" });
+        return blob.url;
+      } catch (error) {
+        if (!prefersPrivateStore(error)) throw error;
+        await upload(pathname, file, { ...options, access: "private" });
+        return `/api/media/${encodeURIComponent(pathname.split("/").pop() ?? "")}`;
+      }
     } catch (error) {
-      if (!prefersPrivateStore(error)) throw error;
-      await upload(pathname, file, { ...options, access: "private" });
-      return `/api/media/${encodeURIComponent(pathname.split("/").pop() ?? "")}`;
+      if (controller.signal.aborted) {
+        const message = uploadStarted
+          ? "The upload stalled. Check your connection and try again."
+          : "The upload could not start. Check your connection and try again.";
+        throw new UploadError(message);
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
     }
   }
 
@@ -84,12 +107,27 @@ export function AdminImageEditor({
 
     const body = new FormData();
     body.set("file", file);
-    const response = await fetch("/api/admin/media", { method: "POST", body });
-    const payload: unknown = await response.json();
-    if (!response.ok || !isUploadedImage(payload)) {
-      throw new UploadError(errorMessage(payload, "The file could not be added."));
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), IMAGE_UPLOAD_TIMEOUT_MS);
+    try {
+      const response = await fetch("/api/admin/media", {
+        method: "POST",
+        body,
+        signal: controller.signal,
+      });
+      const payload: unknown = await response.json();
+      if (!response.ok || !isUploadedImage(payload)) {
+        throw new UploadError(errorMessage(payload, "The file could not be added."));
+      }
+      return payload.src;
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new UploadError("The upload took too long. Check your connection and try again.");
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
     }
-    return payload.src;
   }
 
   async function addFiles(list: FileList | File[]) {
