@@ -17,6 +17,8 @@
   --spotlight: 0.34;
   --print: clamp(7.7rem, 8vw, 8.375rem);
   --gutter: clamp(20.5rem, 22vw, 22rem);
+  --inset: 2.75rem;
+  --slide: calc(var(--gutter) - var(--inset));
 }
 
 html[data-theme="dark"] {
@@ -285,7 +287,7 @@ button {
   position: relative;
   z-index: 1;
   min-width: 0;
-  padding-left: var(--gutter);
+  padding-left: var(--inset);
 }
 
 .page-section {
@@ -937,8 +939,8 @@ button {
 
 @media (hover: hover) and (pointer: fine) and (min-width: 881px) {
   .site-frame:is(
-      :has(.project-row > article:hover),
-      :has(.timeline-row > article:hover)
+      :has(.project-row:hover),
+      :has(.timeline-row:hover)
     )
     :is(
       .identity,
@@ -968,13 +970,18 @@ button {
     opacity: 1;
   }
 
+  .project-row:hover > article,
+  .timeline-row:hover > article {
+    transform: translate3d(var(--slide), 0, 0);
+  }
+
   .project-row::before,
   .timeline-row::before {
     content: "";
     position: absolute;
     z-index: 3;
     top: -12rem;
-    right: 100%;
+    right: calc(100% - var(--slide));
     bottom: -12rem;
     width: min(42vw, 36rem);
     pointer-events: none;
@@ -1003,6 +1010,29 @@ button {
 }
 
 @media (min-width: 881px) {
+  /* Content rests against the sidebar; the right margin is where the active
+     row slides to make room for its fan. Rules still span the full column. */
+  .section-heading,
+  .about-grid {
+    width: calc(100% - var(--slide));
+  }
+
+  .project-row > article,
+  .timeline-row > article {
+    width: calc(100% - var(--slide));
+    transform: translate3d(0, 0, 0);
+    transition: transform 720ms var(--ease-drawer);
+  }
+
+  .project-row:has(:focus-visible) > article,
+  .timeline-row:has(:focus-visible) > article,
+  .project-row.is-open > article,
+  .timeline-row.is-open > article,
+  .project-row.is-viewing > article,
+  .timeline-row.is-viewing > article {
+    transform: translate3d(var(--slide), 0, 0);
+  }
+
   .site-frame:is(
       :has(.project-row:has(:focus-visible)),
       :has(.timeline-row:has(:focus-visible)),
