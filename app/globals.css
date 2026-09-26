@@ -17,7 +17,6 @@
   --spotlight: 0.34;
   --print: clamp(7.7rem, 8vw, 8.375rem);
   --gutter: clamp(20.5rem, 22vw, 22rem);
-  --inset: 2.75rem;
 }
 
 html[data-theme="dark"] {
@@ -286,7 +285,7 @@ button {
   position: relative;
   z-index: 1;
   min-width: 0;
-  padding-left: var(--inset);
+  padding-left: 2.75rem;
 }
 
 .page-section {
@@ -938,8 +937,8 @@ button {
 
 @media (hover: hover) and (pointer: fine) and (min-width: 881px) {
   .site-frame:is(
-      :has(.project-row:hover),
-      :has(.timeline-row:hover)
+      :has(.project-row > article:hover),
+      :has(.timeline-row > article:hover)
     )
     :is(
       .identity,
@@ -975,7 +974,7 @@ button {
     position: absolute;
     z-index: 3;
     top: -12rem;
-    right: calc(100% - var(--shift));
+    right: 100%;
     bottom: -12rem;
     width: min(42vw, 36rem);
     pointer-events: none;
@@ -1004,75 +1003,6 @@ button {
 }
 
 @media (min-width: 881px) {
-  /* Rows fill the column at rest. The active row (.is-shifted, set by
-     PortfolioFrame) reflows so its text stacks over the second column,
-     leaving the first column for the fan. Each text block keeps its width in
-     both layouts, so the morph only moves blocks and never rewraps them. */
-  .project-index,
-  .timeline {
-    container-type: inline-size;
-  }
-
-  /* A hovered row grows; anchoring would scroll the page under the cursor. */
-  html {
-    overflow-anchor: none;
-  }
-
-  .project-row {
-    --shift: calc((100cqw - 5.05rem) * 0.45 + 2rem);
-  }
-
-  .timeline-row {
-    --shift: calc((100cqw - 8.5rem) * 0.8 / 2.15 + 2rem);
-  }
-
-  .project-summary {
-    max-width: min(28ch, (100cqw - 5.05rem) * 0.45);
-  }
-
-  .timeline-layout {
-    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.35fr) 4.5rem;
-  }
-
-  .timeline-organization {
-    max-width: calc((100cqw - 8.5rem) * 0.8 / 2.15);
-  }
-
-  .is-shifted > article {
-    padding-left: var(--shift);
-  }
-
-  .is-shifted .cabinet {
-    right: calc(100% - var(--shift) + 0.4rem);
-  }
-
-  .is-shifted .project-body {
-    grid-template-columns: minmax(0, 1fr);
-    row-gap: 0.7rem;
-  }
-
-  .is-shifted .project-meta {
-    grid-column: 1;
-    margin-top: 1.3rem;
-  }
-
-  .is-shifted .timeline-layout {
-    grid-template-columns: minmax(0, 1fr) 4.5rem;
-    row-gap: 0.45rem;
-  }
-
-  .is-shifted .timeline-organization {
-    grid-area: 1 / 1;
-  }
-
-  .is-shifted .timeline-body {
-    grid-area: 2 / 1;
-  }
-
-  .is-shifted .timeline-layout time {
-    grid-area: 1 / 2;
-  }
-
   .site-frame:is(
       :has(.project-row:has(:focus-visible)),
       :has(.timeline-row:has(:focus-visible)),
