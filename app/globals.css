@@ -15,8 +15,8 @@
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-pop: cubic-bezier(0.16, 1.28, 0.3, 1);
   --spotlight: 0.34;
-  --print: clamp(7.7rem, 9.1vw, 9.8rem);
-  --gutter: clamp(3.25rem, 6vw, 6.75rem);
+  --print: clamp(7.7rem, 8vw, 8.375rem);
+  --gutter: clamp(20.5rem, 22vw, 22rem);
 }
 
 html[data-theme="dark"] {
@@ -299,7 +299,7 @@ button {
 
 .section-heading {
   display: grid;
-  grid-template-columns: minmax(10rem, 0.9fr) minmax(18rem, 1.1fr);
+  grid-template-columns: minmax(8rem, 0.9fr) minmax(18rem, 1.1fr);
   gap: 2rem;
   align-items: start;
   margin-bottom: 5rem;
@@ -500,7 +500,7 @@ button {
   transform-style: preserve-3d;
   width: var(--print);
   height: calc(var(--print) * 1.26);
-  margin-left: calc(var(--print) * -0.58);
+  margin-left: calc(var(--print) * var(--overlap, -0.58));
   border: 0;
   border-radius: var(--glass-radius);
   background: transparent;

@@ -3,6 +3,7 @@ import { imageFrame, type PortfolioImage } from "@/content/portfolio";
 
 export function Cabinet({ images, label }: { images: PortfolioImage[]; label: string }) {
   if (images.length === 0) return null;
+  const overlap = images.length > 3 ? (images.length - 2) / (images.length - 1) : 0.58;
 
   return (
     <div className="cabinet">
@@ -18,6 +19,7 @@ export function Cabinet({ images, label }: { images: PortfolioImage[]; label: st
                   "--tilt": `${tilt.toFixed(2)}deg`,
                   "--i": index,
                   "--count": images.length,
+                  "--overlap": String(-overlap),
                 } as CSSProperties
               }
             >
