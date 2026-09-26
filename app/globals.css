@@ -925,26 +925,25 @@ button {
     opacity: 1;
   }
 
-  .project-row:hover .cabinet,
-  .timeline-row:hover .cabinet {
-    pointer-events: auto;
-  }
-
+  /* Only the prints themselves take the pointer, so the row stops being
+     :hover as soon as the pointer leaves the row or its images. */
   .project-row:hover .cabinet-print,
   .timeline-row:hover .cabinet-print {
     transform: translate3d(0, 0, 0) rotate(var(--tilt)) scale(1);
     opacity: 1;
+    pointer-events: auto;
   }
 
+  /* Bridges only the gap between the row and its front print. */
   .project-row::before,
   .timeline-row::before {
     content: "";
     position: absolute;
     z-index: 3;
-    top: -12rem;
+    top: 0;
     right: 100%;
-    bottom: -12rem;
-    width: min(42vw, 36rem);
+    bottom: 0;
+    width: 2.2rem;
     pointer-events: none;
   }
 
@@ -998,15 +997,6 @@ button {
     opacity: 1;
   }
 
-  .project-row:has(:focus-visible) .cabinet,
-  .timeline-row:has(:focus-visible) .cabinet,
-  .project-row.is-open .cabinet,
-  .timeline-row.is-open .cabinet,
-  .project-row.is-viewing .cabinet,
-  .timeline-row.is-viewing .cabinet {
-    pointer-events: auto;
-  }
-
   .project-row:has(:focus-visible) .cabinet-print,
   .timeline-row:has(:focus-visible) .cabinet-print,
   .project-row.is-open .cabinet-print,
@@ -1015,6 +1005,7 @@ button {
   .timeline-row.is-viewing .cabinet-print {
     transform: translate3d(0, 0, 0) rotate(var(--tilt)) scale(1);
     opacity: 1;
+    pointer-events: auto;
   }
 }
 
