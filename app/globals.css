@@ -534,7 +534,7 @@ button {
   container-type: size;
   transform: translate3d(0, 0, 0) scale(1);
   transform-origin: center;
-  transition: transform 680ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .cabinet-photo {
@@ -623,7 +623,7 @@ button {
   background: rgb(0 0 0 / 0.46);
   opacity: 0;
   cursor: default;
-  transition: opacity 820ms var(--ease-out);
+  transition: opacity 520ms var(--ease-out);
   backdrop-filter: blur(5px);
 }
 
@@ -913,8 +913,8 @@ button {
       .section-heading,
       .about-grid,
       .site-footer,
-      .project-row:not(:hover),
-      .timeline-row:not(:hover)
+      .project-row:not(:hover, .is-open, .is-viewing, :has(:focus-visible)),
+      .timeline-row:not(:hover, .is-open, .is-viewing, :has(:focus-visible))
     ) {
     opacity: var(--spotlight);
   }
@@ -926,16 +926,12 @@ button {
   }
 
   .project-row:hover .cabinet,
-  .timeline-row:hover .cabinet,
-  .project-row:has(:focus-visible) .cabinet,
-  .timeline-row:has(:focus-visible) .cabinet {
+  .timeline-row:hover .cabinet {
     pointer-events: auto;
   }
 
   .project-row:hover .cabinet-print,
-  .timeline-row:hover .cabinet-print,
-  .project-row:has(:focus-visible) .cabinet-print,
-  .timeline-row:has(:focus-visible) .cabinet-print {
+  .timeline-row:hover .cabinet-print {
     transform: translate3d(0, 0, 0) rotate(var(--tilt)) scale(1);
     opacity: 1;
   }
@@ -961,8 +957,16 @@ button {
     pointer-events: auto;
   }
 
+  .cabinet-print {
+    cursor: zoom-in;
+  }
+
   .cabinet-print:hover {
     z-index: 12;
+  }
+
+  .cabinet-print:hover .cabinet-lens {
+    transform: translate3d(0, -0.45rem, 0) scale(1.07);
   }
 }
 
@@ -970,15 +974,16 @@ button {
   .site-frame:is(
       :has(.project-row:has(:focus-visible)),
       :has(.timeline-row:has(:focus-visible)),
-      :has(.is-open)
+      :has(.is-open),
+      :has(.is-viewing)
     )
     :is(
       .identity,
       .section-heading,
       .about-grid,
       .site-footer,
-      .project-row:not(:has(:focus-visible), .is-open),
-      .timeline-row:not(:has(:focus-visible), .is-open)
+      .project-row:not(:hover, :has(:focus-visible), .is-open, .is-viewing),
+      .timeline-row:not(:hover, :has(:focus-visible), .is-open, .is-viewing)
     ) {
     opacity: var(--spotlight);
   }
@@ -986,7 +991,9 @@ button {
   .project-row:has(:focus-visible),
   .timeline-row:has(:focus-visible),
   .project-row.is-open,
-  .timeline-row.is-open {
+  .timeline-row.is-open,
+  .project-row.is-viewing,
+  .timeline-row.is-viewing {
     z-index: 3;
     opacity: 1;
   }
@@ -994,14 +1001,18 @@ button {
   .project-row:has(:focus-visible) .cabinet,
   .timeline-row:has(:focus-visible) .cabinet,
   .project-row.is-open .cabinet,
-  .timeline-row.is-open .cabinet {
+  .timeline-row.is-open .cabinet,
+  .project-row.is-viewing .cabinet,
+  .timeline-row.is-viewing .cabinet {
     pointer-events: auto;
   }
 
   .project-row:has(:focus-visible) .cabinet-print,
   .timeline-row:has(:focus-visible) .cabinet-print,
   .project-row.is-open .cabinet-print,
-  .timeline-row.is-open .cabinet-print {
+  .timeline-row.is-open .cabinet-print,
+  .project-row.is-viewing .cabinet-print,
+  .timeline-row.is-viewing .cabinet-print {
     transform: translate3d(0, 0, 0) rotate(var(--tilt)) scale(1);
     opacity: 1;
   }
@@ -1907,6 +1918,7 @@ button {
     min-height: 0;
     height: auto;
     overflow: hidden;
+    justify-content: flex-start;
     gap: 0.5rem;
     padding: 0;
   }
