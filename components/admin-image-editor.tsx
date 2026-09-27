@@ -10,6 +10,12 @@ const VIDEO_EXTENSIONS: Record<string, string> = {
   "video/webm": "webm",
   "video/quicktime": "mov",
 };
+const VIDEO_TYPES_BY_EXTENSION: Record<string, string> = {
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
+};
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const UPLOAD_PREPARATION_TIMEOUT_MS = 60 * 1000;
 const IMAGE_UPLOAD_TIMEOUT_MS = 60 * 1000;
@@ -21,6 +27,7 @@ const ACCEPT = [
   "image/gif",
   "image/avif",
   ...Object.keys(VIDEO_EXTENSIONS),
+  ...Object.keys(VIDEO_TYPES_BY_EXTENSION).map((extension) => `.${extension}`),
 ].join(",");
 
 class UploadError extends Error {}
@@ -58,14 +65,14 @@ export function AdminImageEditor({
   const [progress, setProgress] = useState<number | null>(null);
   const atLimit = images.length >= MAX_PROJECT_IMAGES;
 
-  async function uploadVideo(file: File, extension: string) {
+  async function uploadVideo(file: File, extension: string, contentType: string) {
     const pathname = `portfolio/media/${crypto.randomUUID()}.${extension}`;
     const controller = new AbortController();
     let uploadStarted = false;
     let timeout = window.setTimeout(() => controller.abort(), UPLOAD_PREPARATION_TIMEOUT_MS);
     const options = {
       handleUploadUrl: "/api/admin/media/upload",
-      contentType: file.type,
+      contentType,
       multipart: file.size > 8 * 1024 * 1024,
       abortSignal: controller.signal,
       onUploadProgress: ({ percentage }: { percentage: number }) => {
@@ -99,14 +106,22 @@ export function AdminImageEditor({
   }
 
   async function uploadFile(file: File) {
-    const extension = VIDEO_EXTENSIONS[file.type];
+    const videoType = videoTypeForFile(file);
+    const extension = videoType ? VIDEO_EXTENSIONS[videoType] : undefined;
     if (extension && file.size > MAX_VIDEO_BYTES) {
       throw new UploadError("Use a video under 100 MB.");
     }
-    if (extension && directUpload) return uploadVideo(file, extension);
+    if (extension && videoType && directUpload) {
+      return uploadVideo(file, extension, videoType);
+    }
 
     const body = new FormData();
-    body.set("file", file);
+    body.set(
+      "file",
+      videoType && file.type.trim().toLowerCase() !== videoType
+        ? new File([file], file.name, { type: videoType })
+        : file,
+    );
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), IMAGE_UPLOAD_TIMEOUT_MS);
     try {
@@ -156,7 +171,7 @@ export function AdminImageEditor({
           alt: position === 1 ? nameForAlt : `${nameForAlt} ${position}`,
           fit: "contain",
         };
-        if (file.type in VIDEO_EXTENSIONS) item.kind = "video";
+        if (videoTypeForFile(file)) item.kind = "video";
         next.push(item);
         onChange([...next]);
       }
@@ -241,7 +256,7 @@ export function AdminImageEditor({
           <p className="editor-hint editor-image-hint">
             Uploads keep their full frame. Choose Fill card if you want to crop one, then drag
             it to set what stays visible. The last item sits on top. Videos play muted in the
-            viewer, up to 100 MB. Save after editing.
+            viewer, up to 100 MB. MP4, M4V, WebM, and MOV are supported. Save after editing.
           </p>
         </div>
         <div>
@@ -380,6 +395,14 @@ function prefersPrivateStore(error: unknown) {
     /public/i.test(error.message) &&
     /access|private|not allowed/i.test(error.message)
   );
+}
+
+function videoTypeForFile(file: Pick<File, "name" | "type">) {
+  const declaredType = file.type.trim().toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(VIDEO_EXTENSIONS, declaredType)) return declaredType;
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  return extension ? VIDEO_TYPES_BY_EXTENSION[extension] ?? null : null;
 }
 
 function clampPercent(value: number) {
