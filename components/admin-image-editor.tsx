@@ -111,21 +111,17 @@ export function AdminImageEditor({
         armTimeout(VIDEO_UPLOAD_IDLE_TIMEOUT_MS);
       },
     };
-    const uploadWithTimeout = (access: "public" | "private") =>
-      Promise.race([upload(pathname, file, { ...options, access }), timeoutPromise]);
-
     try {
-      try {
-        const blob = await uploadWithTimeout("public");
-        return blob.url;
-      } catch (error) {
-        if (!prefersPrivateStore(error)) throw error;
-        uploadStarted = false;
-        setUploadProgress({ kind: "video", phase: "preparing", percentage: null });
-        armTimeout(UPLOAD_PREPARATION_TIMEOUT_MS);
-        await uploadWithTimeout("private");
-        return `/api/media/${encodeURIComponent(pathname.split("/").pop() ?? "")}`;
-      }
+      // A wrong-access upload fails without CORS headers and just retries
+      // until it times out, so ask the server which access the store takes.
+      const access = await Promise.race([videoStoreAccess(controller.signal), timeoutPromise]);
+      const blob = await Promise.race([
+        upload(pathname, file, { ...options, access }),
+        timeoutPromise,
+      ]);
+      return access === "public"
+        ? blob.url
+        : `/api/media/${encodeURIComponent(pathname.split("/").pop() ?? "")}`;
     } catch (error) {
       if (error instanceof UploadError) throw error;
       if (controller.signal.aborted) {
@@ -518,12 +514,19 @@ function uploadMediaForm(
   });
 }
 
-function prefersPrivateStore(error: unknown) {
-  return (
-    error instanceof Error &&
-    /public/i.test(error.message) &&
-    /access|private|not allowed/i.test(error.message)
-  );
+async function videoStoreAccess(signal: AbortSignal) {
+  const response = await fetch("/api/admin/media/upload", { cache: "no-store", signal });
+  const payload: unknown = await response.json().catch(() => null);
+  if (
+    response.ok &&
+    typeof payload === "object" &&
+    payload !== null &&
+    "access" in payload &&
+    (payload.access === "public" || payload.access === "private")
+  ) {
+    return payload.access;
+  }
+  throw new UploadError(errorMessage(payload, "The server could not prepare this video upload."));
 }
 
 function uploadErrorMessage(error: unknown) {

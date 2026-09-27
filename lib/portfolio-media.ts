@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { BlobAccessError, put } from "@vercel/blob";
+import { BlobAccessError, del, put } from "@vercel/blob";
 import { isContentStoreConfigured } from "@/lib/portfolio-content";
 
 export class PortfolioMediaError extends Error {}
@@ -82,6 +82,29 @@ function prefersPrivateStore(error: unknown) {
     /public/i.test(error.message) &&
     /access|private|not allowed/i.test(error.message)
   );
+}
+
+let storeAccess: Promise<"public" | "private"> | null = null;
+
+// Browser uploads can't fall back from public to private: Blob rejects the
+// wrong access without CORS headers, so the client only sees retried network
+// errors. Probe once from the server, where the rejection is readable.
+export function blobStoreAccess() {
+  storeAccess ??= (async () => {
+    const pathname = `portfolio/media/.access-probe-${randomUUID()}`;
+    try {
+      const blob = await put(pathname, "probe", { access: "public", addRandomSuffix: false });
+      await del(blob.url).catch(() => undefined);
+      return "public" as const;
+    } catch (error) {
+      if (prefersPrivateStore(error)) return "private" as const;
+      throw error;
+    }
+  })().catch((error) => {
+    storeAccess = null;
+    throw error;
+  });
+  return storeAccess;
 }
 
 export function mediaPathname(name: string) {
