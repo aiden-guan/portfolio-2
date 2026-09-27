@@ -2,12 +2,13 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { BlobAccessError, del, put } from "@vercel/blob";
+import { MAX_VIDEO_BYTES, VIDEO_TOO_LARGE_MESSAGE } from "@/lib/media-limits";
 import { isContentStoreConfigured } from "@/lib/portfolio-content";
 
 export class PortfolioMediaError extends Error {}
 
 export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+export { MAX_VIDEO_BYTES, VIDEO_TOO_LARGE_MESSAGE };
 
 const IMAGE_TYPES = new Map([
   ["image/jpeg", "jpg"],
@@ -144,7 +145,7 @@ export async function storePortfolioImage(bytes: Uint8Array, type: string) {
   }
 
   if (video && bytes.byteLength > MAX_VIDEO_BYTES) {
-    throw new PortfolioMediaError("Use a video under 100 MB.");
+    throw new PortfolioMediaError(VIDEO_TOO_LARGE_MESSAGE);
   }
 
   const filename = `${randomUUID()}.${extension}`;

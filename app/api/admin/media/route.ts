@@ -6,6 +6,7 @@ import {
   portfolioMediaType,
   PortfolioMediaError,
   storePortfolioImage,
+  VIDEO_TOO_LARGE_MESSAGE,
   VIDEO_TYPES,
 } from "@/lib/portfolio-media";
 
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
   const type = portfolioMediaType(file.type, file.name);
   const video = VIDEO_TYPES.has(type);
   if (file.size > (video ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES)) {
-    const error = video ? "Use a video under 100 MB." : "Use an image under 4 MB.";
+    const error = video ? VIDEO_TOO_LARGE_MESSAGE : "Use an image under 4 MB.";
     return Response.json({ error }, { status: 400, headers: noStore });
   }
 

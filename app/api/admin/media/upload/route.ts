@@ -67,6 +67,8 @@ export async function POST(request: Request) {
         return {
           allowedContentTypes: [...VIDEO_TYPES.keys()],
           maximumSizeInBytes: MAX_VIDEO_BYTES,
+          // Large files can take longer than the one-hour default to finish.
+          validUntil: Date.now() + 6 * 60 * 60 * 1000,
           addRandomSuffix: false,
           allowOverwrite: false,
           cacheControlMaxAge: 60 * 60 * 24 * 30,

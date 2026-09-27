@@ -4,6 +4,7 @@ import { type DragEvent, type PointerEvent as ReactPointerEvent, useId, useRef, 
 import Image from "next/image";
 import { upload } from "@vercel/blob/client";
 import { imageFrame, isVideo, MAX_PROJECT_IMAGES, type PortfolioImage } from "@/content/portfolio";
+import { MAX_VIDEO_BYTES, VIDEO_TOO_LARGE_MESSAGE } from "@/lib/media-limits";
 
 const VIDEO_EXTENSIONS: Record<string, string> = {
   "video/mp4": "mp4",
@@ -16,7 +17,6 @@ const VIDEO_TYPES_BY_EXTENSION: Record<string, string> = {
   webm: "video/webm",
   mov: "video/quicktime",
 };
-const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const UPLOAD_PREPARATION_TIMEOUT_MS = 60 * 1000;
 const IMAGE_UPLOAD_TIMEOUT_MS = 60 * 1000;
 const VIDEO_UPLOAD_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -140,7 +140,7 @@ export function AdminImageEditor({
     const videoType = videoTypeForFile(file);
     const extension = videoType ? VIDEO_EXTENSIONS[videoType] : undefined;
     if (extension && file.size > MAX_VIDEO_BYTES) {
-      throw new UploadError("Use a video under 100 MB.");
+      throw new UploadError(VIDEO_TOO_LARGE_MESSAGE);
     }
     if (extension && videoType && directUpload) {
       return uploadVideo(file, extension, videoType);
@@ -277,7 +277,7 @@ export function AdminImageEditor({
           <p className="editor-hint editor-image-hint">
             Uploads keep their full frame. Choose Fill card if you want to crop one, then drag
             it to set what stays visible. The last item sits on top. Videos play muted in the
-            viewer, up to 100 MB. MP4, M4V, WebM, and MOV are supported. Save after editing.
+            viewer. MP4, M4V, WebM, and MOV are supported. Save after editing.
           </p>
         </div>
         <div>
