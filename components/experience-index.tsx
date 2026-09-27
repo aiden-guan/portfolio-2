@@ -8,16 +8,16 @@ export function ExperienceIndex({ timeline }: { timeline: TimelineEntry[] }) {
         <li
           className="timeline-row"
           data-cabinet-id={`experience-${index}`}
-          key={`${item.organization}-${item.role}`}
+          key={`${item.organization}-${item.role}-${index}`}
         >
           <article tabIndex={item.images.length > 0 ? 0 : undefined}>
             <div className="timeline-layout">
               <div className="timeline-organization">{item.organization}</div>
               <div className="timeline-body">
-                <h3>{item.role}</h3>
-                <p>{item.summary}</p>
+                {item.role ? <h3>{item.role}</h3> : null}
+                {item.summary ? <p>{item.summary}</p> : null}
               </div>
-              <time>{item.period}</time>
+              {item.period ? <time>{item.period}</time> : null}
             </div>
             <Cabinet images={item.images} label={item.organization} />
           </article>

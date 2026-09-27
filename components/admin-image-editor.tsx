@@ -32,6 +32,12 @@ const ACCEPT = [
 
 class UploadError extends Error {}
 
+type UploadProgressState = {
+  kind: "image" | "video";
+  phase: "preparing" | "uploading" | "finishing";
+  percentage: number | null;
+};
+
 function errorMessage(payload: unknown, fallback: string) {
   if (
     typeof payload === "object" &&
@@ -60,10 +66,9 @@ export function AdminImageEditor({
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [preparingVideo, setPreparingVideo] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
-  const [progress, setProgress] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
   const atLimit = images.length >= MAX_PROJECT_IMAGES;
 
   async function uploadVideo(file: File, extension: string, contentType: string) {
@@ -88,7 +93,7 @@ export function AdminImageEditor({
         );
       }, duration);
     };
-    setPreparingVideo(true);
+    setUploadProgress({ kind: "video", phase: "preparing", percentage: null });
     armTimeout(UPLOAD_PREPARATION_TIMEOUT_MS);
     const options = {
       handleUploadUrl: "/api/admin/media/upload",
@@ -97,8 +102,12 @@ export function AdminImageEditor({
       abortSignal: controller.signal,
       onUploadProgress: ({ percentage }: { percentage: number }) => {
         uploadStarted = true;
-        setPreparingVideo(false);
-        setProgress(Math.round(percentage));
+        const currentPercentage = clampPercent(percentage);
+        setUploadProgress({
+          kind: "video",
+          phase: currentPercentage >= 100 ? "finishing" : "uploading",
+          percentage: currentPercentage,
+        });
         armTimeout(VIDEO_UPLOAD_IDLE_TIMEOUT_MS);
       },
     };
@@ -111,6 +120,9 @@ export function AdminImageEditor({
         return blob.url;
       } catch (error) {
         if (!prefersPrivateStore(error)) throw error;
+        uploadStarted = false;
+        setUploadProgress({ kind: "video", phase: "preparing", percentage: null });
+        armTimeout(UPLOAD_PREPARATION_TIMEOUT_MS);
         await uploadWithTimeout("private");
         return `/api/media/${encodeURIComponent(pathname.split("/").pop() ?? "")}`;
       }
@@ -125,7 +137,6 @@ export function AdminImageEditor({
       throw error;
     } finally {
       window.clearTimeout(timeout);
-      setPreparingVideo(false);
     }
   }
 
@@ -146,27 +157,15 @@ export function AdminImageEditor({
         ? new File([file], file.name, { type: videoType })
         : file,
     );
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), IMAGE_UPLOAD_TIMEOUT_MS);
-    try {
-      const response = await fetch("/api/admin/media", {
-        method: "POST",
-        body,
-        signal: controller.signal,
+    const kind = videoType ? "video" : "image";
+    setUploadProgress({ kind, phase: "uploading", percentage: 0 });
+    return uploadMediaForm(body, kind, (percentage) => {
+      setUploadProgress({
+        kind,
+        phase: percentage >= 100 ? "finishing" : "uploading",
+        percentage,
       });
-      const payload: unknown = await response.json();
-      if (!response.ok || !isUploadedImage(payload)) {
-        throw new UploadError(errorMessage(payload, "The file could not be added."));
-      }
-      return payload.src;
-    } catch (error) {
-      if (controller.signal.aborted) {
-        throw new UploadError("The upload took too long. Check your connection and try again.");
-      }
-      throw error;
-    } finally {
-      window.clearTimeout(timeout);
-    }
+    });
   }
 
   async function addFiles(list: FileList | File[]) {
@@ -187,10 +186,11 @@ export function AdminImageEditor({
 
     try {
       for (const file of accepted) {
-        setProgress(null);
-        setPreparingVideo(Boolean(videoTypeForFile(file)));
+        setUploadProgress(null);
         const src = await uploadFile(file);
         const position = next.length + 1;
+        const kind = videoTypeForFile(file) ? "video" : "image";
+        setUploadProgress({ kind, phase: "finishing", percentage: 100 });
         const item: PortfolioImage = {
           src,
           alt: position === 1 ? nameForAlt : `${nameForAlt} ${position}`,
@@ -204,8 +204,7 @@ export function AdminImageEditor({
       setError(uploadErrorMessage(error));
     } finally {
       setUploading(false);
-      setPreparingVideo(false);
-      setProgress(null);
+      setUploadProgress(null);
       if (inputRef.current) inputRef.current.value = "";
       if (leftOut > 0) {
         setError((current) => current || "A row holds six items. Extra files were left out.");
@@ -306,15 +305,36 @@ export function AdminImageEditor({
             onClick={() => inputRef.current?.click()}
           >
             {uploading
-              ? preparingVideo && progress === null
+              ? uploadProgress?.phase === "preparing"
                 ? "Preparing video…"
-                : progress === null
-                  ? "Adding…"
-                  : `Adding… ${progress}%`
+                : "Adding…"
               : "Add media"}
           </button>
         </div>
       </div>
+
+      {uploading && uploadProgress ? (
+        <div className="editor-upload-progress">
+          <div className="editor-upload-progress-label">
+            <span>
+              {uploadProgress.phase === "preparing"
+                ? "Preparing video upload…"
+                : uploadProgress.phase === "finishing"
+                  ? `Finishing ${uploadProgress.kind} upload…`
+                  : `Uploading ${uploadProgress.kind}`}
+            </span>
+            {uploadProgress.percentage !== null && uploadProgress.phase !== "preparing" ? (
+              <span>{uploadProgress.percentage}%</span>
+            ) : null}
+          </div>
+          <progress
+            className="editor-upload-progress-bar"
+            max={100}
+            value={uploadProgress.phase === "preparing" ? undefined : uploadProgress.percentage ?? undefined}
+            aria-label={`${uploadProgress.phase === "preparing" ? "Preparing" : "Uploading"} ${uploadProgress.kind}`}
+          />
+        </div>
+      ) : null}
 
       {error ? (
         <p className="editor-status editor-status-error" role="alert">
@@ -419,6 +439,83 @@ export function AdminImageEditor({
       )}
     </div>
   );
+}
+
+function uploadMediaForm(
+  body: FormData,
+  kind: UploadProgressState["kind"],
+  onProgress: (percentage: number) => void,
+) {
+  return new Promise<string>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    const isVideo = kind === "video";
+    let settled = false;
+    let progressSeen = false;
+    let timeout = 0;
+
+    const clearUploadTimeout = () => window.clearTimeout(timeout);
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      clearUploadTimeout();
+      reject(error);
+    };
+    const armTimeout = (duration: number) => {
+      clearUploadTimeout();
+      timeout = window.setTimeout(() => {
+        fail(
+          new UploadError(
+            isVideo
+              ? progressSeen
+                ? "The upload stalled. Check your connection and try again."
+                : "The upload could not start. Check your connection and try again."
+              : "The upload took too long. Check your connection and try again.",
+          ),
+        );
+        request.abort();
+      }, duration);
+    };
+
+    request.open("POST", "/api/admin/media");
+    request.responseType = "text";
+    request.upload.addEventListener("progress", (event) => {
+      if (!event.lengthComputable || event.total <= 0) return;
+      progressSeen = progressSeen || event.loaded > 0;
+      onProgress(clampPercent((event.loaded / event.total) * 100));
+      armTimeout(isVideo ? VIDEO_UPLOAD_IDLE_TIMEOUT_MS : IMAGE_UPLOAD_TIMEOUT_MS);
+    });
+    request.addEventListener("load", () => {
+      let payload: unknown;
+      try {
+        payload = JSON.parse(request.responseText);
+      } catch {
+        payload = null;
+      }
+
+      if (request.status < 200 || request.status >= 300 || !isUploadedImage(payload)) {
+        fail(new UploadError(errorMessage(payload, "The file could not be added.")));
+        return;
+      }
+
+      if (settled) return;
+      settled = true;
+      clearUploadTimeout();
+      resolve(payload.src);
+    });
+    request.addEventListener("error", () => {
+      fail(new TypeError("The upload server could not be reached."));
+    });
+    request.addEventListener("abort", () => {
+      fail(new UploadError("The upload was interrupted. Try again."));
+    });
+
+    armTimeout(isVideo ? UPLOAD_PREPARATION_TIMEOUT_MS : IMAGE_UPLOAD_TIMEOUT_MS);
+    try {
+      request.send(body);
+    } catch (error) {
+      fail(error instanceof Error ? error : new Error("The file could not be added."));
+    }
+  });
 }
 
 function prefersPrivateStore(error: unknown) {

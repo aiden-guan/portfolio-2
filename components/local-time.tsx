@@ -25,8 +25,8 @@ export function LocalTime({ name, location }: LocalTimeProps) {
   }, []);
 
   return (
-    <span className="local-time" aria-label={`${name}'s local time is ${time}`}>
-      {location} <span aria-hidden="true">/</span>{" "}
+    <span className="local-time" aria-label={`${name ? `${name}'s ` : ""}local time is ${time}`}>
+      {location ? <>{location} <span aria-hidden="true">/</span>{" "}</> : null}
       <time suppressHydrationWarning>{time}</time>
     </span>
   );

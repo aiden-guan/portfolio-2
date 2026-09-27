@@ -9,7 +9,7 @@ export function ProjectIndex({ projects }: { projects: Project[] }) {
         <li
           className="project-row"
           data-cabinet-id={`work-${index}`}
-          key={project.name}
+          key={`${project.name}-${index}`}
         >
           <article tabIndex={project.images.length > 0 ? 0 : undefined}>
             <header className="project-heading">
@@ -17,22 +17,43 @@ export function ProjectIndex({ projects }: { projects: Project[] }) {
                 {String(index + 1).padStart(2, "0")}
               </span>
               <h3>{project.name}</h3>
-              <span className="project-status">{project.status}</span>
+              {project.status ? <span className="project-status">{project.status}</span> : null}
             </header>
-            <div className="project-body">
-              <p className="project-summary">{project.summary}</p>
-              <p className="project-detail">{project.detail}</p>
-              <div className="project-meta">
-                <span>{project.stack.join(" · ")}</span>
-                <span className="project-links" aria-label={`${project.name} links`}>
-                  {project.links.map((link) => (
-                    <ExternalLink key={link.href} href={link.href}>
-                      {link.label}
-                    </ExternalLink>
-                  ))}
-                </span>
+            {project.summary ||
+            project.detail ||
+            project.stack.some((item) => item.length > 0) ||
+            project.links.some((link) => link.href.length > 0) ? (
+              <div className="project-body">
+                {project.summary || project.detail ? (
+                  <>
+                    <p className="project-summary">{project.summary}</p>
+                    <p className="project-detail">{project.detail}</p>
+                  </>
+                ) : null}
+                {project.stack.some((item) => item.length > 0) ||
+                project.links.some((link) => link.href.length > 0) ? (
+                  <div className="project-meta">
+                    {project.stack.some((item) => item.length > 0) ? (
+                      <span>{project.stack.filter((item) => item.length > 0).join(" · ")}</span>
+                    ) : null}
+                    {project.links.some((link) => link.href.length > 0) ? (
+                      <span
+                        className="project-links"
+                        aria-label={project.name ? `${project.name} links` : "Project links"}
+                      >
+                        {project.links
+                          .filter((link) => link.href.length > 0)
+                          .map((link) => (
+                            <ExternalLink key={link.href} href={link.href}>
+                              {link.label}
+                            </ExternalLink>
+                          ))}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
-            </div>
+            ) : null}
             <Cabinet images={project.images} label={project.name} />
           </article>
         </li>

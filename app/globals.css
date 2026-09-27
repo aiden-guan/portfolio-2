@@ -1660,6 +1660,47 @@ button {
   margin-top: 0.35rem;
 }
 
+.editor-upload-progress {
+  display: grid;
+  width: min(100%, 32rem);
+  gap: 0.45rem;
+  margin-top: 1rem;
+}
+
+.editor-upload-progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-upload-progress-bar {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 0.3rem;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--rule) 78%, transparent);
+  color: var(--accent);
+  accent-color: var(--accent);
+}
+
+.editor-upload-progress-bar::-webkit-progress-bar {
+  background: color-mix(in srgb, var(--rule) 78%, transparent);
+}
+
+.editor-upload-progress-bar::-webkit-progress-value {
+  background: var(--accent);
+}
+
+.editor-upload-progress-bar::-moz-progress-bar {
+  background: var(--accent);
+}
+
 .editor-file-input {
   position: absolute;
   width: 1px;

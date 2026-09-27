@@ -4,10 +4,11 @@ import { imageFrame, isVideo, type PortfolioImage } from "@/content/portfolio";
 export function Cabinet({ images, label }: { images: PortfolioImage[]; label: string }) {
   if (images.length === 0) return null;
   const overlap = images.length > 3 ? (images.length - 2) / (images.length - 1) : 0.58;
+  const accessibleLabel = label || "Portfolio";
 
   return (
     <div className="cabinet">
-      <ul className="cabinet-fan" aria-label={`${label} images`}>
+      <ul className="cabinet-fan" aria-label={`${accessibleLabel} images`}>
         {images.map((image, index) => {
           const tilt = (index - (images.length - 1)) * 2.35;
           return (
@@ -28,7 +29,7 @@ export function Cabinet({ images, label }: { images: PortfolioImage[]; label: st
                   {isVideo(image) ? (
                     // Prints show the first frame; the viewer plays the video.
                     <video
-                      aria-label={image.alt || `${label}, video ${index + 1}`}
+                      aria-label={image.alt || `${accessibleLabel}, video ${index + 1}`}
                       muted
                       playsInline
                       preload="metadata"
@@ -37,7 +38,7 @@ export function Cabinet({ images, label }: { images: PortfolioImage[]; label: st
                     />
                   ) : (
                     <img
-                      alt={image.alt || `${label}, image ${index + 1}`}
+                      alt={image.alt || `${accessibleLabel}, image ${index + 1}`}
                       draggable={false}
                       src={image.src}
                       style={imageStyle(image)}

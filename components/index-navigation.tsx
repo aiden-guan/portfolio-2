@@ -31,6 +31,7 @@ export function IndexNavigation({ navigation }: { navigation: NavigationItem[] }
         <a
           key={item.id}
           href={`#${item.id}`}
+          aria-label={item.label || `${item.id} section`}
           aria-current={active === item.id ? "location" : undefined}
           onClick={() => setActive(item.id)}
         >

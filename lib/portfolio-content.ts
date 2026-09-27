@@ -22,7 +22,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function readText(value: unknown, maxLength = MAX_TEXT_LENGTH) {
   if (typeof value !== "string") return null;
   const text = value.trim();
-  return text.length > 0 && text.length <= maxLength ? text : null;
+  // Empty strings are valid editor values; null marks malformed or oversized input.
+  return text.length <= maxLength ? text : null;
 }
 
 function readTextArray(value: unknown, maxItems: number) {
@@ -43,7 +44,9 @@ function isSafeHref(value: string) {
 
 function readHref(value: unknown) {
   const href = readText(value, 500);
-  return href && isSafeHref(href) ? href : null;
+  if (href === null) return null;
+  if (href === "") return "";
+  return isSafeHref(href) ? href : null;
 }
 
 function readProfileLinks(value: unknown) {
@@ -53,7 +56,7 @@ function readProfileLinks(value: unknown) {
     if (!isRecord(item)) return null;
     const label = readText(item.label, 50);
     const href = readHref(item.href);
-    return label && href ? { label, href } : null;
+    return label !== null && href !== null ? { label, href } : null;
   });
 
   return links.every((item): item is { label: string; href: string } => item !== null)
@@ -63,7 +66,9 @@ function readProfileLinks(value: unknown) {
 
 function readImageSrc(value: unknown) {
   const src = readText(value, 800);
-  if (!src || src.includes("\\") || src.includes("..") || /\s/.test(src)) return null;
+  if (src === null || src === "" || src.includes("\\") || src.includes("..") || /\s/.test(src)) {
+    return null;
+  }
   if (src.startsWith("/")) return src.startsWith("//") ? null : src;
 
   try {
@@ -110,7 +115,7 @@ function readProjectLinks(value: unknown) {
     }
 
     const href = readHref(item.href);
-    return href ? { label: item.label, href } : null;
+    return href !== null ? { label: item.label, href } : null;
   });
 
   return links.every((item): item is ProjectLink => item !== null) ? links : null;
@@ -127,7 +132,12 @@ function readProject(value: unknown): Project | null {
   const links = readProjectLinks(value.links);
   const images = readImages(value.images);
 
-  return name && status && summary && detail && stack && links
+  return name !== null &&
+    status !== null &&
+    summary !== null &&
+    detail !== null &&
+    stack !== null &&
+    links !== null
     ? { name, status, summary, detail, stack, links, images }
     : null;
 }
@@ -147,7 +157,7 @@ function readTimelineEntry(value: unknown): TimelineEntry | null {
   const summary = readText(value.summary, MAX_TEXT_LENGTH);
   const images = readImages(value.images);
 
-  return organization && role && period && summary
+  return organization !== null && role !== null && period !== null && summary !== null
     ? { organization, role, period, summary, images }
     : null;
 }
@@ -167,7 +177,7 @@ function readSections(value: unknown) {
       if (!isRecord(section)) return [id, null];
       const label = readText(section.label, 100);
       const title = readText(section.title, 180);
-      return [id, label && title ? { label, title } : null];
+      return [id, label !== null && title !== null ? { label, title } : null];
     }),
   );
 
@@ -184,7 +194,7 @@ function readNavigation(value: unknown) {
       return null;
     }
     const label = readText(item.label, 60);
-    return label ? { id: item.id as SectionId, label } : null;
+    return label !== null ? { id: item.id as SectionId, label } : null;
   });
 
   const ids = navigation.filter(Boolean).map((item) => item?.id);
@@ -218,23 +228,23 @@ export function parsePortfolioContent(value: unknown): PortfolioContent | null {
   const interests = readTextArray(value.interests, 24);
 
   if (
-    !name ||
-    !mark ||
-    !descriptor ||
-    !introduction ||
-    !email ||
-    !location ||
-    !locationLabel ||
-    !profileLinks ||
-    !title ||
-    !description ||
-    !socialDescription ||
-    !navigation ||
-    !sections ||
-    !projects ||
-    !timeline ||
-    !paragraphs ||
-    !interests
+    name === null ||
+    mark === null ||
+    descriptor === null ||
+    introduction === null ||
+    email === null ||
+    location === null ||
+    locationLabel === null ||
+    profileLinks === null ||
+    title === null ||
+    description === null ||
+    socialDescription === null ||
+    navigation === null ||
+    sections === null ||
+    projects === null ||
+    timeline === null ||
+    paragraphs === null ||
+    interests === null
   ) {
     return null;
   }
