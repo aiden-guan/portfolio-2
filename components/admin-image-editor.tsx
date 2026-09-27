@@ -60,6 +60,7 @@ export function AdminImageEditor({
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [preparingVideo, setPreparingVideo] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
@@ -69,7 +70,26 @@ export function AdminImageEditor({
     const pathname = `portfolio/media/${crypto.randomUUID()}.${extension}`;
     const controller = new AbortController();
     let uploadStarted = false;
-    let timeout = window.setTimeout(() => controller.abort(), UPLOAD_PREPARATION_TIMEOUT_MS);
+    let rejectTimeout: (error: UploadError) => void = () => undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      rejectTimeout = (error) => reject(error);
+    });
+    let timeout = 0;
+    const armTimeout = (duration: number) => {
+      window.clearTimeout(timeout);
+      timeout = window.setTimeout(() => {
+        controller.abort();
+        rejectTimeout(
+          new UploadError(
+            uploadStarted
+              ? "The upload stalled. Check your connection and try again."
+              : "The upload could not start. Check your connection and try again.",
+          ),
+        );
+      }, duration);
+    };
+    setPreparingVideo(true);
+    armTimeout(UPLOAD_PREPARATION_TIMEOUT_MS);
     const options = {
       handleUploadUrl: "/api/admin/media/upload",
       contentType,
@@ -77,22 +97,25 @@ export function AdminImageEditor({
       abortSignal: controller.signal,
       onUploadProgress: ({ percentage }: { percentage: number }) => {
         uploadStarted = true;
+        setPreparingVideo(false);
         setProgress(Math.round(percentage));
-        window.clearTimeout(timeout);
-        timeout = window.setTimeout(() => controller.abort(), VIDEO_UPLOAD_IDLE_TIMEOUT_MS);
+        armTimeout(VIDEO_UPLOAD_IDLE_TIMEOUT_MS);
       },
     };
+    const uploadWithTimeout = (access: "public" | "private") =>
+      Promise.race([upload(pathname, file, { ...options, access }), timeoutPromise]);
 
     try {
       try {
-        const blob = await upload(pathname, file, { ...options, access: "public" });
+        const blob = await uploadWithTimeout("public");
         return blob.url;
       } catch (error) {
         if (!prefersPrivateStore(error)) throw error;
-        await upload(pathname, file, { ...options, access: "private" });
+        await uploadWithTimeout("private");
         return `/api/media/${encodeURIComponent(pathname.split("/").pop() ?? "")}`;
       }
     } catch (error) {
+      if (error instanceof UploadError) throw error;
       if (controller.signal.aborted) {
         const message = uploadStarted
           ? "The upload stalled. Check your connection and try again."
@@ -102,6 +125,7 @@ export function AdminImageEditor({
       throw error;
     } finally {
       window.clearTimeout(timeout);
+      setPreparingVideo(false);
     }
   }
 
@@ -164,6 +188,7 @@ export function AdminImageEditor({
     try {
       for (const file of accepted) {
         setProgress(null);
+        setPreparingVideo(Boolean(videoTypeForFile(file)));
         const src = await uploadFile(file);
         const position = next.length + 1;
         const item: PortfolioImage = {
@@ -176,9 +201,10 @@ export function AdminImageEditor({
         onChange([...next]);
       }
     } catch (error) {
-      setError(error instanceof UploadError ? error.message : "The file could not be added.");
+      setError(uploadErrorMessage(error));
     } finally {
       setUploading(false);
+      setPreparingVideo(false);
       setProgress(null);
       if (inputRef.current) inputRef.current.value = "";
       if (leftOut > 0) {
@@ -279,7 +305,13 @@ export function AdminImageEditor({
             disabled={uploading || atLimit}
             onClick={() => inputRef.current?.click()}
           >
-            {uploading ? (progress === null ? "Adding…" : `Adding… ${progress}%`) : "Add media"}
+            {uploading
+              ? preparingVideo && progress === null
+                ? "Preparing video…"
+                : progress === null
+                  ? "Adding…"
+                  : `Adding… ${progress}%`
+              : "Add media"}
           </button>
         </div>
       </div>
@@ -395,6 +427,17 @@ function prefersPrivateStore(error: unknown) {
     /public/i.test(error.message) &&
     /access|private|not allowed/i.test(error.message)
   );
+}
+
+function uploadErrorMessage(error: unknown) {
+  if (error instanceof UploadError) return error.message;
+  if (error instanceof Error && /client token/i.test(error.message)) {
+    return "The server could not prepare this video upload. Check the video storage configuration and try again.";
+  }
+  if (error instanceof TypeError) {
+    return "The upload server could not be reached. Check your connection and try again.";
+  }
+  return "The file could not be added.";
 }
 
 function videoTypeForFile(file: Pick<File, "name" | "type">) {
