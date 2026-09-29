@@ -615,6 +615,25 @@ button {
   background: rgb(0 0 0 / 0.5);
   pointer-events: none;
   backdrop-filter: blur(6px);
+  transition: opacity 220ms var(--ease-out);
+}
+
+.project-row.is-open .cabinet-play,
+.timeline-row.is-open .cabinet-play {
+  opacity: 0;
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 881px) {
+  .project-row:hover .cabinet-play,
+  .timeline-row:hover .cabinet-play {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cabinet-play {
+    opacity: 1 !important;
+  }
 }
 
 .cabinet-play::before {

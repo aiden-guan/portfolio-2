@@ -67,6 +67,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
   const glideTimer = useRef(0);
   const zoomTimer = useRef(0);
   const galleryRow = useRef<HTMLElement | null>(null);
+  const playingRow = useRef<HTMLElement | null>(null);
   const galleryPrints = useRef<HTMLElement[]>([]);
   const activeIndex = useRef(0);
   const stageBox = useRef({ left: 0, top: 0, width: 1, height: 1 });
@@ -106,6 +107,38 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
       window.removeEventListener("keydown", onKey);
     };
   }, []);
+
+  function rowVideos(row: HTMLElement) {
+    return [...row.querySelectorAll<HTMLVideoElement>(".cabinet-print video")];
+  }
+
+  // Plays the fanned-out row's print videos; the previous row rewinds to its cover frame.
+  function setPlayingRow(row: HTMLElement | null) {
+    const previous = playingRow.current;
+    if (previous === row) return;
+    playingRow.current = row;
+    if (previous) {
+      for (const video of rowVideos(previous)) {
+        video.pause();
+        if (video.currentTime > 0.001) video.currentTime = 0.001;
+      }
+    }
+    if (row) rowVideos(row).forEach(playVideo);
+  }
+
+  function onPointerOver(event: PointerEvent<HTMLDivElement>) {
+    armGlide(event);
+    if (event.pointerType !== "mouse" || open.current) return;
+    if (!window.matchMedia(HOVER_LAYOUT).matches) return;
+    const target = event.target;
+    const row = target instanceof Element ? target.closest<HTMLElement>("[data-cabinet-id]") : null;
+    setPlayingRow(row);
+  }
+
+  function onPointerLeave() {
+    clearGlide();
+    if (window.matchMedia(HOVER_LAYOUT).matches) setPlayingRow(null);
+  }
 
   function armGlide(event: PointerEvent<HTMLDivElement>) {
     const node = frame.current;
@@ -294,6 +327,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     if (images.length === 0) return;
 
     window.clearTimeout(zoomTimer.current);
+    setPlayingRow(null);
     open.current = true;
     closing.current = false;
     // Only hand focus back for keyboard users; restoring it after a mouse
@@ -395,10 +429,14 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     node.querySelectorAll<HTMLElement>("[data-cabinet-id].is-open").forEach((item) => {
       if (item !== row) item.classList.remove("is-open");
     });
-    if (!row) return;
+    if (!row) {
+      setPlayingRow(null);
+      return;
+    }
 
     const willClose = row.classList.contains("is-open");
     row.classList.toggle("is-open");
+    setPlayingRow(willClose ? null : row);
     if (
       willClose &&
       document.activeElement instanceof HTMLElement &&
@@ -428,8 +466,8 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
     <div
       className="site-frame"
       ref={frame}
-      onPointerOver={armGlide}
-      onPointerLeave={clearGlide}
+      onPointerOver={onPointerOver}
+      onPointerLeave={onPointerLeave}
       onClick={onClick}
       onKeyDown={onKeyDown}
     >

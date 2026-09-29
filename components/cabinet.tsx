@@ -27,9 +27,10 @@ export function Cabinet({ images, label }: { images: PortfolioImage[]; label: st
               <div className="cabinet-lens">
                 <div className={`cabinet-photo${imageFrame(image).fit === "cover" ? " is-cover" : " is-contain"}`}>
                   {isVideo(image) ? (
-                    // Prints show the first frame; the viewer plays the video.
+                    // Prints rest on the first frame and play while their row is fanned out.
                     <video
                       aria-label={image.alt || `${accessibleLabel}, video ${index + 1}`}
+                      loop
                       muted
                       playsInline
                       preload="metadata"
