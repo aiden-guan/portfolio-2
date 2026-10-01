@@ -188,7 +188,13 @@ export const defaultPortfolio: PortfolioContent = {
           href: "https://github.com/aiden-guan/gmail-intelligence",
         },
       ],
-      images: [],
+      images: [
+        {
+          src: "/api/media/c61fc3a8-2ca7-49a2-9bde-e38d185fd3e8.mp4",
+          alt: "PigeonBox",
+          kind: "video",
+        },
+      ],
     },
     {
       name: "HarmonyLabs",
@@ -221,7 +227,13 @@ export const defaultPortfolio: PortfolioContent = {
           href: "https://github.com/dylann4500/corgi",
         },
       ],
-      images: [],
+      images: [
+        {
+          src: "/api/media/a3a88ba6-0231-4384-934c-7f7701334f9e.mov",
+          alt: "BarkOff",
+          kind: "video",
+        },
+      ],
     },
   ],
   timeline: [
