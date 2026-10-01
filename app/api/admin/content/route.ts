@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import {
   isAdminAuthenticated,
 } from "@/lib/admin-auth";
@@ -44,6 +45,7 @@ export async function PUT(request: Request) {
 
   try {
     const content = await savePortfolioContent(body);
+    revalidatePath("/");
     return Response.json({ content }, { headers: noStore });
   } catch (error) {
     const message =

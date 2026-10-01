@@ -14,6 +14,16 @@ const nextConfig: NextConfig = {
         hostname: "aidenguan.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "*.r2.dev",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "*.aidenguan.com",
+        pathname: "/**",
+      },
     ],
   },
   turbopack: {

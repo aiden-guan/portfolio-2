@@ -114,7 +114,36 @@ export function AdminImageEditor({
     try {
       // A wrong-access upload fails without CORS headers and just retries
       // until it times out, so ask the server which access the store takes.
-      const access = await Promise.race([videoStoreAccess(controller.signal), timeoutPromise]);
+      const accessInfo = await Promise.race([videoStoreAccess(controller.signal), timeoutPromise]);
+
+      if (accessInfo.provider === "r2") {
+        const presignRes = await fetch("/api/admin/media/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pathname, contentType }),
+          signal: controller.signal,
+        });
+        const presignData = (await presignRes.json().catch(() => null)) as {
+          presignedUrl?: string;
+          url?: string;
+        } | null;
+        if (!presignRes.ok || !presignData?.presignedUrl) {
+          throw new UploadError(errorMessage(presignData, "Could not initiate video upload to R2."));
+        }
+
+        const uploadRes = await fetch(presignData.presignedUrl, {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": contentType },
+          signal: controller.signal,
+        });
+        if (!uploadRes.ok) {
+          throw new UploadError("Failed to upload video to Cloudflare R2.");
+        }
+        return presignData.url || `/api/media/${encodeURIComponent(pathname.split("/").pop() ?? "")}`;
+      }
+
+      const access = accessInfo.access;
       const blob = await Promise.race([
         upload(pathname, file, { ...options, access }),
         timeoutPromise,
@@ -277,7 +306,7 @@ export function AdminImageEditor({
           <p className="editor-hint editor-image-hint">
             Uploads keep their full frame. Choose Fill card if you want to crop one, then drag
             it to set what stays visible. The last item sits on top. Videos play muted in the
-            viewer. MP4, M4V, WebM, and MOV are supported. Save after editing.
+            viewer, up to 15 MB. MP4, M4V, WebM, and MOV are supported. Save after editing.
           </p>
         </div>
         <div>
@@ -514,7 +543,9 @@ function uploadMediaForm(
   });
 }
 
-async function videoStoreAccess(signal: AbortSignal) {
+async function videoStoreAccess(
+  signal: AbortSignal,
+): Promise<{ access: "public" | "private"; provider: string }> {
   const response = await fetch("/api/admin/media/upload", { cache: "no-store", signal });
   const payload: unknown = await response.json().catch(() => null);
   if (
@@ -524,7 +555,8 @@ async function videoStoreAccess(signal: AbortSignal) {
     "access" in payload &&
     (payload.access === "public" || payload.access === "private")
   ) {
-    return payload.access;
+    const provider = "provider" in payload && typeof payload.provider === "string" ? payload.provider : "blob";
+    return { access: payload.access, provider };
   }
   throw new UploadError(errorMessage(payload, "The server could not prepare this video upload."));
 }

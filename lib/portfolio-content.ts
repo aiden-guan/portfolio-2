@@ -1,4 +1,5 @@
 import { get, put } from "@vercel/blob";
+import { isR2Configured, getR2Object, putR2Object } from "@/lib/r2";
 import {
   defaultPortfolio,
   MAX_PROJECT_IMAGES,
@@ -271,17 +272,37 @@ export function parsePortfolioContent(value: unknown): PortfolioContent | null {
 }
 
 export function isContentStoreConfigured() {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_OIDC_TOKEN);
+  return isR2Configured() || Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_OIDC_TOKEN);
 }
 
 export async function getPortfolioContent() {
   if (!isContentStoreConfigured()) return defaultPortfolio;
 
+  if (isR2Configured()) {
+    try {
+      const response = await getR2Object(CONTENT_PATH);
+      if (response && response.Body) {
+        const text = await response.Body.transformToString();
+        const content = JSON.parse(text);
+        return parsePortfolioContent(content) ?? defaultPortfolio;
+      }
+    } catch {
+      // Fall through to Blob or defaultPortfolio
+    }
+  }
+
   try {
-    const result = await get(CONTENT_PATH, {
+    let result = await get(CONTENT_PATH, {
       access: "private",
       useCache: false,
-    });
+    }).catch(() => null);
+
+    if (!result || result.statusCode !== 200) {
+      result = await get(CONTENT_PATH, {
+        access: "public",
+        useCache: false,
+      }).catch(() => null);
+    }
 
     if (!result || result.statusCode !== 200 || !result.stream) return defaultPortfolio;
 
@@ -302,12 +323,33 @@ export async function savePortfolioContent(value: unknown) {
     throw new PortfolioContentError("Content storage is not configured.");
   }
 
-  await put(CONTENT_PATH, JSON.stringify(content), {
-    access: "private",
+  if (isR2Configured()) {
+    await putR2Object(
+      CONTENT_PATH,
+      JSON.stringify(content),
+      "application/json",
+      "public, max-age=60"
+    );
+    return content;
+  }
+
+  const options = {
     allowOverwrite: true,
     cacheControlMaxAge: 60,
     contentType: "application/json",
-  });
+  } as const;
+
+  try {
+    await put(CONTENT_PATH, JSON.stringify(content), {
+      ...options,
+      access: "private",
+    });
+  } catch {
+    await put(CONTENT_PATH, JSON.stringify(content), {
+      ...options,
+      access: "public",
+    });
+  }
 
   return content;
 }

@@ -7,7 +7,7 @@ import { ProjectIndex } from "@/components/project-index";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getPortfolioContent } from "@/lib/portfolio-content";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 export default async function Home() {
   const { about, interests, navigation, profile, projects, sections, timeline } =
