@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] — 2026-10-01
+
+### Summary
+Synchronized repository presentation, package manifests, and GitHub metadata to reflect the Cloudflare R2 object storage architecture and byte-range video streaming capabilities.
+
+### Detailed Changes
+
+#### Documentation & Presentation
+- **GitHub Metadata**: Updated repository description to highlight Cloudflare R2 storage and replaced `vercel-blob` topic with `cloudflare-r2`.
+- **System Presentation**: Modernized `README.md` architecture diagram, end-to-end workflows, configuration references, and engineering deep dives to document zero-egress Cloudflare R2 storage, pre-upload safety blockers, and HTTP 206 byte-range media delivery.
+- **Local Git & Package Metadata**: Updated `.git/description` and `package.json` with the canonical project description.
+
+---
+
 ## [1.2.0] — 2026-09-30
 
 ### Summary
