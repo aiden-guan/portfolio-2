@@ -96,13 +96,14 @@ export async function putR2Object(
   return { url: `/api/media/${encodeURIComponent(filename)}` };
 }
 
-export async function getR2Object(key: string) {
+export async function getR2Object(key: string, range?: string) {
   const client = getR2Client();
   const bucket = getR2BucketName();
 
   const command = new GetObjectCommand({
     Bucket: bucket,
     Key: key,
+    Range: range,
   });
 
   return client.send(command);

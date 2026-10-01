@@ -57,7 +57,7 @@ export async function GET(
     }
 
     try {
-      const response = await getR2Object(pathname);
+      const response = await getR2Object(pathname, range || undefined);
       if (!response.Body) return new Response("Not found", { status: 404 });
 
       const headers = new Headers({
@@ -65,11 +65,18 @@ export async function GET(
         "Cache-Control": "public, max-age=31536000, immutable",
         "Content-Type": response.ContentType || "application/octet-stream",
       });
-      if (response.ContentLength) headers.set("Content-Length", String(response.ContentLength));
+      if (response.ContentLength !== undefined) {
+        headers.set("Content-Length", String(response.ContentLength));
+      }
+      if (response.ContentRange) {
+        headers.set("Content-Range", response.ContentRange);
+      }
       if (response.ETag) headers.set("ETag", response.ETag);
 
+      const status = response.ContentRange ? 206 : 200;
+
       return new Response(response.Body.transformToWebStream(), {
-        status: 200,
+        status,
         headers,
       });
     } catch {
