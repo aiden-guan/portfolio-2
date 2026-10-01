@@ -33,7 +33,7 @@ export function Cabinet({ images, label }: { images: PortfolioImage[]; label: st
                       loop
                       muted
                       playsInline
-                      preload="none"
+                      preload="auto"
                       src={`${image.src}#t=0.001`}
                       style={imageStyle(image)}
                     />

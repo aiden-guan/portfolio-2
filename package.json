@@ -1,6 +1,6 @@
 {
   "name": "aiden-portfolio-index",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "description": "Restrained, text-first index portfolio and private headless CMS for Aiden Guan — built with Next.js 16, React 19, TypeScript, and Cloudflare R2 storage.",
   "scripts": {

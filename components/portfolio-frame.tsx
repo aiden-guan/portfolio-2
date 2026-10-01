@@ -101,6 +101,15 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
       }
     };
     window.addEventListener("keydown", onKey);
+
+    // Preload cabinet videos on mount so hover previews and initial frames are immediately ready
+    const cabinetVideos = frame.current?.querySelectorAll<HTMLVideoElement>(".cabinet-print video");
+    cabinetVideos?.forEach((video) => {
+      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        video.load();
+      }
+    });
+
     return () => {
       window.clearTimeout(glideTimer.current);
       window.clearTimeout(zoomTimer.current);
@@ -543,7 +552,7 @@ export function PortfolioFrame({ children }: { children: ReactNode }) {
                       aria-hidden="true"
                       muted
                       playsInline
-                      preload="metadata"
+                      preload="auto"
                       src={`${image.src}#t=0.001`}
                       style={thumbnailStyle(image)}
                     />

@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] — 2026-10-01
+
+### Summary
+Resolved hover video preview delays on initial visitor sessions by enabling automated preloading and proactive buffer warming across cabinet drawer prints and modal thumbnails.
+
+### Detailed Changes
+
+#### Fixed
+- **Cabinet Video Preloading**: Switched drawer `<video>` elements from `preload="none"` to `preload="auto"` in `components/cabinet.tsx`, allowing modern browsers to buffer initial media segments and decode cover frames on initial page visit.
+- **Proactive Buffer Warming**: Added a mount lifecycle trigger in `components/portfolio-frame.tsx` to invoke `.load()` on cabinet videos, ensuring background media pipelines immediately initiate range requests regardless of initial card opacity.
+- **Gallery Thumbnail Previews**: Updated full-screen viewer thumbnail video elements to `preload="auto"` to guarantee immediate thumbnail responsiveness during gallery modal navigation.
+
+---
+
 ## [1.2.1] — 2026-10-01
 
 ### Summary
