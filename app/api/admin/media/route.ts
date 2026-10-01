@@ -9,6 +9,7 @@ import {
   VIDEO_TOO_LARGE_MESSAGE,
   VIDEO_TYPES,
 } from "@/lib/portfolio-media";
+import { isR2StorageLimitError } from "@/lib/r2-limits";
 
 export const runtime = "nodejs";
 
@@ -52,9 +53,11 @@ export async function POST(request: Request) {
     const image = await storePortfolioImage(bytes, type);
     return Response.json(image, { headers: noStore });
   } catch (error) {
+    const isLimit = isR2StorageLimitError(error);
+    const isMedia = error instanceof PortfolioMediaError;
     const message =
-      error instanceof PortfolioMediaError ? error.message : "The image could not be added.";
-    const status = error instanceof PortfolioMediaError ? 400 : 500;
+      isLimit || isMedia ? (error as Error).message : "The image could not be added.";
+    const status = isLimit ? 403 : isMedia ? 400 : 500;
     return Response.json({ error: message }, { status, headers: noStore });
   }
 }

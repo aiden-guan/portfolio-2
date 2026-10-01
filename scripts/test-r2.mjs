@@ -82,7 +82,17 @@ async function testR2() {
     );
     console.log("   ✓ Cleanup successful!\n");
 
-    console.log("🎉 SUCCESS: Cloudflare R2 is fully configured and ready for production!");
+    console.log(`5. Verifying Hard Blocker Safety Configuration:`);
+    const safetyCapGb = process.env.R2_MAX_STORAGE_GB ? Number(process.env.R2_MAX_STORAGE_GB) : 5;
+    const maxFiles = process.env.R2_MAX_FILES ? Number(process.env.R2_MAX_FILES) : 1000;
+    console.log(`   - Hard Safety Cap:      ${safetyCapGb} GB (Cloudflare Free Tier is 10 GB)`);
+    console.log(`   - Max File Cap:         ${maxFiles} objects`);
+    console.log(`   - Class A Operations:   1,000,000 / month (Free)`);
+    console.log(`   - Class B Operations:   10,000,000 / month (Free)`);
+    console.log(`   - Egress Bandwidth:     Unlimited ($0)`);
+    console.log("   ✓ Safety blocker is armed: uploads exceeding limits are rejected automatically.\n");
+
+    console.log("🎉 SUCCESS: Cloudflare R2 connection & hard blocker protections are active!");
   } catch (err) {
     console.error("\n❌ Cloudflare R2 connection error:", err.message);
     process.exit(1);

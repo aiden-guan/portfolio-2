@@ -120,7 +120,7 @@ export function AdminImageEditor({
         const presignRes = await fetch("/api/admin/media/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pathname, contentType }),
+          body: JSON.stringify({ pathname, contentType, size: file.size }),
           signal: controller.signal,
         });
         const presignData = (await presignRes.json().catch(() => null)) as {

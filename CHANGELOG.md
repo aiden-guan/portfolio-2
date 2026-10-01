@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-09-30
+
+### Summary
+Implemented Cloudflare R2 hard limit blocker, pre-upload capacity guard, S3 signed length enforcement, real-time admin storage monitor, and CLI orphan cleaner to prevent accidental cloud overage charges.
+
+### Architectural & Functional Highlights
+| Component / Layer | Change | Impact |
+| :--- | :--- | :--- |
+| **Quota Engine** | Added `lib/r2-limits.ts` with 5.0 GB safety cap & in-memory caching | Rejects uploads exceeding safety thresholds before sending bytes to Cloudflare; protects Class A operations. |
+| **Direct Uploads** | Cryptographic `ContentLength` presigning in `lib/r2.ts` | Enforces that uploaded video files match declared size and cannot bypass video size limits. |
+| **Admin UI** | Added `AdminStorageGuard` in `components/admin-editor.tsx` | Real-time visual storage meter and 1-click orphan cleaner in `/admin` Settings. |
+| **CLI & Tools** | Added `scripts/manage-r2.mjs` (`npm run r2`) and automated multipart abort | Terminal storage auditing, bulk orphan deletion, and automated abort of stalled multipart fragments. |
+
 ---
 
 ## [1.1.0] — 2026-09-24

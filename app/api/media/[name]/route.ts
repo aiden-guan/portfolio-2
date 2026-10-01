@@ -53,7 +53,7 @@ export async function GET(
   if (isR2Configured()) {
     const publicDomain = getR2PublicDomain();
     if (publicDomain) {
-      return Response.redirect(`${publicDomain}/${pathname}`, 307);
+      return Response.redirect(`${publicDomain}/${pathname}`, 308);
     }
 
     try {

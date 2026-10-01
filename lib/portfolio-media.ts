@@ -5,6 +5,7 @@ import { BlobAccessError, del, put } from "@vercel/blob";
 import { MAX_VIDEO_BYTES, VIDEO_TOO_LARGE_MESSAGE } from "@/lib/media-limits";
 import { isContentStoreConfigured } from "@/lib/portfolio-content";
 import { isR2Configured, putR2Object } from "@/lib/r2";
+import { isR2StorageLimitError } from "@/lib/r2-limits";
 
 export class PortfolioMediaError extends Error {}
 
@@ -170,6 +171,9 @@ export async function storePortfolioImage(bytes: Uint8Array, type: string) {
       const res = await putR2Object(pathname, body, type);
       return { src: res.url };
     } catch (error) {
+      if (isR2StorageLimitError(error) || error instanceof PortfolioMediaError) {
+        throw error;
+      }
       console.error("R2 storage error:", error);
       throw new PortfolioMediaError("Failed to store media in Cloudflare R2.");
     }

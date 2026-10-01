@@ -1,6 +1,6 @@
 {
   "name": "aiden-portfolio-index",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "blobs": "node --env-file=.env.local scripts/manage-blobs.mjs",
-    "test:r2": "node --env-file=.env.local scripts/test-r2.mjs"
+    "r2": "node --env-file=.env.local scripts/manage-r2.mjs",
+    "test:r2": "node --env-file=.env.local scripts/test-r2.mjs",
+    "test:blocker": "npx tsx --env-file=.env.local scripts/test-hard-blocker.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1144.0",

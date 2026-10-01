@@ -7,8 +7,10 @@ import {
   isVideoPathname,
   MAX_VIDEO_BYTES,
   PortfolioMediaError,
+  VIDEO_TOO_LARGE_MESSAGE,
   VIDEO_TYPES,
 } from "@/lib/portfolio-media";
+import { isR2StorageLimitError } from "@/lib/r2-limits";
 
 export const runtime = "nodejs";
 
@@ -63,16 +65,21 @@ export async function POST(request: Request) {
       return Response.json({ error: "Sign in to add videos." }, { status: 401, headers: noStore });
     }
 
-    const payload = body as { pathname?: string; contentType?: string };
+    const payload = body as { pathname?: string; contentType?: string; size?: number };
     const pathname = payload.pathname;
     const contentType = payload.contentType || "video/mp4";
+    const size = typeof payload.size === "number" ? payload.size : undefined;
 
     if (!pathname || !isVideoPathname(pathname)) {
       return Response.json({ error: "Use an MP4, WebM, or MOV." }, { status: 400, headers: noStore });
     }
 
+    if (size !== undefined && size > MAX_VIDEO_BYTES) {
+      return Response.json({ error: VIDEO_TOO_LARGE_MESSAGE }, { status: 400, headers: noStore });
+    }
+
     try {
-      const presignedUrl = await getR2PresignedUploadUrl(pathname, contentType);
+      const presignedUrl = await getR2PresignedUploadUrl(pathname, contentType, size);
       const publicDomain = getR2PublicDomain();
       const url = publicDomain
         ? `${publicDomain}/${pathname}`
@@ -80,6 +87,9 @@ export async function POST(request: Request) {
 
       return Response.json({ provider: "r2", presignedUrl, url }, { headers: noStore });
     } catch (error) {
+      if (isR2StorageLimitError(error) || error instanceof PortfolioMediaError) {
+        return Response.json({ error: (error as Error).message }, { status: 403, headers: noStore });
+      }
       console.error("Failed to generate R2 presigned upload URL:", error);
       return Response.json({ error: "Could not prepare video upload." }, { status: 500, headers: noStore });
     }

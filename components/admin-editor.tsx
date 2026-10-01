@@ -11,6 +11,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { AdminImageEditor } from "@/components/admin-image-editor";
+import { AdminStorageGuard } from "@/components/admin-storage-guard";
 import type {
   PortfolioContent,
   ProfileLink,
@@ -1186,6 +1187,10 @@ export function AdminEditor() {
                   <Field label="Description" value={seo.description} onChange={(value) => setContent((current) => current ? { ...current, seo: { ...current.seo, description: value } } : current)} multiline rows={3} />
                   <Field label="Social description" value={seo.socialDescription} onChange={(value) => setContent((current) => current ? { ...current, seo: { ...current.seo, socialDescription: value } } : current)} multiline rows={3} />
                 </div>
+              </EditorSection>
+
+              <EditorSection eyebrow="03 / Storage & Limits" title="Cloudflare R2 usage and safety guard.">
+                <AdminStorageGuard />
               </EditorSection>
             </>
           ) : null}
