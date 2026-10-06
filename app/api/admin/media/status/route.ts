@@ -1,6 +1,6 @@
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { getPortfolioContent } from "@/lib/portfolio-content";
-import { deleteR2Objects, isR2Configured } from "@/lib/r2";
+import { deleteR2Objects, getR2BucketName, isR2Configured, isR2CorsConfigured } from "@/lib/r2";
 import {
   extractReferencedMediaKeys,
   getR2BucketUsage,
@@ -33,9 +33,10 @@ export async function GET() {
   }
 
   try {
-    const [usage, content] = await Promise.all([
+    const [usage, content, corsConfigured] = await Promise.all([
       getR2BucketUsage(true),
       getPortfolioContent(),
+      isR2CorsConfigured(),
     ]);
 
     const referenced = extractReferencedMediaKeys(content);
@@ -64,6 +65,8 @@ export async function GET() {
       {
         provider: "r2",
         configured: true,
+        corsConfigured,
+        bucketName: getR2BucketName(),
         hardBlockerActive: true,
         totalBytes: usage.totalBytes,
         objectCount: usage.objectCount,

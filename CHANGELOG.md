@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] — 2026-10-05
+
+### Summary
+Fixed Cloudflare R2 browser upload failures by adding automatic server-side media fallback, real-time XHR upload progress tracking, bucket CORS active probing, and CLI CORS setup tooling.
+
+### Architectural & Functional Highlights
+| Component / Layer | Change | Impact |
+| :--- | :--- | :--- |
+| **Media Upload Client** | Automatic server fallback for media ≤ 4 MB | Bypasses browser CORS restrictions by routing smaller media through the server-side S3 pipeline, preventing upload failure. |
+| **Upload Engine** | Replaced `fetch` with `uploadPresignedR2` (XHR) | Provides live upload progress (`0% → 100%`) and converts ambiguous network errors into actionable CORS guidance. |
+| **CORS Prober** | Added `isR2CorsConfigured()` in `lib/r2.ts` | Probes bucket preflight headers with TTL caching to proactively inform UI components of CORS readiness. |
+| **Admin Guard & CLI** | Added CORS indicator & `npm run r2 -- cors` command | Surfaces configuration status in `/admin` Settings and offers instant terminal diagnostic & dashboard setup instructions. |
+
+### Detailed Changes
+
+#### Fixed
+- **Cloudflare R2 CORS Blocker**: Resolved upload failures where cross-origin PUT requests were rejected with `403 Forbidden: CORS not configured for this bucket` and masked as generic connection dropouts.
+- **Video Server Fallback**: Configured `components/admin-image-editor.tsx` to automatically upload videos ≤ 4 MB via `/api/admin/media` when direct R2 upload fails or lacks CORS.
+- **Upload Progress Accuracy**: Wired real-time upload progress percentage to `uploadPresignedR2` via `request.upload.onprogress`.
+
+#### Added
+- **CORS Active Probing**: Added `isR2CorsConfigured()` in `lib/r2.ts` and exposed `corsConfigured` in `/api/admin/media/upload` and `/api/admin/media/status`.
+- **CORS CLI Command**: Added `npm run r2 -- cors` to audit bucket CORS headers, attempt automated S3/Cloudflare API setup, and print direct dashboard setup links.
+- **Admin Guard Guidance**: Surfaced a proactive warning in `AdminStorageGuard` when R2 CORS is unconfigured.
+
+### Verification Proof
+- `npm run lint` passed with 0 errors.
+- `npm run typecheck` passed with 0 errors.
+- `npm run build` executed full production Turbopack compilation across all routes.
+- `npm run r2 -- cors` verified bucket probe output and configuration guidance.
+
+---
+
 ## [1.2.2] — 2026-10-01
 
 ### Summary

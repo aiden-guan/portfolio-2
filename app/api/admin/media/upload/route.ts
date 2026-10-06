@@ -1,7 +1,7 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { isContentStoreConfigured } from "@/lib/portfolio-content";
-import { isR2Configured, getR2PresignedUploadUrl, getR2PublicDomain } from "@/lib/r2";
+import { isR2Configured, isR2CorsConfigured, getR2PresignedUploadUrl, getR2PublicDomain } from "@/lib/r2";
 import {
   blobStoreAccess,
   isVideoPathname,
@@ -30,7 +30,8 @@ export async function GET() {
   }
 
   if (isR2Configured()) {
-    return Response.json({ access: "public", provider: "r2" }, { headers: noStore });
+    const corsConfigured = await isR2CorsConfigured();
+    return Response.json({ access: "public", provider: "r2", corsConfigured }, { headers: noStore });
   }
 
   try {

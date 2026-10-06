@@ -4,7 +4,7 @@ import { type DragEvent, type PointerEvent as ReactPointerEvent, useId, useRef, 
 import Image from "next/image";
 import { upload } from "@vercel/blob/client";
 import { imageFrame, isVideo, MAX_PROJECT_IMAGES, type PortfolioImage } from "@/content/portfolio";
-import { MAX_VIDEO_BYTES, VIDEO_TOO_LARGE_MESSAGE } from "@/lib/media-limits";
+import { MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, VIDEO_TOO_LARGE_MESSAGE } from "@/lib/media-limits";
 
 const VIDEO_EXTENSIONS: Record<string, string> = {
   "video/mp4": "mp4",
@@ -117,6 +117,15 @@ export function AdminImageEditor({
       const accessInfo = await Promise.race([videoStoreAccess(controller.signal), timeoutPromise]);
 
       if (accessInfo.provider === "r2") {
+        if (accessInfo.corsConfigured === false) {
+          if (file.size <= MAX_IMAGE_BYTES) {
+            return await uploadViaServer(file, "video");
+          }
+          throw new UploadError(
+            "Large video uploads (>4 MB) require a CORS policy on Cloudflare R2. Add a CORS policy in Cloudflare Dashboard (R2 > portfolio-media > Settings) or upload a compressed video under 4 MB.",
+          );
+        }
+
         const presignRes = await fetch("/api/admin/media/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -131,16 +140,34 @@ export function AdminImageEditor({
           throw new UploadError(errorMessage(presignData, "Could not initiate video upload to R2."));
         }
 
-        const uploadRes = await fetch(presignData.presignedUrl, {
-          method: "PUT",
-          body: file,
-          headers: { "Content-Type": contentType },
-          signal: controller.signal,
-        });
-        if (!uploadRes.ok) {
-          throw new UploadError("Failed to upload video to Cloudflare R2.");
+        try {
+          await Promise.race([
+            uploadPresignedR2(
+              presignData.presignedUrl,
+              file,
+              contentType,
+              controller.signal,
+              (percentage) => {
+                uploadStarted = true;
+                const currentPercentage = clampPercent(percentage);
+                setUploadProgress({
+                  kind: "video",
+                  phase: currentPercentage >= 100 ? "finishing" : "uploading",
+                  percentage: currentPercentage,
+                });
+                armTimeout(VIDEO_UPLOAD_IDLE_TIMEOUT_MS);
+              },
+            ),
+            timeoutPromise,
+          ]);
+          return presignData.url || `/api/media/${encodeURIComponent(pathname.split("/").pop() ?? "")}`;
+        } catch (r2Error) {
+          if (file.size <= MAX_IMAGE_BYTES) {
+            console.warn("Direct R2 upload failed, falling back to server media route:", r2Error);
+            return await uploadViaServer(file, "video");
+          }
+          throw r2Error;
         }
-        return presignData.url || `/api/media/${encodeURIComponent(pathname.split("/").pop() ?? "")}`;
       }
 
       const access = accessInfo.access;
@@ -165,6 +192,25 @@ export function AdminImageEditor({
     }
   }
 
+  function uploadViaServer(file: File, kind: UploadProgressState["kind"]) {
+    const videoType = videoTypeForFile(file);
+    const body = new FormData();
+    body.set(
+      "file",
+      videoType && file.type.trim().toLowerCase() !== videoType
+        ? new File([file], file.name, { type: videoType })
+        : file,
+    );
+    setUploadProgress({ kind, phase: "uploading", percentage: 0 });
+    return uploadMediaForm(body, kind, (percentage) => {
+      setUploadProgress({
+        kind,
+        phase: percentage >= 100 ? "finishing" : "uploading",
+        percentage,
+      });
+    });
+  }
+
   async function uploadFile(file: File) {
     const videoType = videoTypeForFile(file);
     const extension = videoType ? VIDEO_EXTENSIONS[videoType] : undefined;
@@ -175,22 +221,7 @@ export function AdminImageEditor({
       return uploadVideo(file, extension, videoType);
     }
 
-    const body = new FormData();
-    body.set(
-      "file",
-      videoType && file.type.trim().toLowerCase() !== videoType
-        ? new File([file], file.name, { type: videoType })
-        : file,
-    );
-    const kind = videoType ? "video" : "image";
-    setUploadProgress({ kind, phase: "uploading", percentage: 0 });
-    return uploadMediaForm(body, kind, (percentage) => {
-      setUploadProgress({
-        kind,
-        phase: percentage >= 100 ? "finishing" : "uploading",
-        percentage,
-      });
-    });
+    return uploadViaServer(file, videoType ? "video" : "image");
   }
 
   async function addFiles(list: FileList | File[]) {
@@ -543,9 +574,64 @@ function uploadMediaForm(
   });
 }
 
+function uploadPresignedR2(
+  url: string,
+  file: File,
+  contentType: string,
+  signal: AbortSignal,
+  onProgress: (percentage: number) => void,
+) {
+  return new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+
+    const onAbort = () => {
+      request.abort();
+      reject(new UploadError("The upload was interrupted. Try again."));
+    };
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+
+    request.upload.addEventListener("progress", (event) => {
+      if (!event.lengthComputable || event.total <= 0) return;
+      onProgress(clampPercent((event.loaded / event.total) * 100));
+    });
+
+    request.addEventListener("load", () => {
+      signal.removeEventListener("abort", onAbort);
+      if (request.status >= 200 && request.status < 300) {
+        resolve();
+      } else if (request.status === 403) {
+        reject(
+          new UploadError(
+            "Upload blocked by Cloudflare R2 CORS or permissions. Add a CORS policy in Cloudflare Dashboard (R2 > portfolio-media > Settings) to allow direct browser uploads.",
+          ),
+        );
+      } else {
+        reject(new UploadError(`Cloudflare R2 returned error status ${request.status}.`));
+      }
+    });
+
+    request.addEventListener("error", () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(
+        new UploadError(
+          "Upload blocked by Cloudflare R2 CORS policy. Add a CORS policy in Cloudflare Dashboard (R2 > portfolio-media > Settings) to allow browser uploads.",
+        ),
+      );
+    });
+
+    request.open("PUT", url);
+    request.setRequestHeader("Content-Type", contentType);
+    request.send(file);
+  });
+}
+
 async function videoStoreAccess(
   signal: AbortSignal,
-): Promise<{ access: "public" | "private"; provider: string }> {
+): Promise<{ access: "public" | "private"; provider: string; corsConfigured?: boolean }> {
   const response = await fetch("/api/admin/media/upload", { cache: "no-store", signal });
   const payload: unknown = await response.json().catch(() => null);
   if (
@@ -556,7 +642,11 @@ async function videoStoreAccess(
     (payload.access === "public" || payload.access === "private")
   ) {
     const provider = "provider" in payload && typeof payload.provider === "string" ? payload.provider : "blob";
-    return { access: payload.access, provider };
+    const corsConfigured =
+      "corsConfigured" in payload && typeof payload.corsConfigured === "boolean"
+        ? payload.corsConfigured
+        : undefined;
+    return { access: payload.access, provider, corsConfigured };
   }
   throw new UploadError(errorMessage(payload, "The server could not prepare this video upload."));
 }
@@ -565,6 +655,9 @@ function uploadErrorMessage(error: unknown) {
   if (error instanceof UploadError) return error.message;
   if (error instanceof Error && /client token/i.test(error.message)) {
     return "The server could not prepare this video upload. Check the video storage configuration and try again.";
+  }
+  if (error instanceof Error && /cors/i.test(error.message)) {
+    return error.message;
   }
   if (error instanceof TypeError) {
     return "The upload server could not be reached. Check your connection and try again.";

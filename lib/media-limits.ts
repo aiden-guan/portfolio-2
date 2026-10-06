@@ -1,3 +1,6 @@
+/** Maximum image size allowed for portfolio media (4 MB). */
+export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
 /** Maximum video size allowed for portfolio media (15 MB). */
 export const MAX_VIDEO_BYTES = 15 * 1024 * 1024;
 

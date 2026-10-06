@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 type R2StatusData = {
   provider: string;
   configured: boolean;
+  corsConfigured?: boolean;
+  bucketName?: string;
   hardBlockerActive: boolean;
   totalBytes: number;
   objectCount: number;
@@ -160,6 +162,20 @@ export function AdminStorageGuard() {
           <span style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--ink)" }}>$0 / Free</span>
         </div>
       </div>
+
+      {data.corsConfigured === false && (
+        <div style={{ padding: "0.75rem", background: "rgba(220, 38, 38, 0.08)", border: "1px solid var(--accent)", borderRadius: "2px", fontSize: "0.78rem" }}>
+          <strong style={{ color: "var(--accent)", display: "block", marginBottom: "0.25rem" }}>
+            ⚠️ Cloudflare R2 CORS Not Configured
+          </strong>
+          <span style={{ color: "var(--ink)", display: "block", marginBottom: "0.5rem" }}>
+            Videos up to 4 MB upload automatically via the server fallback. Videos larger than 4 MB require a CORS policy in Cloudflare R2 Settings so the browser can upload directly to R2.
+          </span>
+          <span style={{ color: "var(--faint)", fontSize: "0.72rem" }}>
+            To configure: in Cloudflare Dashboard → R2 → {data.bucketName || "portfolio-media"} → Settings → CORS Policy, add allowed origins or run <code>npm run r2 -- cors</code> in terminal.
+          </span>
+        </div>
+      )}
 
       {/* Actions and messages */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>

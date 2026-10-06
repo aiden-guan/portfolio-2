@@ -9,6 +9,7 @@ import {
   DeleteObjectCommand,
   ListMultipartUploadsCommand,
   AbortMultipartUploadCommand,
+  PutBucketCorsCommand,
 } from "@aws-sdk/client-s3";
 import { list as listBlobs, get as getBlob } from "@vercel/blob";
 
@@ -418,8 +419,124 @@ async function main() {
     } else {
       console.error("✗ Failed to set Cloudflare Lifecycle rule:", lifecycleData.errors);
     }
+  } else if (command === "cors" || command === "setup-cors") {
+    const probeUrl = `https://${bucket}.${accountId}.r2.cloudflarestorage.com/portfolio/media/probe`;
+    let isConfigured = false;
+    try {
+      const probeRes = await fetch(probeUrl, {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://aidenguan.com",
+          "Access-Control-Request-Method": "PUT",
+          "Access-Control-Request-Headers": "content-type",
+        },
+      });
+      isConfigured = probeRes.ok && probeRes.headers.has("access-control-allow-origin");
+    } catch {
+      isConfigured = false;
+    }
+
+    console.log(`=== Cloudflare R2 CORS Status for Bucket "${bucket}" ===\n`);
+    if (isConfigured) {
+      console.log("🎉 CORS IS CONFIGURED AND WORKING!");
+      console.log("Direct browser video uploads to Cloudflare R2 are fully enabled.\n");
+      return;
+    }
+
+    console.log("⚠️  CORS is currently NOT configured for this bucket.");
+    console.log("Direct browser video uploads (>4 MB) are blocked by Cloudflare R2 until a CORS policy is set.");
+    console.log("(Note: videos <= 4 MB automatically upload via the server fallback).\n");
+
+    const token = process.argv[3] || process.env.CLOUDFLARE_API_TOKEN;
+
+    // 1. Try S3 PutBucketCorsCommand
+    let s3Succeeded = false;
+    try {
+      await client.send(
+        new PutBucketCorsCommand({
+          Bucket: bucket,
+          CORSConfiguration: {
+            CORSRules: [
+              {
+                AllowedOrigins: ["https://aidenguan.com", "https://*.vercel.app", "http://localhost:3000", "*"],
+                AllowedMethods: ["GET", "PUT", "HEAD", "POST"],
+                AllowedHeaders: ["*"],
+                MaxAgeSeconds: 3600,
+              },
+            ],
+          },
+        })
+      );
+      s3Succeeded = true;
+      console.log("✓ Successfully configured CORS via S3 API!");
+    } catch {
+      // S3 API token likely lacks admin permissions
+    }
+
+    // 2. If token provided and S3 failed, try Cloudflare REST API
+    if (!s3Succeeded && token) {
+      try {
+        const corsRes = await fetch(
+          `https://api.cloudflare.com/client/v4/accounts/${accountId}/r2/buckets/${bucket}/cors`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              rules: [
+                {
+                  allowed: {
+                    origins: ["https://aidenguan.com", "https://*.vercel.app", "http://localhost:3000", "*"],
+                    methods: ["GET", "PUT", "HEAD", "POST"],
+                    headers: ["*"],
+                  },
+                  maxAgeSeconds: 3600,
+                },
+              ],
+            }),
+          }
+        );
+        const corsData = await corsRes.json();
+        if (corsData.success) {
+          console.log("✓ Successfully configured CORS via Cloudflare REST API!");
+          return;
+        }
+      } catch {
+        // Ignore and fall through to dashboard instructions
+      }
+    }
+
+    if (!s3Succeeded) {
+      console.log("To configure CORS in Cloudflare Dashboard (takes 15 seconds):");
+      console.log(`1. Open bucket settings:`);
+      console.log(`   https://dash.cloudflare.com/${accountId}/r2/default/buckets/${bucket}/settings\n`);
+      console.log(`2. Scroll down to "CORS Policy" and click "Add CORS policy" (or Edit).\n`);
+      console.log(`3. Paste the following JSON policy:\n`);
+      console.log(
+        JSON.stringify(
+          [
+            {
+              AllowedOrigins: [
+                "https://aidenguan.com",
+                "https://*.vercel.app",
+                "http://localhost:3000",
+              ],
+              AllowedMethods: ["GET", "PUT", "HEAD", "POST"],
+              AllowedHeaders: ["*"],
+              ExposeHeaders: [],
+              MaxAgeSeconds: 3600,
+            },
+          ],
+          null,
+          2
+        )
+      );
+      console.log(`\n4. Click "Save". Direct video uploads will then work instantly!`);
+    }
   } else {
-    console.error(`Unknown command "${command}". Available: status, clean, delete, sync-from-blobs, setup-cloudflare`);
+    console.error(`Unknown command "${command}". Available: status, clean, delete, sync-from-blobs, setup-cloudflare, cors`);
     process.exit(1);
   }
 }

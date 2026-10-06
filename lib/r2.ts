@@ -28,6 +28,43 @@ export function getR2BucketName(): string {
   return process.env.R2_BUCKET_NAME || "portfolio";
 }
 
+let cachedCorsStatus: { configured: boolean; timestamp: number } | null = null;
+const CORS_CACHE_TTL_MS = 60 * 1000; // 1 minute
+
+export async function isR2CorsConfigured(): Promise<boolean> {
+  if (!isR2Configured()) return false;
+  const now = Date.now();
+  if (cachedCorsStatus && now - cachedCorsStatus.timestamp < CORS_CACHE_TTL_MS) {
+    return cachedCorsStatus.configured;
+  }
+
+  const accountId = process.env.R2_ACCOUNT_ID?.trim();
+  const bucket = getR2BucketName();
+  if (!accountId) return false;
+
+  const probeUrl = `https://${bucket}.${accountId}.r2.cloudflarestorage.com/portfolio/media/probe`;
+  try {
+    const res = await fetch(probeUrl, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://aidenguan.com",
+        "Access-Control-Request-Method": "PUT",
+        "Access-Control-Request-Headers": "content-type",
+      },
+    });
+    const configured = res.ok && res.headers.has("access-control-allow-origin");
+    cachedCorsStatus = { configured, timestamp: now };
+    return configured;
+  } catch {
+    cachedCorsStatus = { configured: false, timestamp: now };
+    return false;
+  }
+}
+
+export function invalidateR2CorsCache() {
+  cachedCorsStatus = null;
+}
+
 export function getR2PublicDomain(): string | null {
   const url = process.env.R2_PUBLIC_URL?.trim();
   if (!url) return null;
