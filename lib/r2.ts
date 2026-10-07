@@ -146,6 +146,17 @@ export async function getR2Object(key: string, range?: string) {
   return client.send(command);
 }
 
+export async function getR2PresignedDownloadUrl(
+  key: string,
+  expiresIn: number = 24 * 60 * 60,
+) {
+  const client = getR2Client();
+  const bucket = getR2BucketName();
+  const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+
+  return getSignedUrl(client, command, { expiresIn });
+}
+
 export async function deleteR2Object(key: string) {
   const client = getR2Client();
   const bucket = getR2BucketName();

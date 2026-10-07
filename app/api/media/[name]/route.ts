@@ -1,5 +1,9 @@
 import { get } from "@vercel/blob";
-import { isR2Configured, getR2PublicDomain, getR2Object } from "@/lib/r2";
+import {
+  getR2PresignedDownloadUrl,
+  getR2PublicDomain,
+  isR2Configured,
+} from "@/lib/r2";
 import { isContentStoreConfigured } from "@/lib/portfolio-content";
 import { mediaPathname } from "@/lib/portfolio-media";
 
@@ -57,27 +61,17 @@ export async function GET(
     }
 
     try {
-      const response = await getR2Object(pathname, range || undefined);
-      if (!response.Body) return new Response("Not found", { status: 404 });
-
-      const headers = new Headers({
-        "Accept-Ranges": "bytes",
-        "Cache-Control": "public, max-age=31536000, immutable",
-        "Content-Type": response.ContentType || "application/octet-stream",
-      });
-      if (response.ContentLength !== undefined) {
-        headers.set("Content-Length", String(response.ContentLength));
-      }
-      if (response.ContentRange) {
-        headers.set("Content-Range", response.ContentRange);
-      }
-      if (response.ETag) headers.set("ETag", response.ETag);
-
-      const status = response.ContentRange ? 206 : 200;
-
-      return new Response(response.Body.transformToWebStream(), {
-        status,
-        headers,
+      // Keep the bucket private and send media bytes directly from R2 to the
+      // browser instead of streaming large, uncacheable Range responses through
+      // a Vercel Function. A 307 preserves the media request's Range header.
+      const url = await getR2PresignedDownloadUrl(pathname);
+      return new Response(null, {
+        status: 307,
+        headers: {
+          Location: url,
+          "Cache-Control": "no-store",
+          "Referrer-Policy": "no-referrer",
+        },
       });
     } catch {
       return new Response("Not found", { status: 404 });
