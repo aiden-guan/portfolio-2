@@ -215,13 +215,23 @@ html[data-theme="dark"]:not([data-scene]) {
   --fold-shade: #121210;
 }
 
-/* The resting curl is drawn by the fold itself while a peel is under way. */
-html[data-peeling] .page-curl,
-html[data-turning] .page-curl {
-  visibility: hidden;
+/* While a peel is under way the fold draws the corner. The curl stays on screen
+   for the frame the page is captured in (hiding it would flash a bare corner)
+   but is lifted out of the snapshot under its own name, and that is not shown. */
+html[data-peeling] .page-curl {
+  view-transition-name: page-curl;
   /* so it is already at rest, not mid-shrink, when the fold hands back to it */
   transition: none;
   animation: none;
+}
+
+html[data-turning] .page-curl {
+  visibility: hidden;
+}
+
+::view-transition-group(page-curl) {
+  animation: none;
+  opacity: 0;
 }
 
 .page-fold {

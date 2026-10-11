@@ -734,6 +734,13 @@ export function PageCurl() {
       released: false,
     };
     warm();
+    // Start the turn on press, not on the first move: capturing the page and
+    // mounting the next scene takes a moment, and it is better spent while the
+    // finger is still settling than once it has started to pull.
+    if (canPeel()) {
+      busy.current = true;
+      begin(peel.current);
+    }
   }
 
   function onPointerMove(event: React.PointerEvent<HTMLButtonElement>) {
@@ -745,7 +752,6 @@ export function PageCurl() {
       if (Math.hypot(dx, dy) < 4) return;
       state.dragging = true;
       busy.current = true;
-      if (canPeel()) begin(state);
     }
     const corner = foldTo(state, event.clientX, event.clientY);
     const reach = corner.x / window.innerWidth + corner.y / window.innerHeight;
@@ -763,9 +769,12 @@ export function PageCurl() {
     if (!state || state.id !== event.pointerId) return;
     if (!state.dragging) {
       // a plain click: tug the corner and say what to do
-      peel.current = null;
       setHint((n) => n + 1);
-      return;
+      if (!state.transition) {
+        peel.current = null;
+        return;
+      }
+      state.speed = 0;
     }
     release(state);
   }
@@ -773,7 +782,7 @@ export function PageCurl() {
   function onPointerCancel(event: React.PointerEvent<HTMLButtonElement>) {
     const state = peel.current;
     if (!state || state.id !== event.pointerId) return;
-    if (!state.dragging) {
+    if (!state.dragging && !state.transition) {
       peel.current = null;
       return;
     }
