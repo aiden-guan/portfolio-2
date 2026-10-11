@@ -4,6 +4,7 @@ import { IndexNavigation } from "@/components/index-navigation";
 import { LocalTime } from "@/components/local-time";
 import { PortfolioFrame } from "@/components/portfolio-frame";
 import { ProjectIndex } from "@/components/project-index";
+import { AsciiTitle, PageCurl, SceneCaption, SceneryBackdrop } from "@/components/scenery";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getPortfolioContent } from "@/lib/portfolio-content";
 
@@ -20,6 +21,8 @@ export default async function Home() {
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
+      <SceneryBackdrop />
+      <PageCurl />
       <PortfolioFrame>
         <aside className="identity" aria-labelledby="site-title">
           <div className="identity-inner">
@@ -28,7 +31,8 @@ export default async function Home() {
                 <p className="identity-mark" aria-hidden="true">{profile.mark}</p>
               ) : null}
               <h1 id="site-title" aria-label={profile.name || "Portfolio"}>
-                {profile.name}
+                <span className="title-text">{profile.name}</span>
+                <AsciiTitle text={profile.name} />
               </h1>
               {profile.descriptor ? <p className="descriptor">{profile.descriptor}</p> : null}
               {profile.introduction ? (
@@ -51,6 +55,7 @@ export default async function Home() {
               <div className="utility-row">
                 <LocalTime name={profile.name} location={profile.locationLabel} />
                 <ThemeToggle />
+                <SceneCaption />
               </div>
             </div>
           </div>

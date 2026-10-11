@@ -1,0 +1,772 @@
+/* ------------------------------------------------------------------------ */
+/* The page curl: the top-left corner of the page, lifted.                   */
+/* ------------------------------------------------------------------------ */
+
+.page-curl {
+  --curl: 3.6rem;
+  --curl-back: #fbfaf5;
+  --curl-shade: #c9c5b8;
+  --curl-under-a: #ff4fa3;
+  --curl-under-b: #1a1030;
+  --curl-under-dot: rgb(255 255 255 / 0.55);
+  position: fixed;
+  z-index: 30;
+  top: 0;
+  left: 0;
+  width: var(--curl);
+  height: var(--curl);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: width 420ms var(--ease-pop), height 420ms var(--ease-pop);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.page-curl:active {
+  cursor: grabbing;
+}
+
+.page-curl:hover,
+.page-curl:focus-visible {
+  --curl: 5.6rem;
+}
+
+.page-curl:focus-visible {
+  outline: none;
+}
+
+.page-curl:focus-visible .page-curl-flap {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* What shows under the lifted corner: a peek at the next version. */
+.page-curl-peek {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  background:
+    radial-gradient(circle, var(--curl-under-dot) 0.9px, transparent 1.4px) 0 0 / 5px 5px,
+    linear-gradient(135deg, var(--curl-under-a), var(--curl-under-b) 70%);
+  box-shadow: inset -6px -6px 14px rgb(0 0 0 / 0.35);
+}
+
+/* The underside of the paper, folded back over the page and slightly rolled. */
+.page-curl-flap {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  background:
+    linear-gradient(
+      315deg,
+      var(--curl-back) 0%,
+      color-mix(in srgb, var(--curl-back) 70%, var(--curl-shade)) 30%,
+      var(--curl-shade) 47%,
+      color-mix(in srgb, var(--curl-shade) 60%, #fff) 50%
+    );
+  filter: drop-shadow(3px 4px 5px rgb(0 0 0 / 0.28));
+  transition: filter 420ms var(--ease-out);
+}
+
+.page-curl::after {
+  /* the shadow the lifted corner casts on the page under it */
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  clip-path: polygon(100% 0, 120% 0, 120% 120%, 0 120%, 0 100%);
+  background: linear-gradient(315deg, transparent 38%, rgb(0 0 0 / 0.16) 50%, transparent 54%);
+  pointer-events: none;
+}
+
+.page-curl:hover .page-curl-flap {
+  filter: drop-shadow(5px 7px 9px rgb(0 0 0 / 0.32));
+}
+
+.page-curl-label {
+  position: absolute;
+  top: 0.9rem;
+  left: calc(100% + 0.45rem);
+  display: inline-flex;
+  gap: 0.45em;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-0.4rem);
+  transition: opacity 260ms var(--ease-out), transform 420ms var(--ease-out);
+}
+
+html[data-turning] .page-curl-label {
+  opacity: 0;
+  transition: none;
+}
+
+.page-curl-label span {
+  color: var(--accent);
+}
+
+.page-curl:hover .page-curl-label,
+.page-curl:focus-visible .page-curl-label,
+.page-curl[data-hint] .page-curl-label {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Every so often the corner lifts a little, like paper in a draught. */
+  .page-curl:not(:hover, :focus-visible) {
+    animation: curl-breathe 7s var(--ease) 2.5s infinite;
+  }
+}
+
+/* A click instead of a drag: the corner tugs toward the page to show the way. */
+.page-curl[data-hint] {
+  animation: curl-tug 900ms var(--ease) both;
+}
+
+@keyframes curl-tug {
+  0%,
+  100% {
+    width: var(--curl);
+    height: var(--curl);
+  }
+  35% {
+    width: calc(var(--curl) * 1.7);
+    height: calc(var(--curl) * 1.7);
+  }
+  60% {
+    width: calc(var(--curl) * 1.25);
+    height: calc(var(--curl) * 1.25);
+  }
+}
+
+@keyframes curl-breathe {
+  0%,
+  84%,
+  100% {
+    width: var(--curl);
+    height: var(--curl);
+  }
+  90% {
+    width: calc(var(--curl) * 1.22);
+    height: calc(var(--curl) * 1.22);
+  }
+}
+
+.page-curl[data-next="chongqing"] {
+  --curl-under-a: #ff4fa3;
+  --curl-under-b: #120a26;
+}
+
+.page-curl[data-next="rockies"] {
+  --curl-under-a: #ff9a6b;
+  --curl-under-b: #2b1e3b;
+}
+
+.page-curl[data-next="reef"] {
+  --curl-under-a: #7ff3e6;
+  --curl-under-b: #08406a;
+}
+
+.page-curl[data-next="golden-gate"] {
+  --curl-under-a: #ffb25e;
+  --curl-under-b: #c0362c;
+}
+
+.page-curl[data-next="original"] {
+  --curl-under-a: #f6f5f0;
+  --curl-under-b: #cbc9c0;
+  --curl-under-dot: rgb(21 21 19 / 0.35);
+}
+
+html[data-theme="dark"]:not([data-scene]) .page-curl {
+  --curl-back: #2a2925;
+  --curl-shade: #121210;
+}
+
+.skip-link {
+  z-index: 70;
+}
+
+/* ------------------------------------------------------------------------ */
+/* The page turn: the corner folds over and follows the pointer. The fold's  */
+/* shape comes from PageCurl as custom properties on the root, which the     */
+/* view-transition pseudo-elements inherit.                                  */
+/* ------------------------------------------------------------------------ */
+
+:root {
+  --fold-back: #fbfaf5;
+  --fold-shade: #c9c5b8;
+  --fold-mid: color-mix(in srgb, var(--fold-back) 70%, var(--fold-shade));
+  --fold-crease: color-mix(in srgb, var(--fold-shade) 60%, #fff);
+}
+
+html[data-theme="dark"]:not([data-scene]) {
+  --fold-back: #2a2925;
+  --fold-shade: #121210;
+}
+
+/* While a peel is under way the fold draws the corner. The curl stays on screen
+   for the frame the page is captured in (hiding it would flash a bare corner)
+   but is lifted out of the snapshot under its own name, and that is not shown. */
+html[data-peeling] .page-curl {
+  view-transition-name: page-curl;
+  /* so it is already at rest, not mid-shrink, when the fold hands back to it */
+  transition: none;
+  animation: none;
+}
+
+html[data-turning] .page-curl {
+  visibility: hidden;
+}
+
+::view-transition-group(page-curl) {
+  animation: none;
+  opacity: 0;
+}
+
+.page-fold {
+  display: none;
+}
+
+html[data-turning] .page-fold {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  view-transition-name: page-fold;
+}
+
+/* Held open until PageCurl ends the transition itself. */
+::view-transition-group(root) {
+  animation: page-hold 600s linear;
+}
+
+::view-transition-image-pair(root) {
+  isolation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 2;
+  clip-path: var(--peel-page, none);
+}
+
+::view-transition-group(page-fold) {
+  z-index: 3;
+  animation: none;
+  filter: drop-shadow(4px 6px 8px rgb(0 0 0 / 0.3));
+}
+
+::view-transition-new(page-fold) {
+  animation: none;
+  clip-path: var(--peel-flap, polygon(0 0, 0 0, 0 0));
+  background: var(--peel-paper, transparent);
+}
+
+@keyframes page-hold {
+  to {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Scenery versions: the same page, set in dots over a living scene.         */
+/* ------------------------------------------------------------------------ */
+
+.ascii-title {
+  display: none;
+}
+
+html[data-scene]:not([data-scene="golden-gate"]) {
+  color-scheme: dark;
+}
+
+html[data-scene="chongqing"] {
+  --ground: #07060d;
+  --ink: #fff4f2;
+  --muted: #dcc1c4;
+  --faint: #a2838a;
+  --rule: rgb(255 170 190 / 0.24);
+  --rule-strong: rgb(255 190 200 / 0.4);
+  --accent: #ff4fa3;
+  --accent-2: #ff9d4d;
+  --accent-3: #ffd27a;
+  --selection: #6a1f55;
+  --panel: rgb(9 7 20 / 0.6);
+  --title-glow: rgb(255 79 163 / 0.55);
+  --nav-mark: "▸";
+  --rule-glyph: "╌";
+}
+
+html[data-scene="rockies"] {
+  --ground: #0b0910;
+  --ink: #fff3ec;
+  --muted: #d6bdb7;
+  --faint: #977f82;
+  --rule: rgb(255 200 180 / 0.22);
+  --rule-strong: rgb(255 210 190 / 0.4);
+  --accent: #ff8f6b;
+  --accent-2: #f7c75e;
+  --accent-3: #b9a2ff;
+  --selection: #6b3326;
+  --panel: rgb(16 10 20 / 0.56);
+  --title-glow: rgb(255 143 107 / 0.45);
+  --nav-mark: "▲";
+  --rule-glyph: "⋯";
+}
+
+html[data-scene="reef"] {
+  --ground: #021a2c;
+  --ink: #ecfcff;
+  --muted: #a5d6df;
+  --faint: #66a1af;
+  --rule: rgb(150 240 255 / 0.24);
+  --rule-strong: rgb(170 245 255 / 0.42);
+  --accent: #ff8d6b;
+  --accent-2: #62f3de;
+  --accent-3: #ffd166;
+  --selection: #0f5c6e;
+  --panel: rgb(2 28 48 / 0.5);
+  --title-glow: rgb(98 243 222 / 0.45);
+  --nav-mark: "≈";
+  --rule-glyph: "∿";
+}
+
+html[data-scene="golden-gate"] {
+  --ground: #f5efe2;
+  --ink: #1b1916;
+  --muted: #5a544b;
+  --faint: #8a8276;
+  --rule: rgb(60 45 30 / 0.24);
+  --rule-strong: rgb(60 45 30 / 0.42);
+  --accent: #c0362c;
+  --accent-2: #1d5c96;
+  --accent-3: #6f7d22;
+  --selection: #f3c3a8;
+  --panel: rgb(245 239 226 / 0.7);
+  --title-glow: rgb(192 54 44 / 0);
+  --nav-mark: "⌇";
+  --rule-glyph: "─";
+  color-scheme: light;
+}
+
+html[data-scene] {
+  --paper: var(--ground);
+  --sans: var(--mono);
+  background: var(--ground);
+}
+
+html[data-scene] body {
+  background: transparent;
+  font-size: 13.5px;
+  line-height: 1.62;
+}
+
+.scenery {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.scenery-stage {
+  position: absolute;
+  top: -28px;
+  left: -28px;
+  transition: transform 1.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+  will-change: transform;
+}
+
+.scenery-canvas {
+  display: block;
+  background: var(--ground);
+}
+
+.scenery-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0.75;
+}
+
+html[data-scene="golden-gate"] .scenery-glow {
+  display: none;
+}
+
+/* Edges fall off into the ground, like a print's vignette. */
+.scenery::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: radial-gradient(120% 90% at 50% 45%, transparent 55%, color-mix(in srgb, var(--ground) 70%, transparent) 100%);
+  pointer-events: none;
+}
+
+.scenery-weather {
+  position: fixed;
+  z-index: 5;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* The reading column: the scene's dots shrink and dim behind it (the backdrop
+   veils those cells), so the text sits on a quieter field of the same dots. */
+html[data-scene] .content {
+  padding-right: 2.6rem;
+  background: linear-gradient(180deg, var(--panel), transparent 40%, transparent 60%, var(--panel));
+  border-inline: 1px dashed var(--rule);
+  text-shadow: 0 0 10px var(--ground), 0 0 3px var(--ground);
+}
+
+html[data-scene] .identity {
+  border-right: 0;
+}
+
+html[data-scene] .identity-inner {
+  text-shadow: 0 1px 12px var(--ground), 0 0 3px var(--ground), 0 0 1px var(--ground);
+}
+
+html[data-scene] .identity h1 {
+  position: relative;
+  margin-top: 2rem;
+}
+
+html[data-scene] .title-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+html[data-scene] .ascii-title {
+  display: block;
+  max-width: 100%;
+  filter: drop-shadow(0 0 2px var(--ground)) drop-shadow(0 0 5px var(--ground)) drop-shadow(0 0 18px var(--title-glow));
+}
+
+html[data-scene] .descriptor {
+  margin-top: 0.6rem;
+  color: var(--accent-2);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+}
+
+html[data-scene] .introduction {
+  color: var(--ink);
+  opacity: 0.86;
+}
+
+html[data-scene] .identity-mark,
+html[data-scene] .section-heading > p {
+  color: var(--accent-2);
+}
+
+html[data-scene] .identity-mark::before,
+html[data-scene] .section-heading > p::before {
+  content: "┌─ ";
+  color: var(--accent);
+}
+
+html[data-scene] .section-heading h2 {
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  background: linear-gradient(100deg, var(--ink) 25%, var(--accent-2) 70%, var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 30%, transparent));
+}
+
+html[data-scene] .index-nav a[aria-current="location"]::after {
+  content: var(--nav-mark);
+  width: auto;
+  height: auto;
+  background: none;
+  color: var(--accent);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+html[data-scene] .index-nav a[aria-current="location"],
+html[data-scene] .index-nav a:hover {
+  color: var(--ink);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+html[data-scene] :is(.page-section + .page-section, .project-row, .timeline, .interest-list) {
+  border-top: 1px dashed var(--rule);
+}
+
+html[data-scene] :is(.project-row:last-child, .timeline > li, .interest-list li) {
+  border-bottom: 1px dashed var(--rule);
+}
+
+html[data-scene] .site-footer {
+  border-top: 1px dashed var(--rule-strong);
+}
+
+html[data-scene] .external-link {
+  text-decoration-style: dotted;
+  text-decoration-color: color-mix(in srgb, var(--accent-2) 55%, transparent);
+}
+
+html[data-scene] .external-link:hover {
+  color: var(--accent-2);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent-2) 60%, transparent);
+}
+
+html[data-scene="reef"] .external-link {
+  text-decoration-style: wavy;
+}
+
+html[data-scene] .project-number,
+html[data-scene] .interest-list span {
+  color: var(--accent);
+}
+
+html[data-scene] .project-heading h3,
+html[data-scene] .timeline h3 {
+  font-weight: 600;
+}
+
+html[data-scene] .project-status,
+html[data-scene] .timeline time {
+  color: var(--accent-3);
+}
+
+html[data-scene] .project-meta > span:first-child {
+  color: var(--faint);
+}
+
+html[data-scene] .theme-toggle {
+  display: none;
+}
+
+html[data-scene] .utility-row {
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.scene-caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  border: 1px dashed var(--rule-strong);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ground) 55%, transparent);
+  color: var(--accent-2);
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  white-space: nowrap;
+  transition: border-color 200ms var(--ease), color 200ms var(--ease);
+}
+
+.scene-caption:hover,
+.scene-caption[aria-pressed="true"] {
+  border-color: var(--accent-2);
+  color: var(--ink);
+}
+
+/* Gazing: the page steps aside and leaves the scene. */
+html[data-scene] :is(
+    .content,
+    .identity header,
+    .index-nav,
+    .social-links,
+    .utility-row > :not(.scene-caption)
+  ) {
+  transition: opacity 600ms var(--ease-out);
+}
+
+html[data-gaze] :is(
+    .content,
+    .identity header,
+    .index-nav,
+    .social-links,
+    .utility-row > :not(.scene-caption)
+  ) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+html[data-gaze] .scenery-weather {
+  opacity: 0.6;
+}
+
+/* After a page turn the scene is shown bare for a beat, then the page settles in. */
+html[data-revealing] .site-frame {
+  animation: page-settle 2.2s var(--ease-out) both;
+}
+
+@keyframes page-settle {
+  0%,
+  45% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.scene-caption > span {
+  color: var(--accent);
+}
+
+/* Photos in the cabinet are screened into dots in the scene's own light, and
+   come back to full colour once they are fanned out or opened. */
+html[data-scene] .cabinet-photo :is(img, video) {
+  filter: saturate(0.75) contrast(1.08) brightness(0.92);
+  transition: filter 420ms var(--ease-out);
+}
+
+html[data-scene] .cabinet-photo::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  content: "";
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, transparent 0 0.9px, color-mix(in srgb, var(--ground) 82%, transparent) 1.5px) 0 0 / 4px 4px,
+    linear-gradient(160deg, color-mix(in srgb, var(--accent) 30%, transparent), color-mix(in srgb, var(--accent-2) 26%, transparent));
+  mix-blend-mode: normal;
+  opacity: 0.85;
+  transition: opacity 420ms var(--ease-out);
+}
+
+html[data-scene] :is(.project-row, .timeline-row):is(:hover, .is-open, .is-viewing) .cabinet-photo::before {
+  opacity: 0.28;
+}
+
+html[data-scene] :is(.project-row, .timeline-row):is(:hover, .is-open, .is-viewing) .cabinet-photo :is(img, video) {
+  filter: none;
+}
+
+html[data-scene] .print-viewer-scrim {
+  background: color-mix(in srgb, var(--ground) 72%, transparent);
+}
+
+/* Chongqing: neon in the rain. */
+html[data-scene="chongqing"] .section-heading h2 {
+  animation: neon-hum 6s steps(1) infinite;
+}
+
+@keyframes neon-hum {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  41% {
+    opacity: 0.72;
+  }
+  42% {
+    opacity: 1;
+  }
+  43.5% {
+    opacity: 0.8;
+  }
+  44% {
+    opacity: 1;
+  }
+}
+
+html[data-scene="chongqing"] .project-heading h3,
+html[data-scene="chongqing"] .timeline h3 {
+  text-shadow: 0 0 14px rgb(255 79 163 / 0.35);
+}
+
+/* The reef: everything sways a little in the swell. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-scene="reef"] .section-heading h2 {
+    animation: swell 7s ease-in-out infinite;
+  }
+
+  html[data-scene="golden-gate"] .section-heading h2 {
+    animation: fog-drift 11s ease-in-out infinite;
+  }
+}
+
+@keyframes swell {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes fog-drift {
+  50% {
+    filter: drop-shadow(0 0 18px rgb(255 255 255 / 0.35)) blur(0.3px);
+  }
+}
+
+@media (max-width: 880px) {
+  .page-curl {
+    --curl: 3rem;
+  }
+
+  .page-curl:hover,
+  .page-curl:focus-visible {
+    --curl: 4.2rem;
+  }
+
+  .identity-inner {
+    padding-top: 3.4rem;
+  }
+
+  html[data-scene] .identity {
+    border-bottom: 1px dashed var(--rule-strong);
+  }
+
+  html[data-scene] .content {
+    /* out to the page's 1rem gutter, no further, or the page scrolls sideways */
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+    border-inline: 0;
+  }
+
+  html[data-scene] .index-nav {
+    border-top: 1px dashed var(--rule);
+    border-bottom: 1px dashed var(--rule);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-scene] .content {
+    background: var(--ground);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-scene] .section-heading h2 {
+    animation: none;
+  }
+}
