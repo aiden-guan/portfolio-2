@@ -177,12 +177,12 @@ export const scene: SceneProgram = {
   build,
   weather,
   title(u, v, t, out) {
-    // a neon tube, pink running into cyan, with the odd stutter of a bad ballast
+    // a neon tube, pink running into sodium amber, with the odd stutter of a bad ballast
     const k = clamp(u * 1.1 - 0.05 + 0.12 * Math.sin(t * 0.6 + v * 2));
     const stutter = (t * 0.31) % 1 < 0.025 && u > 0.55 ? 0.35 : 1;
     const hum = (0.85 + 0.15 * Math.sin(t * 9 + u * 3)) * stutter;
-    out[0] = mix(1.0, 0.25, k) * hum;
-    out[1] = mix(0.22, 0.92, k) * hum;
-    out[2] = mix(0.62, 1.0, k) * hum;
+    out[0] = mix(1.0, 1.0, k) * hum;
+    out[1] = mix(0.22, 0.62, k) * hum;
+    out[2] = mix(0.62, 0.2, k) * hum;
   },
 };

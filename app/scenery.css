@@ -250,14 +250,14 @@ html[data-scene]:not([data-scene="golden-gate"]) {
 
 html[data-scene="chongqing"] {
   --ground: #07060d;
-  --ink: #f5f0ff;
-  --muted: #b9b0d6;
-  --faint: #8077a0;
-  --rule: rgb(186 166 255 / 0.26);
-  --rule-strong: rgb(214 196 255 / 0.42);
+  --ink: #fff4f2;
+  --muted: #dcc1c4;
+  --faint: #a2838a;
+  --rule: rgb(255 170 190 / 0.24);
+  --rule-strong: rgb(255 190 200 / 0.4);
   --accent: #ff4fa3;
-  --accent-2: #4de4ff;
-  --accent-3: #ffb54a;
+  --accent-2: #ff9d4d;
+  --accent-3: #ffd27a;
   --selection: #6a1f55;
   --panel: rgb(9 7 20 / 0.6);
   --title-glow: rgb(255 79 163 / 0.55);
