@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Scenery versions**: a curled-up page corner at the top left turns the portfolio through four extra versions (Chongqing in the rain, the Rockies at dusk, the Great Barrier Reef, San Francisco), each drawn as animated dot "ascii" with the same content restyled to match. The choice is remembered per browser.
+- **Page-turn transition**: the old page peels away from the corner over the new one (View Transitions; an instant switch where unsupported or with reduced motion).
+
 ## [1.2.3] — 2026-10-05
 
 ### Summary

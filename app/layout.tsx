@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { getPortfolioContent } from "@/lib/portfolio-content";
 import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
+import "./scenery.css";
 
 const siteUrl = getSiteUrl();
 
@@ -56,6 +57,10 @@ const themeScript = `
         ? stored
         : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       document.documentElement.dataset.theme = theme;
+      const scene = localStorage.getItem('aiden-scene');
+      if (location.pathname === '/' && ['chongqing', 'rockies', 'reef', 'golden-gate'].includes(scene)) {
+        document.documentElement.dataset.scene = scene;
+      }
     } catch (_) {}
   })();
 `;
