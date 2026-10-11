@@ -7,8 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- **Scenery versions**: a curled-up page corner at the top left turns the portfolio through four extra versions (Chongqing in the rain, the Rockies at dusk, the Great Barrier Reef, San Francisco), each drawn as animated dot "ascii" with the same content restyled to match. The choice is remembered per browser.
-- **Page-turn transition**: the old page peels away from the corner over the new one (View Transitions; an instant switch where unsupported or with reduced motion).
+- **Scenery versions**: a curled-up page corner at the top left, peeled back by dragging it, turns the portfolio through four extra versions (Chongqing in the rain, the Rockies at dusk, the Great Barrier Reef, San Francisco), each drawn as animated dot "ascii" with the same content restyled to match. The choice is remembered per browser.
+- **Page-turn transition**: the old page peels away under the pointer, revealing the live new version beneath; let go past the middle and it turns, otherwise it falls back. Enter or Space turns it in one go (View Transitions; an instant switch where unsupported or with reduced motion).
 
 ## [1.2.3] — 2026-10-05
 

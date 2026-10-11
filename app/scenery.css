@@ -19,9 +19,15 @@
   padding: 0;
   border: 0;
   background: transparent;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
   transition: width 420ms var(--ease-pop), height 420ms var(--ease-pop);
   -webkit-tap-highlight-color: transparent;
+}
+
+.page-curl:active {
+  cursor: grabbing;
 }
 
 .page-curl:hover,
@@ -100,12 +106,18 @@
   transition: opacity 260ms var(--ease-out), transform 420ms var(--ease-out);
 }
 
+html[data-turning] .page-curl-label {
+  opacity: 0;
+  transition: none;
+}
+
 .page-curl-label span {
   color: var(--accent);
 }
 
 .page-curl:hover .page-curl-label,
-.page-curl:focus-visible .page-curl-label {
+.page-curl:focus-visible .page-curl-label,
+.page-curl[data-hint] .page-curl-label {
   opacity: 1;
   transform: none;
 }
@@ -114,6 +126,27 @@
   /* Every so often the corner lifts a little, like paper in a draught. */
   .page-curl:not(:hover, :focus-visible) {
     animation: curl-breathe 7s var(--ease) 2.5s infinite;
+  }
+}
+
+/* A click instead of a drag: the corner tugs toward the page to show the way. */
+.page-curl[data-hint] {
+  animation: curl-tug 900ms var(--ease) both;
+}
+
+@keyframes curl-tug {
+  0%,
+  100% {
+    width: var(--curl);
+    height: var(--curl);
+  }
+  35% {
+    width: calc(var(--curl) * 1.7);
+    height: calc(var(--curl) * 1.7);
+  }
+  60% {
+    width: calc(var(--curl) * 1.25);
+    height: calc(var(--curl) * 1.25);
   }
 }
 
