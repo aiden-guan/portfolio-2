@@ -503,6 +503,9 @@ type Peel = {
   x: number;
   y: number;
   rest: number;
+  // The point of the page that was grabbed, unfolded back to where it lies on
+  // the flat page; null when the grab was on the bare corner, not the flap.
+  held: Point | null;
   corner: Point;
   at: number;
   speed: number;
@@ -511,6 +514,26 @@ type Peel = {
   ready: boolean;
   released: boolean;
 };
+
+// Where the corner folds to with the pointer at (fx, fy). Paper held on the flap
+// stays under the pointer: the crease is the perpendicular bisector of the held
+// point and the pointer, and the corner lands at its mirror image across it. A
+// grab on the bare corner just carries the folded corner along with the pointer.
+function foldTo(state: Peel, fx: number, fy: number): Point {
+  const held = state.held;
+  let corner = { x: state.rest + fx - state.x, y: state.rest + fy - state.y };
+  if (held) {
+    const nx = fx - held.x;
+    const ny = fy - held.y;
+    const n2 = nx * nx + ny * ny;
+    if (n2 > 1) {
+      const d = (fx * fx + fy * fy - held.x * held.x - held.y * held.y) / 2;
+      corner = { x: (2 * nx * d) / n2, y: (2 * ny * d) / n2 };
+    }
+  }
+  // never folded back past the page edge
+  return { x: Math.max(4, corner.x), y: Math.max(4, corner.y) };
+}
 
 export function PageCurl() {
   const scene = useScene();
@@ -670,6 +693,7 @@ export function PageCurl() {
       x: 0,
       y: 0,
       rest,
+      held: null,
       corner: { x: rest, y: rest },
       at: 0,
       speed: 0,
@@ -689,6 +713,10 @@ export function PageCurl() {
     if (busy.current || event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const rest = restSize();
+    // A grab on the folded flap holds that bit of paper; unfold it across the
+    // resting crease (x + y = rest) to find which point of the page it is.
+    const fold = event.clientX + event.clientY - rest;
+    const held = fold >= 0 ? { x: event.clientX - fold, y: event.clientY - fold } : null;
     peel.current = {
       id: event.pointerId,
       from: scene,
@@ -696,6 +724,7 @@ export function PageCurl() {
       x: event.clientX,
       y: event.clientY,
       rest,
+      held,
       corner: { x: rest, y: rest },
       at: event.timeStamp,
       speed: 0,
@@ -718,8 +747,7 @@ export function PageCurl() {
       busy.current = true;
       if (canPeel()) begin(state);
     }
-    // the folded corner moves with the pointer, never back past the page edge
-    const corner = { x: Math.max(4, state.rest + dx), y: Math.max(4, state.rest + dy) };
+    const corner = foldTo(state, event.clientX, event.clientY);
     const reach = corner.x / window.innerWidth + corner.y / window.innerHeight;
     const before = state.corner.x / window.innerWidth + state.corner.y / window.innerHeight;
     const dt = Math.max(1, event.timeStamp - state.at);
