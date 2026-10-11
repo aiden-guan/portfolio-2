@@ -433,25 +433,76 @@ export function SceneCaption() {
 
 // The page's top-left corner, curled up. Turning it peels the page away to
 // the next version underneath.
-// How far the peel has travelled, as x / width + y / height of the fold line:
-// 0 is the corner, 2.2 is past the far corner. The page-turn keyframes in
-// scenery.css move both the clip and the paper roll linearly in this measure.
-const PEEL_END = 2.2;
-const PEEL_MS = 1100;
+// The page turn is a flat fold of the page's top-left corner. `C` is where the
+// corner has been folded to: the fold line is the perpendicular bisector of the
+// page corner and C, the old page is cut along it, and the flap is the cut-off
+// piece mirrored over the fold. The resting curl is the same fold with C a
+// short way along the diagonal, so a drag picks up exactly where the corner is.
+type Point = { x: number; y: number };
+
+function peelGeometry(c: Point, width: number, height: number) {
+  const k = (c.x * c.x + c.y * c.y) / 2;
+  const side = (p: Point) => p.x * c.x + p.y * c.y - k;
+  const box: Point[] = [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height },
+  ];
+  // Cut the viewport along the fold: `kept` stays on the page, `lifted` folds over.
+  const kept: Point[] = [];
+  const lifted: Point[] = [];
+  for (let i = 0; i < box.length; i++) {
+    const p = box[i]!;
+    const q = box[(i + 1) % box.length]!;
+    const sp = side(p);
+    const sq = side(q);
+    (sp >= 0 ? kept : lifted).push(p);
+    if (sp >= 0 !== sq >= 0) {
+      const t = sp / (sp - sq);
+      const cut = { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t };
+      kept.push(cut);
+      lifted.push(cut);
+    }
+  }
+  const len2 = c.x * c.x + c.y * c.y || 1;
+  const flap = lifted.map((p) => {
+    const s = (2 * side(p)) / len2;
+    return { x: p.x - s * c.x, y: p.y - s * c.y };
+  });
+  // Paper shading runs across the flap, from the crease out to the tip.
+  const len = Math.sqrt(len2);
+  const dx = c.x / len;
+  const dy = c.y / len;
+  const angle = (Math.atan2(dx, -dy) * 180) / Math.PI;
+  const span = Math.abs(width * dx) + Math.abs(height * dy);
+  const crease = k / len - (width / 2) * dx - (height / 2) * dy + span / 2;
+  const depth = Math.max(len / 2, 1);
+  const poly = (points: Point[]) =>
+    points.length ? `polygon(${points.map((p) => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`).join(", ")})` : "polygon(0 0, 0 0, 0 0)";
+  const at = (f: number) => `${(crease + depth * f).toFixed(1)}px`;
+  return {
+    page: poly(kept),
+    flap: poly(flap),
+    paper: `linear-gradient(${angle.toFixed(2)}deg, var(--fold-crease) ${at(0)}, var(--fold-shade) ${at(0.06)}, var(--fold-mid) ${at(0.4)}, var(--fold-back) ${at(1)})`,
+  };
+}
 
 type Peel = {
   id: number;
   // the version being peeled away, and the one under it
   from: SceneId;
   to: SceneId;
+  // pointer at the start, and where the corner sat then
   x: number;
   y: number;
+  rest: number;
+  corner: Point;
   at: number;
   speed: number;
-  progress: number;
   dragging: boolean;
   transition: ViewTransition | null;
-  animations: Animation[];
+  ready: boolean;
   released: boolean;
 };
 
@@ -483,57 +534,38 @@ export function PageCurl() {
     return () => window.clearTimeout(id);
   }, [hint]);
 
-  function settle() {
+  function canPeel() {
+    return Boolean(document.startViewTransition) && !reducedMotion();
+  }
+
+  function restSize() {
+    return button.current?.getBoundingClientRect().width ?? 56;
+  }
+
+  function show(corner: Point) {
     const root = document.documentElement;
+    const shape = peelGeometry(corner, window.innerWidth, window.innerHeight);
+    root.style.setProperty("--peel-page", shape.page);
+    root.style.setProperty("--peel-flap", shape.flap);
+    root.style.setProperty("--peel-paper", shape.paper);
+  }
+
+  function cleanUp() {
+    const root = document.documentElement;
+    delete root.dataset.peeling;
     delete root.dataset.turning;
+    for (const name of ["--peel-page", "--peel-flap", "--peel-paper"]) root.style.removeProperty(name);
+    button.current?.style.removeProperty("--curl");
     window.setTimeout(() => delete root.dataset.revealing, 1600);
   }
 
-  // The whole turn on its own, for the keyboard (and browsers that can't peel).
-  async function turn() {
-    if (busy.current) return;
-    busy.current = true;
-    const root = document.documentElement;
-    try {
-      const ready = next === "original" ? Promise.resolve() : loadScene(next);
-      if (!document.startViewTransition || reducedMotion()) {
-        await ready;
-        applyScene(next);
-        return;
-      }
-      const transition = document.startViewTransition(async () => {
-        await ready;
-        root.dataset.turning = "true";
-        root.dataset.revealing = "true";
-        flushSync(() => applyScene(next));
-      });
-      await transition.finished.catch(() => {});
-      settle();
-    } catch {
-      applyScene(next);
-    } finally {
-      busy.current = false;
-    }
-  }
-
-  // While a finger holds the corner, the turn's animations are paused and
-  // scrubbed so the fold line runs under the pointer.
-  function show(state: Peel) {
-    const curl = button.current;
-    if (state.animations.length) {
-      const time = (Math.min(state.progress, PEEL_END) / PEEL_END) * PEEL_MS;
-      for (const animation of state.animations) animation.currentTime = time;
-    } else if (curl) {
-      // until the turn is ready (or where it can't run), the corner itself lifts
-      const size = Math.max(0, state.progress) * Math.min(window.innerWidth, window.innerHeight) * 0.5;
-      curl.style.setProperty("--curl", `${Math.max(size, 40).toFixed(0)}px`);
-    }
-  }
-
+  // Captures the page as it is and swaps in the next version under it. Until
+  // the peel ends, the old page is only an image cut along the fold.
   function begin(state: Peel) {
-    if (!document.startViewTransition || reducedMotion()) return;
     const root = document.documentElement;
     const ready = state.to === "original" ? Promise.resolve() : loadScene(state.to);
+    show(state.corner);
+    root.dataset.peeling = "true";
     const transition = document.startViewTransition(async () => {
       await ready;
       root.dataset.turning = "true";
@@ -543,51 +575,29 @@ export function PageCurl() {
     state.transition = transition;
     transition.ready
       .then(() => {
-        state.animations = document
-          .getAnimations()
-          .filter((a) => (a.effect as KeyframeEffect | null)?.pseudoElement?.startsWith("::view-transition"));
-        for (const animation of state.animations) {
-          animation.pause();
-          (animation.effect as KeyframeEffect).updateTiming({ easing: "linear" });
-        }
-        button.current?.style.removeProperty("--curl");
-        show(state);
+        state.ready = true;
         if (state.released) release(state);
       })
       .catch(() => {});
     transition.finished
       .catch(() => {})
       .finally(() => {
-        settle();
+        cleanUp();
         busy.current = false;
-        peel.current = null;
+        if (peel.current === state) peel.current = null;
       });
   }
 
-  // Let go: past the middle of the corner (or flicked) the page keeps going;
-  // otherwise it falls back into place.
-  function release(state: Peel) {
-    state.released = true;
-    const curl = button.current;
-    const forward = state.progress > 0.55 || (state.speed > 0.0012 && state.progress > 0.12);
-    if (!state.transition) {
-      curl?.style.removeProperty("--curl");
-      if (forward) applyScene(state.to);
-      busy.current = false;
-      peel.current = null;
-      return;
-    }
-    // the turn hasn't caught up with the finger yet; this runs again once it has
-    if (!state.animations.length) return;
-    const from = state.progress;
-    const to = forward ? PEEL_END : 0;
-    const duration = forward ? 260 + 520 * (1 - from / PEEL_END) : 220 + 160 * Math.min(1, from);
+  // Runs the corner to `target` and then ends the turn there: over the far
+  // corner the new page stays, back at rest the old one does.
+  function glide(state: Peel, target: Point, forward: boolean, duration: number) {
+    const from = { ...state.corner };
     const start = performance.now();
     const step = (now: number) => {
       const k = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - k, 3);
-      state.progress = from + (to - from) * eased;
-      show(state);
+      const eased = forward ? 1 - Math.pow(1 - k, 3) : 1 - Math.pow(1 - k, 4);
+      state.corner = { x: from.x + (target.x - from.x) * eased, y: from.y + (target.y - from.y) * eased };
+      show(state.corner);
       if (k < 1) {
         requestAnimationFrame(step);
         return;
@@ -598,28 +608,85 @@ export function PageCurl() {
         const root = document.documentElement;
         flushSync(() => applyScene(state.from));
         delete root.dataset.revealing;
-        delete root.dataset.turning;
       }
-      for (const animation of state.animations) animation.finish();
+      state.transition?.skipTransition();
     };
     requestAnimationFrame(step);
+  }
+
+  function farCorner() {
+    // Past twice the far corner, the fold has cleared the whole viewport.
+    return { x: window.innerWidth * 2.05, y: window.innerHeight * 2.05 };
+  }
+
+  // Let go: well into the page (or flicked) it keeps going; otherwise it
+  // falls back into the corner.
+  function release(state: Peel) {
+    state.released = true;
+    const reach = state.corner.x / window.innerWidth + state.corner.y / window.innerHeight;
+    const forward = reach > 0.75 || (state.speed > 0.0015 && reach > 0.2);
+    if (!state.transition) {
+      button.current?.style.removeProperty("--curl");
+      if (forward) applyScene(state.to);
+      busy.current = false;
+      peel.current = null;
+      return;
+    }
+    // the turn hasn't caught up with the pointer yet; this runs again once it has
+    if (!state.ready) return;
+    if (forward) glide(state, farCorner(), true, 300 + 420 * Math.max(0, 1 - reach / 2));
+    else glide(state, { x: state.rest, y: state.rest }, false, 260 + 120 * Math.min(1, reach));
+  }
+
+  // The whole turn on its own, for the keyboard.
+  async function turn() {
+    if (busy.current) return;
+    if (!canPeel()) {
+      if (next !== "original") await loadScene(next).catch(() => {});
+      applyScene(next);
+      return;
+    }
+    busy.current = true;
+    const rest = restSize();
+    const state: Peel = {
+      id: -1,
+      from: scene,
+      to: next,
+      x: 0,
+      y: 0,
+      rest,
+      corner: { x: rest, y: rest },
+      at: 0,
+      speed: 0,
+      dragging: true,
+      transition: null,
+      ready: false,
+      // nothing to let go of: the glide below carries it through
+      released: false,
+    };
+    peel.current = state;
+    begin(state);
+    await state.transition!.ready.catch(() => {});
+    glide(state, farCorner(), true, 1050);
   }
 
   function onPointerDown(event: React.PointerEvent<HTMLButtonElement>) {
     if (busy.current || event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
+    const rest = restSize();
     peel.current = {
       id: event.pointerId,
       from: scene,
       to: next,
       x: event.clientX,
       y: event.clientY,
+      rest,
+      corner: { x: rest, y: rest },
       at: event.timeStamp,
       speed: 0,
-      progress: 0,
       dragging: false,
       transition: null,
-      animations: [],
+      ready: false,
       released: false,
     };
     warm();
@@ -628,25 +695,31 @@ export function PageCurl() {
   function onPointerMove(event: React.PointerEvent<HTMLButtonElement>) {
     const state = peel.current;
     if (!state || state.id !== event.pointerId || state.released) return;
-    const progress = Math.max(0, event.clientX / window.innerWidth + event.clientY / window.innerHeight);
+    const dx = event.clientX - state.x;
+    const dy = event.clientY - state.y;
     if (!state.dragging) {
-      if (Math.hypot(event.clientX - state.x, event.clientY - state.y) < 6) return;
+      if (Math.hypot(dx, dy) < 4) return;
       state.dragging = true;
       busy.current = true;
-      begin(state);
+      if (canPeel()) begin(state);
     }
+    // the folded corner moves with the pointer, never back past the page edge
+    const corner = { x: Math.max(4, state.rest + dx), y: Math.max(4, state.rest + dy) };
+    const reach = corner.x / window.innerWidth + corner.y / window.innerHeight;
+    const before = state.corner.x / window.innerWidth + state.corner.y / window.innerHeight;
     const dt = Math.max(1, event.timeStamp - state.at);
-    state.speed = state.speed * 0.6 + ((progress - state.progress) / dt) * 0.4;
+    state.speed = state.speed * 0.6 + ((reach - before) / dt) * 0.4;
     state.at = event.timeStamp;
-    state.progress = progress;
-    show(state);
+    state.corner = corner;
+    if (state.transition) show(corner);
+    else button.current?.style.setProperty("--curl", `${Math.max(corner.x, corner.y).toFixed(0)}px`);
   }
 
   function onPointerUp(event: React.PointerEvent<HTMLButtonElement>) {
     const state = peel.current;
     if (!state || state.id !== event.pointerId) return;
     if (!state.dragging) {
-      // a plain click: lift the corner a little and say what to do
+      // a plain click: tug the corner and say what to do
       peel.current = null;
       setHint((n) => n + 1);
       return;
@@ -661,8 +734,8 @@ export function PageCurl() {
       peel.current = null;
       return;
     }
-    state.progress = 0;
     state.speed = 0;
+    state.corner = { x: state.rest, y: state.rest };
     release(state);
   }
 

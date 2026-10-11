@@ -60,7 +60,6 @@
   position: absolute;
   inset: 0;
   clip-path: polygon(100% 0, 100% 100%, 0 100%);
-  border-bottom-right-radius: 18% 18%;
   background:
     linear-gradient(
       315deg,
@@ -199,8 +198,28 @@ html[data-theme="dark"]:not([data-scene]) .page-curl {
 }
 
 /* ------------------------------------------------------------------------ */
-/* The page turn: the old page peels away from the corner, rolling over.     */
+/* The page turn: the corner folds over and follows the pointer. The fold's  */
+/* shape comes from PageCurl as custom properties on the root, which the     */
+/* view-transition pseudo-elements inherit.                                  */
 /* ------------------------------------------------------------------------ */
+
+:root {
+  --fold-back: #fbfaf5;
+  --fold-shade: #c9c5b8;
+  --fold-mid: color-mix(in srgb, var(--fold-back) 70%, var(--fold-shade));
+  --fold-crease: color-mix(in srgb, var(--fold-shade) 60%, #fff);
+}
+
+html[data-theme="dark"]:not([data-scene]) {
+  --fold-back: #2a2925;
+  --fold-shade: #121210;
+}
+
+/* The resting curl is drawn by the fold itself while a peel is under way. */
+html[data-peeling] .page-curl,
+html[data-turning] .page-curl {
+  visibility: hidden;
+}
 
 .page-fold {
   display: none;
@@ -213,18 +232,11 @@ html[data-turning] .page-fold {
   display: block;
   pointer-events: none;
   view-transition-name: page-fold;
-  background: linear-gradient(
-    to bottom right,
-    transparent 38%,
-    rgb(0 0 0 / 0.08) 44%,
-    rgb(0 0 0 / 0.34) 49.6%,
-    #d9d5c8 50%,
-    #fbfaf4 52.2%,
-    #e8e4d8 54.6%,
-    #b9b4a6 56.4%,
-    rgb(0 0 0 / 0.2) 56.6%,
-    transparent 59%
-  );
+}
+
+/* Held open until PageCurl ends the transition itself. */
+::view-transition-group(root) {
+  animation: page-hold 600s linear;
 }
 
 ::view-transition-image-pair(root) {
@@ -239,33 +251,24 @@ html[data-turning] .page-fold {
 
 ::view-transition-old(root) {
   z-index: 2;
-  animation: page-peel 1100ms cubic-bezier(0.55, 0.05, 0.3, 1) both;
+  clip-path: var(--peel-page, none);
 }
 
 ::view-transition-group(page-fold) {
   z-index: 3;
   animation: none;
+  filter: drop-shadow(4px 6px 8px rgb(0 0 0 / 0.3));
 }
 
 ::view-transition-new(page-fold) {
-  animation: page-fold 1100ms cubic-bezier(0.55, 0.05, 0.3, 1) both;
+  animation: none;
+  clip-path: var(--peel-flap, polygon(0 0, 0 0, 0 0));
+  background: var(--peel-paper, transparent);
 }
 
-@keyframes page-peel {
-  from {
-    clip-path: polygon(0% 0%, 300% 0%, 300% 300%, 0% 300%, 0% 0%);
-  }
+@keyframes page-hold {
   to {
-    clip-path: polygon(220% 0%, 300% 0%, 300% 300%, 0% 300%, 0% 220%);
-  }
-}
-
-@keyframes page-fold {
-  from {
-    transform: translate(-50%, -50%);
-  }
-  to {
-    transform: translate(60%, 60%);
+    opacity: 1;
   }
 }
 
@@ -729,8 +732,9 @@ html[data-scene="chongqing"] .timeline h3 {
   }
 
   html[data-scene] .content {
-    margin-inline: -1.25rem;
-    padding-inline: 1.25rem;
+    /* out to the page's 1rem gutter, no further, or the page scrolls sideways */
+    margin-inline: -1rem;
+    padding-inline: 1rem;
     border-inline: 0;
   }
 
