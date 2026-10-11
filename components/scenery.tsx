@@ -48,11 +48,15 @@ function reducedMotion() {
 
 // Runs `draw` at the scene's frame rate while the page is visible; under
 // reduced motion it draws once and holds.
+// One clock for every scene on the page, so a backdrop that is mounted again
+// (a peel let go and falling back) carries on where it was rather than restarting.
+const clockStart = typeof performance === "undefined" ? 0 : performance.now();
+
 function animate(fps: number, draw: (t: number) => void) {
   let raf = 0;
   let last = 0;
-  let t = 0;
-  draw(0);
+  let t = (performance.now() - clockStart) / 1000;
+  draw(t);
   if (reducedMotion()) return () => {};
   const tick = (now: number) => {
     raf = requestAnimationFrame(tick);
@@ -178,11 +182,13 @@ function mountBackdrop(
   const revealing = root.dataset.revealing === "true" && !still;
   let amount = revealing ? 0 : 1;
   let now = 0;
+  let born = -1;
   let frames = 0;
   const timings: number[] = [];
   const draw = (t: number) => {
     now = t;
-    const target = root.dataset.gaze === "true" ? 0 : revealing && t < 1.1 ? 0 : 1;
+    if (born < 0) born = t;
+    const target = root.dataset.gaze === "true" ? 0 : revealing && t - born < 1.1 ? 0 : 1;
     amount = still ? target : amount + (target - amount) * 0.09;
     const begin = performance.now();
     field.render(frame, t, veil, amount);
@@ -542,6 +548,12 @@ export function PageCurl() {
     return button.current?.getBoundingClientRect().width ?? 56;
   }
 
+  // The corner's size when nothing hovers it (--curl in scenery.css).
+  function baseSize() {
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    return (window.innerWidth <= 880 ? 3 : 3.6) * rem;
+  }
+
   function show(corner: Point) {
     const root = document.documentElement;
     const shape = peelGeometry(corner, window.innerWidth, window.innerHeight);
@@ -603,11 +615,11 @@ export function PageCurl() {
         return;
       }
       if (!forward) {
-        // The old page covers everything again: put the DOM back under it
-        // before the snapshot lifts away.
+        // The old page covers everything again: put the DOM back under it,
+        // as it was (no reveal), before the snapshot lifts away.
         const root = document.documentElement;
-        flushSync(() => applyScene(state.from));
         delete root.dataset.revealing;
+        flushSync(() => applyScene(state.from));
       }
       state.transition?.skipTransition();
     };
@@ -635,7 +647,10 @@ export function PageCurl() {
     // the turn hasn't caught up with the pointer yet; this runs again once it has
     if (!state.ready) return;
     if (forward) glide(state, farCorner(), true, 300 + 420 * Math.max(0, 1 - reach / 2));
-    else glide(state, { x: state.rest, y: state.rest }, false, 260 + 120 * Math.min(1, reach));
+    else {
+      const rest = baseSize();
+      glide(state, { x: rest, y: rest }, false, 260 + 120 * Math.min(1, reach));
+    }
   }
 
   // The whole turn on its own, for the keyboard.

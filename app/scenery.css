@@ -219,6 +219,9 @@ html[data-theme="dark"]:not([data-scene]) {
 html[data-peeling] .page-curl,
 html[data-turning] .page-curl {
   visibility: hidden;
+  /* so it is already at rest, not mid-shrink, when the fold hands back to it */
+  transition: none;
+  animation: none;
 }
 
 .page-fold {
