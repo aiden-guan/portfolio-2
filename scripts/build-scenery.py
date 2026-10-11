@@ -11,7 +11,7 @@ Needs Pillow and numpy.
 import sys, numpy as np
 from PIL import Image
 from collections import deque
-W=512
+W=int(sys.argv[3]) if len(sys.argv)>3 else 1024
 def load(n):
     im=Image.open(f'{sys.argv[1]}/{n}.png').convert('RGB')
     im=im.resize((W,round(W*im.height/im.width)),Image.LANCZOS)
@@ -52,7 +52,7 @@ def uniform_filter(x,k):
     p=k//2; xp=np.pad(x,p,mode='edge'); c=np.cumsum(np.cumsum(xp,0),1); c=np.pad(c,((1,0),(1,0)))
     h,w=x.shape
     return (c[k:k+h,k:k+w]-c[0:h,k:k+w]-c[k:k+h,0:w]+c[0:h,0:w])/(k*k)
-mu=uniform_filter(L,5); sd=np.sqrt(np.maximum(uniform_filter(L*L,5)-mu*mu,0))
+K=max(5,round(5*W/512)|1); mu=uniform_filter(L,K); sd=np.sqrt(np.maximum(uniform_filter(L*L,K)-mu*mu,0))
 from PIL import ImageDraw
 pm=Image.new('L',(L.shape[1],L.shape[0]),0); d=ImageDraw.Draw(pm)
 H,Wd=L.shape
@@ -78,5 +78,5 @@ import os
 dst=sys.argv[2]
 os.makedirs(dst,exist_ok=True)
 for k,(im,m) in out.items():
-    im.save(f'{dst}/{k}.webp',quality=82,method=6)
+    im.save(f'{dst}/{k}.webp',quality=86,method=6)
     Image.fromarray(m,'L').save(f'{dst}/{k}-mask.png',optimize=True)

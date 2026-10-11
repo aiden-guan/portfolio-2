@@ -309,6 +309,53 @@ function build(grid: Grid) {
       }
     }
 
+    // moon jellies, glowing faintly, pulsing their way up through the water
+    for (let i = 0; i < 3; i++) {
+      const life = 70;
+      const rise = ((t * 1.1 + i * 23) % life) / life;
+      const jx = 30 + i * 47 + Math.sin(t * 0.07 + i * 2) * 8;
+      const jy = 66 - rise * 78;
+      const pulse = Math.sin(t * 1.8 + i * 1.7);
+      const R = 3.4 + 0.45 * pulse;
+      const H = 2.6 - 0.4 * pulse;
+      const fade = smooth(0, 0.12, rise) * smooth(1, 0.85, rise);
+      if (fade <= 0) continue;
+      const c0 = Math.max(0, Math.floor((jx - R - 2 - x0) / unit));
+      const c1 = Math.min(cols - 1, Math.ceil((jx + R + 2 - x0) / unit));
+      const r0 = Math.max(0, Math.floor((jy - H - 1 - y0) / unit));
+      const r1 = Math.min(rows - 1, Math.ceil((jy + 12 - y0) / unit));
+      for (let row = r0; row <= r1; row++) {
+        for (let col = c0; col <= c1; col++) {
+          const k = row * cols + col;
+          const dx = X[k]! - jx;
+          const dy = Y[k]! - jy;
+          let a = 0;
+          if (dy <= 0.4) {
+            // the bell: a dome, brighter at its rim and its four gonads
+            const e = (dx / R) ** 2 + (dy / H) ** 2;
+            if (e < 1) {
+              const rim = smooth(0.55, 1, e);
+              const ring = smooth(0.18, 0.05, Math.abs(Math.hypot(dx * 0.9, dy * 1.6) - R * 0.4));
+              a = 0.35 + 0.5 * rim + 0.5 * ring;
+            }
+          } else if (Math.abs(dx) < R * 0.95) {
+            // trailing tentacles and the frilled oral arms
+            const sway = Math.sin(dy * 0.55 - t * 2.2 + dx) * (0.25 + dy * 0.08);
+            const lane = Math.abs(((dx + sway) / (R * 0.32) + 100) % 1 - 0.5);
+            const len = 7 + 4 * hash(Math.floor(dx * 2), i);
+            if (lane < 0.16 && dy < len) a = 0.55 * (1 - dy / len);
+          }
+          if (a <= 0) continue;
+          a *= fade;
+          r[k] = mix(r[k]!, 1.0, a * 0.8) + a * 0.25;
+          g[k] = mix(g[k]!, 0.62, a * 0.8) + a * 0.12;
+          b[k] = mix(b[k]!, 0.95, a * 0.8) + a * 0.25;
+          glyph[k] = 0;
+          floor[k] = Math.max(floor[k]!, 0.2 * a);
+        }
+      }
+    }
+
     // fusiliers: a school turning as one
     const cx = 92 + Math.sin(t * 0.09) * 32;
     const cy = 30 + Math.sin(t * 0.13) * 8;
@@ -371,7 +418,7 @@ function weather(width: number, height: number): Weather {
 
 export const scene: SceneProgram = {
   veil: { identity: 0.5, content: 0.36 },
-  fps: 18,
+  fps: 15,
   focusX: 0.4,
   focusY: 0.6,
   build,

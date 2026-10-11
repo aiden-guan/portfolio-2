@@ -337,9 +337,37 @@ html[data-scene] body {
   pointer-events: none;
 }
 
+.scenery-stage {
+  position: absolute;
+  top: -28px;
+  left: -28px;
+  transition: transform 1.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+  will-change: transform;
+}
+
 .scenery-canvas {
   display: block;
   background: var(--ground);
+}
+
+.scenery-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0.75;
+}
+
+html[data-scene="golden-gate"] .scenery-glow {
+  display: none;
+}
+
+/* Edges fall off into the ground, like a print's vignette. */
+.scenery::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: radial-gradient(120% 90% at 50% 45%, transparent 55%, color-mix(in srgb, var(--ground) 70%, transparent) 100%);
+  pointer-events: none;
 }
 
 .scenery-weather {

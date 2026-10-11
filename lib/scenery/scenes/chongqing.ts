@@ -40,6 +40,16 @@ function build(grid: Grid) {
 
   return (t: number, cells: Cells) => {
     const { r, g, b, floor, glyph } = cells;
+    // sheet lightning behind the cloud every so often: a flash, a pause, a flicker
+    const storm = t % 17;
+    const flash =
+      storm > 9 && storm < 9.12
+        ? 1
+        : storm > 9.22 && storm < 9.3
+          ? 0.55
+          : storm > 9.3 && storm < 9.9
+            ? 0.25 * (9.9 - storm)
+            : 0;
     for (let row = 0, k = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++, k++) {
         const x = X[k]!;
@@ -62,7 +72,7 @@ function build(grid: Grid) {
             tmp[1] = cg;
             tmp[2] = cb;
           }
-          const shimmer = 0.75 + 0.55 * noise(x * 0.7, y * 3.2 - t * 2.4);
+          const shimmer = 0.75 + 0.55 * noise(x * 0.7, y * 3.2 - t * 2.4) + flash * 0.6;
           cr = tmp[0] * shimmer;
           cg = tmp[1] * shimmer;
           cb = tmp[2] * shimmer;
@@ -96,6 +106,12 @@ function build(grid: Grid) {
           cr *= s;
           cg *= s;
           cb *= s;
+          if (flash > 0) {
+            const lit = flash * w * (0.25 + cloud) * 0.6;
+            cr += lit * 0.8;
+            cg += lit * 0.85;
+            cb += lit;
+          }
           floor[k] = 0.12;
         }
         cr *= exposure;
@@ -150,7 +166,7 @@ function weather(width: number, height: number): Weather {
 
 export const scene: SceneProgram = {
   veil: { identity: 0.62, content: 0.5 },
-  fps: 18,
+  fps: 15,
   focusX: 0.62,
   focusY: 0.5,
   width: WIDTH,

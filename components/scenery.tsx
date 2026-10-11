@@ -79,10 +79,19 @@ function animate(fps: number, draw: (t: number) => void) {
   };
 }
 
+// Grows when a machine can't keep up with the finest grid (see mountBackdrop).
+let coarsen = 1;
+
 function cellSize(width: number, height: number) {
-  // About 26k cells at most: dense on a monitor, lighter on a phone.
-  return Math.min(9, Math.max(5, Math.sqrt((width * height) / 26000)));
+  // About 72k cells at most: fine on a monitor, never smaller than ~4px.
+  return Math.min(7 * coarsen, Math.max(3.8, Math.sqrt((width * height) / 72000)) * coarsen);
 }
+
+// Frames slower than this (render and bloom, in ms) mean the grid is too fine here.
+const FRAME_BUDGET = 20;
+
+// The scene is drawn this far past every edge so it can drift with the pointer.
+const PAD = 28;
 
 // How much of the scene shows through behind the page: dim under the reading
 // column and around the name column's text, full in the margins and in the
@@ -98,9 +107,9 @@ function veilFor(cols: number, rows: number, cell: number, levels: SceneProgram[
     boxes.push([node.getBoundingClientRect(), levels.identity, cell * 7, false]);
   }
   for (let y = 0, k = 0; y < rows; y++) {
-    const py = (y + 0.5) * cell;
+    const py = (y + 0.5) * cell - PAD;
     for (let x = 0; x < cols; x++, k++) {
-      const px = (x + 0.5) * cell;
+      const px = (x + 0.5) * cell - PAD;
       let v = 1;
       for (const [box, level, edge, fullHeight] of boxes) {
         const dx = Math.min(px - box.left, box.right - px);
@@ -120,19 +129,25 @@ function gridFor(program: SceneProgram, cols: number, rows: number, width: numbe
   const identity = document.querySelector(".identity")?.getBoundingClientRect();
   const anchor =
     program.anchor && identity && width > 880
-      ? { ...program.anchor, atX: (identity.left + identity.width * 0.45) / width }
+      ? { ...program.anchor, atX: (identity.left + identity.width * 0.45 + PAD) / width }
       : undefined;
   return coverGrid(cols, rows, program.focusX, program.focusY, program.width, program.height, anchor);
 }
 
-function mountBackdrop(program: SceneProgram, canvas: HTMLCanvasElement, sky: HTMLCanvasElement) {
+function mountBackdrop(
+  program: SceneProgram,
+  canvas: HTMLCanvasElement,
+  glow: HTMLCanvasElement,
+  sky: HTMLCanvasElement,
+  onSlow: () => void,
+) {
   const root = document.documentElement;
   const width = window.innerWidth;
   // The tallest the viewport gets, so a phone's toolbar sliding away needs no rebuild.
   const height = Math.max(window.innerHeight, root.clientHeight);
-  const cell = cellSize(width, height);
-  const cols = Math.ceil(width / cell);
-  const rows = Math.ceil((height * 1.12) / cell);
+  const cell = cellSize(width + PAD * 2, height * 1.12 + PAD * 2);
+  const cols = Math.ceil((width + PAD * 2) / cell);
+  const rows = Math.ceil((height * 1.12 + PAD * 2) / cell);
   const field = new DotField(canvas, {
     ground: getComputedStyle(canvas).backgroundColor || "#000",
     light: program.light,
@@ -140,7 +155,12 @@ function mountBackdrop(program: SceneProgram, canvas: HTMLCanvasElement, sky: HT
   field.resize(cols, rows, cell);
   canvas.style.width = `${cols * cell}px`;
   canvas.style.height = `${rows * cell}px`;
-  const frame = program.build(gridFor(program, cols, rows, width));
+  const frame = program.build(gridFor(program, cols, rows, width + PAD * 2));
+
+  // A soft, low-resolution copy of the scene screened over it: light blooms like light.
+  const gctx = program.light ? null : glow.getContext("2d");
+  glow.style.width = canvas.style.width;
+  glow.style.height = canvas.style.height;
   const veil = veilFor(cols, rows, cell, program.veil);
 
   const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -158,11 +178,21 @@ function mountBackdrop(program: SceneProgram, canvas: HTMLCanvasElement, sky: HT
   const revealing = root.dataset.revealing === "true" && !still;
   let amount = revealing ? 0 : 1;
   let now = 0;
+  let frames = 0;
+  const timings: number[] = [];
   const draw = (t: number) => {
     now = t;
     const target = root.dataset.gaze === "true" ? 0 : revealing && t < 1.1 ? 0 : 1;
     amount = still ? target : amount + (target - amount) * 0.09;
+    const begin = performance.now();
     field.render(frame, t, veil, amount);
+    if (gctx) field.bloom(gctx, 4);
+    // Watch a few seconds of frames once the scene has settled; if most of them
+    // run over budget, give back resolution rather than frames.
+    if (!still && timings.length < 40 && ++frames > 15) {
+      timings.push(performance.now() - begin);
+      if (timings.length === 40 && timings.sort((a, b) => a - b)[20]! > FRAME_BUDGET) onSlow();
+    }
     weather?.(t, ctx, width, height);
   };
   const redraw = () => still && draw(now);
@@ -177,8 +207,31 @@ function mountBackdrop(program: SceneProgram, canvas: HTMLCanvasElement, sky: HT
 export function SceneryBackdrop() {
   const scene = useScene();
   const canvas = useRef<HTMLCanvasElement>(null);
+  const glow = useRef<HTMLCanvasElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
   const sky = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState(0);
+
+  // The scene drifts a little against the pointer, like looking through a window.
+  useEffect(() => {
+    const node = stage.current;
+    if (scene === "original" || !node) return;
+    if (reducedMotion() || !window.matchMedia("(pointer: fine)").matches) return;
+    let raf = 0;
+    const onMove = (event: PointerEvent) => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const dx = (event.clientX / window.innerWidth - 0.5) * -2 * (PAD - 6);
+        const dy = (event.clientY / window.innerHeight - 0.5) * -2 * (PAD - 10);
+        node.style.transform = `translate3d(${dx.toFixed(1)}px, ${dy.toFixed(1)}px, 0)`;
+      });
+    };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onMove);
+    };
+  }, [scene]);
 
   useEffect(() => {
     let width = window.innerWidth;
@@ -203,16 +256,22 @@ export function SceneryBackdrop() {
   // A layout effect, so a scene whose code is already loaded paints its first
   // frame before the browser captures the page turn's new state.
   useLayoutEffect(() => {
-    if (scene === "original" || !canvas.current || !sky.current) return;
+    if (scene === "original" || !canvas.current || !glow.current || !sky.current) return;
     const target = canvas.current;
+    const bloom = glow.current;
     const overlay = sky.current;
     let stop: (() => void) | null = null;
     let cancelled = false;
+    const onSlow = () => {
+      if (coarsen >= 1.5) return;
+      coarsen *= 1.22;
+      setSize((n) => n + 1);
+    };
     const program = loadedScene(scene);
-    if (program) stop = mountBackdrop(program, target, overlay);
+    if (program) stop = mountBackdrop(program, target, bloom, overlay, onSlow);
     else
       loadScene(scene).then((loaded) => {
-        if (!cancelled) stop = mountBackdrop(loaded, target, overlay);
+        if (!cancelled) stop = mountBackdrop(loaded, target, bloom, overlay, onSlow);
       });
     return () => {
       cancelled = true;
@@ -224,7 +283,10 @@ export function SceneryBackdrop() {
   return (
     <>
       <div className="scenery" aria-hidden="true">
-        <canvas ref={canvas} className="scenery-canvas" />
+        <div className="scenery-stage" ref={stage}>
+          <canvas ref={canvas} className="scenery-canvas" />
+          <canvas ref={glow} className="scenery-glow" />
+        </div>
       </div>
       <canvas ref={sky} className="scenery-weather" aria-hidden="true" />
     </>
@@ -274,7 +336,7 @@ export function AsciiTitle({ text }: { text: string }) {
 }
 
 function drawTitle(canvas: HTMLCanvasElement, text: string, width: number, shader: SceneProgram["title"]) {
-  const cell = width < 420 ? 3.4 : 4;
+  const cell = width < 420 ? 2.8 : 3.1;
   const cols = Math.max(8, Math.floor(width / cell));
   // Measure at a reference size, then fit the name to the column.
   const probe = document.createElement("canvas").getContext("2d")!;

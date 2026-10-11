@@ -102,6 +102,36 @@ function build(grid: Grid) {
       g[k] = cg * 1.05;
       b[k] = cb * 1.05;
     }
+    // sailboats tacking slowly across the bay, smaller toward the horizon
+    for (let i = 0; i < 4; i++) {
+      const by = 100 * (0.565 + i * 0.045);
+      const size = 1.6 + i * 0.9;
+      const dir = i % 2 === 0 ? 1 : -1;
+      const span = WIDTH * 0.72;
+      const bx = WIDTH * 0.27 + ((((hash(i, 8) * span + dir * t * (0.5 + i * 0.25)) % span) + span) % span);
+      const c0 = Math.max(0, Math.floor((bx - size - x0) / unit));
+      const c1 = Math.min(cols - 1, Math.ceil((bx + size - x0) / unit));
+      const r0 = Math.max(0, Math.floor((by - size * 1.8 - y0) / unit));
+      const r1 = Math.min(rows - 1, Math.ceil((by + size * 0.3 - y0) / unit));
+      for (let row = r0; row <= r1; row++) {
+        for (let col = c0; col <= c1; col++) {
+          const k = row * cols + col;
+          const dx = (X[k]! - bx) * dir;
+          const dy = Y[k]! - by;
+          const h = size * 1.8;
+          if (dy < 0 && dy > -h && dx > -0.1 * size && dx < size * 0.75 * (1 + dy / h)) {
+            r[k] = 1;
+            g[k] = 0.98;
+            b[k] = 0.95;
+          } else if (dy >= 0 && dy < size * 0.3 && Math.abs(dx - size * 0.2) < size * 0.6) {
+            r[k] = 0.16;
+            g[k] = 0.15;
+            b[k] = 0.2;
+          }
+        }
+      }
+    }
+
     // gulls crossing, wings beating between v and -
     for (const gull of gulls) {
       const gx = ((gull.phase + t * gull.speed) % (WIDTH * 1.4)) - WIDTH * 0.2;

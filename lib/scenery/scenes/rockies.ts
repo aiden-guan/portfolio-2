@@ -14,7 +14,7 @@ let photo: Photo | null = null;
 
 function build(grid: Grid) {
   const p = photo!;
-  const { cols, rows, X, Y } = grid;
+  const { cols, rows, X, Y, unit } = grid;
   const n = cols * rows;
   const base = new Float32Array(n * 3);
   const kind = new Uint8Array(n);
@@ -30,6 +30,13 @@ function build(grid: Grid) {
 
   return (t: number, cells: Cells) => {
     const { r, g, b, floor } = cells;
+    // now and then a meteor, low across the evening sky
+    const cycle = Math.floor(t / 13);
+    const age = t - cycle * 13 - 4;
+    const meteor = age > 0 && age < 0.9;
+    const mx = WIDTH * (0.12 + 0.55 * hash(cycle, 1)) + age * 70;
+    const my = 3 + 9 * hash(cycle, 2) + age * 22;
+    const trail = 14;
     for (let k = 0; k < n; k++) {
       const x = X[k]!;
       const y = Y[k]!;
@@ -55,6 +62,28 @@ function build(grid: Grid) {
         cr *= glow;
         cg *= glow;
         floor[k] = 0.16;
+        // the first stars, where the sky has already gone dark
+        const dark = smooth(0.32, 0.12, cr + cg + cb) * smooth(0.3, 0.05, v);
+        const h = hash(Math.floor(x / unit), Math.floor(y / unit) + 91);
+        if (dark > 0 && h > 0.985) {
+          const tw = (0.55 + 0.45 * Math.sin(t * (1.2 + h * 40) + h * 300)) * dark;
+          cr += tw * 0.85;
+          cg += tw * 0.85;
+          cb += tw;
+        }
+        if (meteor) {
+          // distance back along the streak from its head
+          const dx = mx - x;
+          const dy = my - y;
+          const along = (dx * 0.954 + dy * 0.3) / trail;
+          const across = Math.abs(-dx * 0.3 + dy * 0.954);
+          if (along > 0 && along < 1 && across < unit * 0.9) {
+            const a = (1 - along) * (1 - across / (unit * 0.9)) * Math.sin((age / 0.9) * Math.PI) * 1.6;
+            cr += a;
+            cg += a * 0.95;
+            cb += a * 0.85;
+          }
+        }
       } else if (m === WATER) {
         const du = (noise(x * 0.18, y * 1.4 + t * 0.5) - 0.5) * 0.008;
         const dv = (noise(x * 0.6 - t * 0.3, y * 2.5) - 0.5) * 0.004;
