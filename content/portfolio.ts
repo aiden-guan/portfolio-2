@@ -116,10 +116,11 @@ export const defaultPortfolio: PortfolioContent = {
     ],
   },
   seo: {
-    title: "Aiden Guan — product builder",
-    description: "Aiden Guan is a product builder studying business at UC Berkeley.",
+    title: "Aiden Guan | Portfolio",
+    description:
+      "Work, experience and projects from Aiden Guan, studying Business Administration and Data Science at UC Berkeley.",
     socialDescription:
-      "Selected work and experience from Aiden Guan, a product builder at UC Berkeley.",
+      "Work, experience and projects from Aiden Guan. Business Administration + Data Science at UC Berkeley.",
   },
   navigation: [
     { id: "work", label: "Work" },

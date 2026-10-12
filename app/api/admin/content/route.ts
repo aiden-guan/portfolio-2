@@ -46,6 +46,8 @@ export async function PUT(request: Request) {
   try {
     const content = await savePortfolioContent(body);
     revalidatePath("/");
+    revalidatePath("/opengraph-image");
+    revalidatePath("/twitter-image");
     return Response.json({ content }, { headers: noStore });
   } catch (error) {
     const message =

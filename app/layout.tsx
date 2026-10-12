@@ -9,14 +9,20 @@ const siteUrl = getSiteUrl();
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile, seo } = await getPortfolioContent();
+  const title = seo.title || `${profile.name || "Personal"} | Portfolio`;
+  const description = seo.description || [
+    `Work, experience and projects from ${profile.name || "the portfolio author"}.`,
+    profile.introduction,
+  ].filter(Boolean).join(" ");
+  const socialDescription = seo.socialDescription || description;
 
   return {
     metadataBase: new URL(siteUrl),
     title: {
-      default: seo.title,
+      default: title,
       template: `%s — ${profile.name}`,
     },
-    description: seo.description,
+    description,
     authors: [{ name: profile.name }],
     creator: profile.name,
     alternates: { canonical: "/" },
@@ -25,16 +31,15 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       type: "website",
       url: "/",
-      title: seo.title,
-      description: seo.socialDescription,
+      title,
+      description: socialDescription,
       siteName: profile.name,
-      images: [{ url: "/opengraph-image", width: 1200, height: 630 }],
+      locale: "en_US",
     },
     twitter: {
       card: "summary_large_image",
-      title: seo.title,
-      description: seo.socialDescription,
-      images: ["/opengraph-image"],
+      title,
+      description: socialDescription,
     },
   };
 }
