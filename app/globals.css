@@ -992,10 +992,10 @@ button {
     content: "";
     position: absolute;
     z-index: 3;
-    top: -12rem;
+    top: 0;
     right: 100%;
-    bottom: -12rem;
-    width: min(42vw, 36rem);
+    bottom: 0;
+    width: 0.8rem;
     pointer-events: none;
   }
 

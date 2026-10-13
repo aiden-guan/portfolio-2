@@ -11,6 +11,8 @@ const WATER = 1;
 const SKY = 2;
 const SCRUB = 3;
 const GULL = "v".charCodeAt(0);
+const SATURATION = 1.55;
+const DEEPEN = 1.25;
 
 let photo: Photo | null = null;
 
@@ -98,9 +100,12 @@ function build(grid: Grid) {
         cg = mix(cg, 0.95, f);
         cb = mix(cb, 0.98, f);
       }
-      r[k] = cr * 1.05;
-      g[k] = cg * 1.05;
-      b[k] = cb * 1.05;
+      // the photo reads washed out once it's dotted on paper: push saturation up and
+      // deepen the tones a touch, so the pale sky and water lay down more ink
+      const lum = cr * 0.3 + cg * 0.59 + cb * 0.11;
+      r[k] = Math.max(0, lum + (cr - lum) * SATURATION) ** DEEPEN;
+      g[k] = Math.max(0, lum + (cg - lum) * SATURATION) ** DEEPEN;
+      b[k] = Math.max(0, lum + (cb - lum) * SATURATION) ** DEEPEN;
     }
     // sailboats tacking slowly across the bay, smaller toward the horizon
     for (let i = 0; i < 4; i++) {

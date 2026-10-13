@@ -263,13 +263,13 @@ function build(grid: Grid) {
         let cr = 0;
         let cg = 0;
         let cb = 0;
-        // front flippers, long and sweeping
+        // front flippers, long and sweeping, one mirrored onto each side of the shell
+        const fa = 0.9 + beat * 0.45;
         for (const side of [-1, 1]) {
-          const fa = side * (0.9 + beat * 0.45);
           const fx = dx - 2.2;
-          const fy = dy - side * 1.5;
-          const along = fx * Math.cos(fa) + fy * Math.sin(fa) * side;
-          const across = -fx * Math.sin(fa) * side + fy * Math.cos(fa);
+          const fy = -side * dy + 1.5;
+          const along = fx * Math.cos(fa) + fy * Math.sin(fa);
+          const across = -fx * Math.sin(fa) + fy * Math.cos(fa);
           if (along < 1 && along > -7 && Math.abs(across) < 1.1 - along * -0.08) {
             hit = 1;
             cr = 0.34;
