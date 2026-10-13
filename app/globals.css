@@ -976,8 +976,8 @@ button {
     opacity: 1;
   }
 
-  .project-row:hover .cabinet,
-  .timeline-row:hover .cabinet {
+  .project-row:hover .cabinet-print,
+  .timeline-row:hover .cabinet-print {
     pointer-events: auto;
   }
 
@@ -995,7 +995,7 @@ button {
     top: 0;
     right: 100%;
     bottom: 0;
-    width: 0.8rem;
+    width: 2.4rem;
     pointer-events: none;
   }
 
@@ -1049,12 +1049,12 @@ button {
     opacity: 1;
   }
 
-  .project-row:has(:focus-visible) .cabinet,
-  .timeline-row:has(:focus-visible) .cabinet,
-  .project-row.is-open .cabinet,
-  .timeline-row.is-open .cabinet,
-  .project-row.is-viewing .cabinet,
-  .timeline-row.is-viewing .cabinet {
+  .project-row:has(:focus-visible) .cabinet-print,
+  .timeline-row:has(:focus-visible) .cabinet-print,
+  .project-row.is-open .cabinet-print,
+  .timeline-row.is-open .cabinet-print,
+  .project-row.is-viewing .cabinet-print,
+  .timeline-row.is-viewing .cabinet-print {
     pointer-events: auto;
   }
 
