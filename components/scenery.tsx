@@ -791,6 +791,27 @@ export function PageCurl() {
     release(state);
   }
 
+  // The browser can drop the drag without a pointerup (the window loses focus,
+  // a system gesture takes the pointer); let go where it is rather than leave
+  // the page held mid-peel.
+  function abandon(pointerId?: number) {
+    const state = peel.current;
+    if (!state || state.id < 0 || state.released) return;
+    if (pointerId !== undefined && state.id !== pointerId) return;
+    if (!state.dragging && !state.transition) {
+      peel.current = null;
+      return;
+    }
+    state.speed = 0;
+    release(state);
+  }
+
+  useEffect(() => {
+    const onBlur = () => abandon();
+    window.addEventListener("blur", onBlur);
+    return () => window.removeEventListener("blur", onBlur);
+  });
+
   const label = `Peel the page to the ${SCENE_INFO[next].name} version`;
   return (
     <>
@@ -808,6 +829,7 @@ export function PageCurl() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
+        onLostPointerCapture={(event) => abandon(event.pointerId)}
         onClick={(event) => {
           // Pointer turns happen by dragging; Enter and Space still turn the page.
           if (event.detail === 0) turn();
