@@ -4,6 +4,7 @@ import { IndexNavigation } from "@/components/index-navigation";
 import { LocalTime } from "@/components/local-time";
 import { PortfolioFrame } from "@/components/portfolio-frame";
 import { ProjectIndex } from "@/components/project-index";
+import { SocialIcon } from "@/components/social-icon";
 import { AsciiTitle, PageCurl, SceneCaption, SceneryBackdrop } from "@/components/scenery";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getPortfolioContent } from "@/lib/portfolio-content";
@@ -47,8 +48,13 @@ export default async function Home() {
                 {profile.links
                   .filter((link) => link.label && link.href)
                   .map((link) => (
-                    <ExternalLink key={link.href} href={link.href}>
-                      {link.label}
+                    <ExternalLink
+                      key={link.href}
+                      href={link.href}
+                      aria-label={link.label}
+                      title={link.label}
+                    >
+                      <SocialIcon label={link.label} href={link.href} />
                     </ExternalLink>
                   ))}
               </nav>
