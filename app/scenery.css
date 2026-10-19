@@ -289,10 +289,6 @@ html[data-turning] .page-fold {
 /* Scenery versions: the same page, set in dots over a living scene.         */
 /* ------------------------------------------------------------------------ */
 
-.ascii-title {
-  display: none;
-}
-
 html[data-scene]:not([data-scene="golden-gate"]) {
   color-scheme: dark;
 }
@@ -308,10 +304,6 @@ html[data-scene="chongqing"] {
   --accent-2: #ff9d4d;
   --accent-3: #ffd27a;
   --selection: #6a1f55;
-  --panel: rgb(9 7 20 / 0.6);
-  --title-glow: rgb(255 79 163 / 0.55);
-  --nav-mark: "▸";
-  --rule-glyph: "╌";
 }
 
 html[data-scene="rockies"] {
@@ -325,10 +317,6 @@ html[data-scene="rockies"] {
   --accent-2: #f7c75e;
   --accent-3: #b9a2ff;
   --selection: #6b3326;
-  --panel: rgb(16 10 20 / 0.56);
-  --title-glow: rgb(255 143 107 / 0.45);
-  --nav-mark: "▲";
-  --rule-glyph: "⋯";
 }
 
 html[data-scene="reef"] {
@@ -342,10 +330,6 @@ html[data-scene="reef"] {
   --accent-2: #62f3de;
   --accent-3: #ffd166;
   --selection: #0f5c6e;
-  --panel: rgb(2 28 48 / 0.5);
-  --title-glow: rgb(98 243 222 / 0.45);
-  --nav-mark: "≈";
-  --rule-glyph: "∿";
 }
 
 html[data-scene="golden-gate"] {
@@ -359,10 +343,6 @@ html[data-scene="golden-gate"] {
   --accent-2: #1d5c96;
   --accent-3: #6f7d22;
   --selection: #f3c3a8;
-  --panel: rgb(245 239 226 / 0.7);
-  --title-glow: rgb(192 54 44 / 0);
-  --nav-mark: "⌇";
-  --rule-glyph: "─";
   color-scheme: light;
 }
 
@@ -427,147 +407,34 @@ html[data-scene="golden-gate"] .scenery-glow {
   pointer-events: none;
 }
 
-/* The reading column: the scene's dots shrink and dim behind it (the backdrop
-   veils those cells), so the text sits on a quieter field of the same dots. */
-html[data-scene] .content {
-  padding-right: 2.6rem;
-  background: linear-gradient(180deg, var(--panel), transparent 40%, transparent 60%, var(--panel));
-  border-inline: 1px dashed var(--rule);
-  text-shadow: 0 0 10px var(--ground), 0 0 3px var(--ground);
+/* The masthead and the scrubber sit straight on the scene: a soft halo of
+   the ground behind their type keeps them legible over bright dots. */
+html[data-scene] :is(.masthead, .scrubber) {
+  text-shadow: 0 1px 10px var(--ground), 0 0 3px var(--ground), 0 0 1px var(--ground);
 }
 
-html[data-scene] .identity {
-  border-right: 0;
+html[data-scene] .masthead-mark,
+html[data-scene] .file-nav a[aria-current] .file-nav-index {
+  color: var(--accent-2);
 }
 
-html[data-scene] .identity-inner {
-  text-shadow: 0 1px 12px var(--ground), 0 0 3px var(--ground), 0 0 1px var(--ground);
+html[data-scene] .scrubber-marker {
+  background: var(--accent-2);
 }
 
-html[data-scene] .identity h1 {
-  position: relative;
-  margin-top: 2rem;
-}
-
-html[data-scene] .title-text {
+/* the ticks are lines, not type; they get a dark bed of their own */
+html[data-scene] .scrubber-ticks::before {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-html[data-scene] .ascii-title {
-  display: block;
-  max-width: 100%;
-  filter: drop-shadow(0 0 2px var(--ground)) drop-shadow(0 0 5px var(--ground)) drop-shadow(0 0 18px var(--title-glow));
-}
-
-html[data-scene] .descriptor {
-  margin-top: 0.6rem;
-  color: var(--accent-2);
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-size: 0.72rem;
-}
-
-html[data-scene] .introduction {
-  color: var(--ink);
-  opacity: 0.86;
-}
-
-html[data-scene] .identity-mark,
-html[data-scene] .section-heading > p {
-  color: var(--accent-2);
-}
-
-html[data-scene] .identity-mark::before,
-html[data-scene] .section-heading > p::before {
-  content: "┌─ ";
-  color: var(--accent);
-}
-
-html[data-scene] .section-heading h2 {
-  font-weight: 500;
-  letter-spacing: -0.035em;
-  background: linear-gradient(100deg, var(--ink) 25%, var(--accent-2) 70%, var(--accent));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: none;
-  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 30%, transparent));
-}
-
-html[data-scene] .index-nav a[aria-current="location"]::after {
-  content: var(--nav-mark);
-  width: auto;
-  height: auto;
-  background: none;
-  color: var(--accent);
-  font-size: 0.7rem;
-  line-height: 1;
-}
-
-html[data-scene] .index-nav a[aria-current="location"],
-html[data-scene] .index-nav a:hover {
-  color: var(--ink);
-  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
-}
-
-html[data-scene] :is(.page-section + .page-section, .project-row, .timeline, .interest-list) {
-  border-top: 1px dashed var(--rule);
-}
-
-html[data-scene] :is(.project-row:last-child, .timeline > li, .interest-list li) {
-  border-bottom: 1px dashed var(--rule);
-}
-
-html[data-scene] .site-footer {
-  border-top: 1px dashed var(--rule-strong);
-}
-
-html[data-scene] .external-link {
-  text-decoration-style: dotted;
-  text-decoration-color: color-mix(in srgb, var(--accent-2) 55%, transparent);
-}
-
-html[data-scene] .external-link:hover {
-  color: var(--accent-2);
-  text-shadow: 0 0 10px color-mix(in srgb, var(--accent-2) 60%, transparent);
-}
-
-html[data-scene="reef"] .external-link {
-  text-decoration-style: wavy;
-}
-
-html[data-scene] .project-number,
-html[data-scene] .interest-list span {
-  color: var(--accent);
-}
-
-html[data-scene] .project-heading h3,
-html[data-scene] .timeline h3 {
-  font-weight: 600;
-}
-
-html[data-scene] .project-status,
-html[data-scene] .timeline time {
-  color: var(--accent-3);
-}
-
-html[data-scene] .project-meta > span:first-child {
-  color: var(--faint);
+  inset: -0.35rem -0.75rem -0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ground) 62%, transparent);
+  content: "";
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
 
 html[data-scene] .theme-toggle {
   display: none;
-}
-
-html[data-scene] .utility-row {
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
 }
 
 .scene-caption {
@@ -593,24 +460,12 @@ html[data-scene] .utility-row {
   color: var(--ink);
 }
 
-/* Gazing: the page steps aside and leaves the scene. */
-html[data-scene] :is(
-    .content,
-    .identity header,
-    .index-nav,
-    .social-links,
-    .utility-row > :not(.scene-caption)
-  ) {
+/* Gazing: the file steps aside and leaves the scene. */
+html[data-scene] :is(.card-stage, .scrubber, .masthead > :not(.masthead-tools), .masthead-tools > :not(.scene-caption)) {
   transition: opacity 600ms var(--ease-out);
 }
 
-html[data-gaze] :is(
-    .content,
-    .identity header,
-    .index-nav,
-    .social-links,
-    .utility-row > :not(.scene-caption)
-  ) {
+html[data-gaze] :is(.card-stage, .scrubber, .masthead > :not(.masthead-tools), .masthead-tools > :not(.scene-caption)) {
   opacity: 0;
   pointer-events: none;
 }
@@ -619,8 +474,8 @@ html[data-gaze] .scenery-weather {
   opacity: 0.6;
 }
 
-/* After a page turn the scene is shown bare for a beat, then the page settles in. */
-html[data-revealing] .site-frame {
+/* After a page turn the scene is shown bare for a beat, then the file settles in. */
+html[data-revealing] :is(.card-stage, .masthead, .scrubber) {
   animation: page-settle 2.2s var(--ease-out) both;
 }
 
@@ -640,92 +495,6 @@ html[data-revealing] .site-frame {
   color: var(--accent);
 }
 
-/* Photos in the cabinet are screened into dots in the scene's own light, and
-   come back to full colour once they are fanned out or opened. */
-html[data-scene] .cabinet-photo :is(img, video) {
-  filter: saturate(0.75) contrast(1.08) brightness(0.92);
-  transition: filter 420ms var(--ease-out);
-}
-
-html[data-scene] .cabinet-photo::before {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  content: "";
-  border-radius: inherit;
-  pointer-events: none;
-  background:
-    radial-gradient(circle, transparent 0 0.9px, color-mix(in srgb, var(--ground) 82%, transparent) 1.5px) 0 0 / 4px 4px,
-    linear-gradient(160deg, color-mix(in srgb, var(--accent) 30%, transparent), color-mix(in srgb, var(--accent-2) 26%, transparent));
-  mix-blend-mode: normal;
-  opacity: 0.85;
-  transition: opacity 420ms var(--ease-out);
-}
-
-html[data-scene] :is(.project-row, .timeline-row):is(:hover, .is-open, .is-viewing) .cabinet-photo::before {
-  opacity: 0.28;
-}
-
-html[data-scene] :is(.project-row, .timeline-row):is(:hover, .is-open, .is-viewing) .cabinet-photo :is(img, video) {
-  filter: none;
-}
-
-html[data-scene] .print-viewer-scrim {
-  background: color-mix(in srgb, var(--ground) 72%, transparent);
-}
-
-/* Chongqing: neon in the rain. */
-html[data-scene="chongqing"] .section-heading h2 {
-  animation: neon-hum 6s steps(1) infinite;
-}
-
-@keyframes neon-hum {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  41% {
-    opacity: 0.72;
-  }
-  42% {
-    opacity: 1;
-  }
-  43.5% {
-    opacity: 0.8;
-  }
-  44% {
-    opacity: 1;
-  }
-}
-
-html[data-scene="chongqing"] .project-heading h3,
-html[data-scene="chongqing"] .timeline h3 {
-  text-shadow: 0 0 14px rgb(255 79 163 / 0.35);
-}
-
-/* The reef: everything sways a little in the swell. */
-@media (prefers-reduced-motion: no-preference) {
-  html[data-scene="reef"] .section-heading h2 {
-    animation: swell 7s ease-in-out infinite;
-  }
-
-  html[data-scene="golden-gate"] .section-heading h2 {
-    animation: fog-drift 11s ease-in-out infinite;
-  }
-}
-
-@keyframes swell {
-  50% {
-    transform: translateY(-3px);
-  }
-}
-
-@keyframes fog-drift {
-  50% {
-    filter: drop-shadow(0 0 18px rgb(255 255 255 / 0.35)) blur(0.3px);
-  }
-}
-
 @media (max-width: 880px) {
   .page-curl {
     --curl: 3rem;
@@ -734,39 +503,5 @@ html[data-scene="chongqing"] .timeline h3 {
   .page-curl:hover,
   .page-curl:focus-visible {
     --curl: 4.2rem;
-  }
-
-  .identity-inner {
-    padding-top: 3.4rem;
-  }
-
-  html[data-scene] .identity {
-    border-bottom: 1px dashed var(--rule-strong);
-  }
-
-  html[data-scene] .content {
-    /* out to the page's 1rem gutter, no further, or the page scrolls sideways */
-    margin-inline: -1rem;
-    padding-inline: 1rem;
-    border-inline: 0;
-  }
-
-  html[data-scene] .index-nav {
-    border-top: 1px dashed var(--rule);
-    border-bottom: 1px dashed var(--rule);
-  }
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  html[data-scene] .content {
-    background: var(--ground);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html[data-scene] .section-heading h2 {
-    animation: none;
   }
 }

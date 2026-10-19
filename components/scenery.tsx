@@ -97,31 +97,25 @@ const FRAME_BUDGET = 20;
 // The scene is drawn this far past every edge so it can drift with the pointer.
 const PAD = 28;
 
-// How much of the scene shows through behind the page: dim under the reading
-// column and around the name column's text, full in the margins and in the
-// open space of the name column.
+// How much of the scene shows through behind the page's own words. The cards
+// are solid stock, so only the masthead and the scrubber, which sit straight
+// on the scene, have the dots behind them dimmed.
 function veilFor(cols: number, rows: number, cell: number, levels: SceneProgram["veil"]) {
   const veil = new Float32Array(cols * rows).fill(1);
-  const content = document.querySelector(".content");
-  if (!content || window.innerWidth <= 880) return veil.fill(Math.min(levels.content + 0.06, 1));
-  const boxes: [DOMRect, number, number, boolean][] = [
-    [content.getBoundingClientRect(), levels.content, cell * 3, true],
-  ];
-  for (const node of document.querySelectorAll(".identity header, .index-nav, .identity-footer")) {
-    boxes.push([node.getBoundingClientRect(), levels.identity, cell * 7, false]);
-  }
+  const edge = cell * 5;
+  const boxes = [...document.querySelectorAll(".masthead > *, .scrubber > *")].map((node) => node.getBoundingClientRect());
   for (let y = 0, k = 0; y < rows; y++) {
     const py = (y + 0.5) * cell - PAD;
     for (let x = 0; x < cols; x++, k++) {
       const px = (x + 0.5) * cell - PAD;
       let v = 1;
-      for (const [box, level, edge, fullHeight] of boxes) {
+      for (const box of boxes) {
         const dx = Math.min(px - box.left, box.right - px);
-        const dy = fullHeight ? edge : Math.min(py - box.top, box.bottom - py);
+        const dy = Math.min(py - box.top, box.bottom - py);
         const inside = (Math.min(dx, dy) + edge / 2) / edge;
         if (inside <= 0) continue;
         const s = inside >= 1 ? 1 : inside * inside * (3 - 2 * inside);
-        v = Math.min(v, 1 + (level - 1) * s);
+        v = Math.min(v, 1 + (levels.identity - 1) * s);
       }
       veil[k] = v;
     }
@@ -129,11 +123,13 @@ function veilFor(cols: number, rows: number, cell: number, levels: SceneProgram[
   return veil;
 }
 
+// On a wide window the scene's subject is set in the margin beside the cards,
+// where it can be seen.
 function gridFor(program: SceneProgram, cols: number, rows: number, width: number) {
-  const identity = document.querySelector(".identity")?.getBoundingClientRect();
+  const card = document.querySelector(".index-card")?.getBoundingClientRect();
   const anchor =
-    program.anchor && identity && width > 880
-      ? { ...program.anchor, atX: (identity.left + identity.width * 0.45 + PAD) / width }
+    program.anchor && card && width > 880 && card.left > 120
+      ? { ...program.anchor, atX: (card.left * 0.5 + PAD) / width }
       : undefined;
   return coverGrid(cols, rows, program.focusX, program.focusY, program.width, program.height, anchor);
 }
