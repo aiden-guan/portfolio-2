@@ -4,6 +4,7 @@ import { getPortfolioContent } from "@/lib/portfolio-content";
 import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 import "./scenery.css";
+import "./card-file.css";
 
 const siteUrl = getSiteUrl();
 

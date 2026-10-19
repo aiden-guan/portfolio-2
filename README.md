@@ -1,8 +1,8 @@
 <div align="center">
 
-# Aiden Guan — Index Portfolio
+# Aiden Guan — The Card File
 
-**A restrained, high-density index portfolio and private headless CMS built with Next.js 16, React 19, TypeScript, and Cloudflare R2 storage.**
+**A portfolio built as a physical index-card file, with a private headless CMS, made with Next.js 16, React 19, TypeScript, and Cloudflare R2 storage.**
 
 [Live Site](https://aidenguan.com) · [Architecture](#system-architecture) · [Admin CMS](#private-headless-cms-admin-editor) · [Engineering Deep Dives](#engineering-deep-dives) · [Quick Start](#getting-started)
 
@@ -16,7 +16,7 @@
 
 <br/>
 
-![Aiden Guan Portfolio Showcase](assets/readme/hero.png)
+![The card file: a title card standing in front of the file, with the Work divider's tab behind it](assets/readme/hero.jpg)
 
 </div>
 
@@ -26,20 +26,23 @@
 
 This repository powers **[aidenguan.com](https://aidenguan.com)**, the personal index of Aiden Guan (studying Business Administration and Data Science at UC Berkeley).
 
-Rather than relying on heavy graphic templates, third-party portfolio builders, or static Markdown files requiring continuous git commits, the application couples an austere Swiss typographic layout with a private, authenticated in-browser CMS. Content edits and project media publish instantly to production via Cloudflare R2 object storage with zero build latency, zero egress fees, and zero redeployment requirements.
+The site takes the word *index* literally. The portfolio is an index-card file: a title card, a manila divider with a tab for each section, and a ruled card for every project, role and note, standing one behind another on a brass rod. Scrolling runs a thumb through them, so each card tips forward as it passes and the next one's header shows above it. A card can be pulled out of the file to fan its photos beside it, or grabbed and pulled down to flip it. Every card is plain HTML; the 3D is only how they are stood up.
+
+Behind the file is a private, authenticated in-browser CMS. Content edits and project media publish instantly to production via Cloudflare R2 object storage with zero build latency, zero egress fees, and zero redeployment requirements.
 
 ---
 
 ## Core Capabilities
 
-| Cabinet Stills Drawer | Private In-Browser Headless CMS |
+| The Card File | Scenery Versions |
 | :--- | :--- |
-| ![Cabinet Drawer Preview](assets/readme/cabinet-preview.png) | ![Admin CMS Portal](assets/readme/admin-preview.png) |
-| **Interactive Print Fan**: Hovering or focusing any work entry triggers a hardware-accelerated drawer that slides out image stills with mathematical tilt transforms (`--tilt`) while softly dimming the rest of the interface to spotlight the active project. | **Zero-Redeploy Publishing**: Dedicated `/admin` route protected by cryptographic session tokens. Allows full editing of profile copy, social links, section titles, project details, and asset uploads directly to Cloudflare R2 with pre-signed size validation and hard storage blockers. |
+| ![A project card pulled out of the file, its demo video playing in a fanned photo](assets/readme/card-preview.jpg) | ![The card file standing in the Chongqing night-rain scene](assets/readme/scenery-preview.jpg) |
+| **Scroll-Driven 3D File**: Each card tips forward as the scroll goes past it, on springs of its own, settling one card at a time. Clicking the front card pulls it out and fans its taped photos beside it (videos play); hovering the file raises a card to read its header; a tick scrubber along the foot riffles through it. | **Peel to Another World**: The curled page corner peels the room away to four animated dot-"ascii" scenes. The cards stay card stock, typed in mono, catch the scene's coloured light, and the name is printed in the scene's own dots. |
 
-| Zero-Flicker Theme Engine | Edge OpenGraph & Canonical SEO |
+| Private In-Browser Headless CMS | Zero-Flicker Theme Engine |
 | :--- | :--- |
-| **Instant Dark / Light Adaptation**: Zero-dependency inline `<head>` script evaluates `localStorage` and OS `prefers-color-scheme` before the DOM paints, eliminating theme flash (FOIT) without layout shift. | **Edge Social Generation**: Dynamically generates high-resolution Open Graph image cards via `@vercel/og` with automatic sitemap generation and canonical metadata routing. |
+| ![Admin CMS Portal](assets/readme/admin-preview.png) | **Instant Dark / Light Adaptation**: Zero-dependency inline `<head>` script evaluates `localStorage` and OS `prefers-color-scheme` before the DOM paints, eliminating theme flash (FOIT) without layout shift. Dark mode puts the lit file in a dark room. |
+| **Zero-Redeploy Publishing**: Dedicated `/admin` route protected by cryptographic session tokens. Allows full editing of profile copy, social links, section titles, project details, and asset uploads directly to Cloudflare R2 with pre-signed size validation and hard storage blockers. | **Edge Social Generation**: Dynamically generates high-resolution Open Graph image cards via `@vercel/og` with automatic sitemap generation and canonical metadata routing. |
 
 ---
 
@@ -50,8 +53,10 @@ The project operates across a dual-surface architecture separating public visito
 ```mermaid
 flowchart LR
     subgraph PublicClient["Public Surface (Visitor)"]
-        Index["Index View (app/page.tsx)"]
-        Cabinet["Cabinet Stills & Video (components/cabinet.tsx)"]
+        Index["Page (app/page.tsx)"]
+        Cards["Cards (components/cards.tsx)"]
+        File["Card File (components/card-file.tsx)"]
+        Viewer["Print Viewer (components/print-viewer.tsx)"]
         Theme["Theme Script (inline head)"]
     end
 
@@ -77,7 +82,9 @@ flowchart LR
     end
 
     Index -->|SSR & ISR Revalidation| ContentAPI
-    Cabinet -->|HTTP 206 Byte-Range Video & Stills| MediaRoute
+    Index --> Cards --> File
+    File -->|Pulled card's photos| Viewer
+    Viewer -->|HTTP 206 Byte-Range Video & Stills| MediaRoute
     AdminUI -->|Password Auth / SHA-256| SessionAPI
     Editor -->|Validated JSON Payload| ContentAPI
     MediaUploader -->|S3 Presigned Content-Length Put| R2Media
@@ -94,8 +101,8 @@ flowchart LR
 1. **Request Intake**: Incoming requests to `aidenguan.com` hit the Next.js App Router (`app/page.tsx`).
 2. **Content Resolution**: `getPortfolioContent()` checks for configured Cloudflare R2 credentials (falling back to legacy Vercel Blob or typed schema defaults in `content/portfolio.ts`). If present, it retrieves the live private `portfolio/content.json` document with a 60-second cache-control window.
 3. **Payload Sanitization**: Payloads pass through `parsePortfolioContent()`, which validates all strings, arrays, safe URI protocols (`http:`, `https:`, `mailto:`), and bounds check text lengths.
-4. **DOM Painting & Theme Application**: An inline script in `<head>` applies `dataset.theme` prior to paint. The server renders the typographic grid, Berkeley timezone clock, and project index.
-5. **Interactive Cabinet Expansion**: When a pointer hovers or keyboard focuses (`tabIndex={0}`) on a project row, CSS `:has()` rules dim sibling elements while evaluating CSS custom properties (`--tilt`, `--count`, `--i`) to fan the project prints and autoplay associated demo clips.
+4. **DOM Painting & Theme Application**: An inline script in `<head>` applies `dataset.theme` prior to paint. The server renders every card as plain HTML (`buildCards()` in `components/cards.tsx`): the title card with the Berkeley clock and contents, a divider per section, and a card per project, role and note.
+5. **Standing Up the File**: The client `CardFile` sizes the cards to the window, lays out one scroll stop per card (CSS scroll snap), and on every frame turns the scroll position into a thumb position that drives each card's spring-animated angle, height and depth inside a `preserve-3d` stack. Pulling a card fans its photos; the print viewer opens any photo full-size.
 6. **Authenticated Publishing**: When the maintainer accesses `/admin`, credentials authenticate against SHA-256 session cookies. Updated JSON documents write atomically to Cloudflare R2 via `savePortfolioContent()`. Direct media uploads stream straight to R2 via S3 presigned URLs with exact `ContentLength` verification and storage quota checks, updating public visitor traffic immediately.
 
 ---
@@ -121,12 +128,12 @@ The repository integrates a full-featured content management suite under `app/ad
 - **Why**: Delivers fast video playback and zero-rebuild publishing while guaranteeing that accidental bandwidth or storage spikes can never incur cloud bills.
 - **Tradeoff**: Single-document persistence uses atomic put overwrites optimized for a single author. Concurrent administrative sessions rely on last-write-wins semantics.
 
-### 2. Hardware-Accelerated Cabinet Stills with Non-Destructive Focus Navigation
+### 2. A Scroll-Driven 3D Card File That Stays Crisp, Accessible and Smooth
 
-- **Problem**: Presenting visual project screenshots within a dense, text-first editorial grid typically results in cluttered vertical cards or jarring modal dialogs that disrupt keyboard navigation.
-- **Approach**: Implemented a drawer architecture (`components/cabinet.tsx` and `app/globals.css`) using CSS transforms (`translate3d`, `rotate`, `scale`). Each card receives dynamic custom properties `--i` and `--count` calculating rotational fanning (`--tilt`). Utilizing CSS `:has(.project-row:hover)` and `:has(:focus-visible)`, the page dims ambient text (`opacity: var(--spotlight)`) and elevates the active row.
-- **Why**: Keeps the initial viewport minimalist and typographic while providing immediate visual depth on demand without layout reflow (CLS = 0).
-- **Tradeoff**: Advanced fanning interactions require modern browser CSS `:has()` support. For legacy browsers, fallbacks gracefully maintain text readability without the hover spotlight.
+- **Problem**: A physical-object portfolio tends to trade away the things a portfolio needs: readable type, keyboard and screen-reader access, native scrolling, and a steady frame rate.
+- **Approach**: The cards are server-rendered HTML in reading order; `components/card-file.tsx` only positions them. The page's own scroll drives a thumb position (a critically damped spring), one CSS scroll-snap stop per card; each card then follows on lightly underdamped springs for its angle and height, so motion is continuous and interruptible. Only `transform` and `opacity` change per frame, and each card's styles are written only when they change. The card in front always sits in the picture plane (`translateZ(0)`, no rotation) so its text is never resampled, while the eye's drift with the pointer moves `perspective-origin` rather than the cards. Light and depth are separate overlay layers whose opacity is set directly, never through inherited custom properties.
+- **Why**: Keeps the page a document (scrollbar, keyboard, find-in-page, links in tab order, a focused link flips its card forward) while giving it weight and depth; reduced motion turns the file into instant cuts.
+- **Tradeoff**: A card holds a fixed amount of text; the file sets a card's type a little smaller (`--fit`) when its notes run long, so very long copy is better split across cards.
 
 ### 3. Zero-Hydration-Flash Dark & Light Theme Architecture
 
@@ -142,7 +149,7 @@ The repository integrates a full-featured content management suite under `app/ad
 ### Client & Presentation
 - **Framework**: Next.js 16.3.4 (App Router, Server Components)
 - **UI Runtime**: React 19.2.8
-- **Typography & Styling**: Custom CSS custom properties, responsive split-column layout, and CSS `:has()` selectors
+- **Typography & Styling**: CSS custom properties, CSS 3D transforms (`preserve-3d`), container query units for card type, scroll snap, and a few kilobytes of Web Audio for the card flick
 - **Media Optimization**: Next.js Image component with responsive sizing and layout containment
 
 ### Server & Route Handlers
@@ -221,10 +228,12 @@ portfolio-2/
 │   ├── api/
 │   │   ├── admin/           # Authenticated session, content, media, and quota API handlers
 │   │   └── media/[name]/    # Secure media streaming route with HTTP 206 Range & dev proxy
-│   ├── globals.css          # Core design tokens, layout grids, and cabinet animations
+│   ├── card-file.css        # The card file: room, card stock, light, photos, stamps, scrubber
+│   ├── globals.css          # Core design tokens, links, print viewer, admin editor
 │   ├── layout.tsx           # Root layout, zero-flicker theme script, and canonical metadata
 │   ├── opengraph-image.tsx  # Dynamic 1200x630 OpenGraph card generation via @vercel/og
-│   ├── page.tsx             # Main index server component assembling work, experience & bio
+│   ├── page.tsx             # Masthead and the card file, built from the live content
+│   ├── scenery.css          # Page curl, page turn, and the scenery versions
 │   ├── robots.ts            # Dynamic robots.txt generation
 │   └── sitemap.ts           # Dynamic sitemap.xml generation
 ├── assets/
@@ -233,10 +242,11 @@ portfolio-2/
 │   ├── admin-editor.tsx     # Full reactive admin editor form interface
 │   ├── admin-image-editor.tsx # Direct presigned media uploader & format validator
 │   ├── admin-storage-guard.tsx # Visual storage quota gauge & 1-click orphan cleaner
-│   ├── cabinet.tsx          # Fanned card print drawer for project stills and videos
-│   ├── index-navigation.tsx # High-contrast section anchor navigation
+│   ├── card-file.tsx        # The 3D file: scroll-driven springs, pull-out, scrubber, section nav
+│   ├── cards.tsx            # Every card as plain HTML: title, dividers, projects, roles, notes
 │   ├── local-time.tsx       # Live-updating Berkeley time calculation
-│   └── project-index.tsx    # Accessible project list with focus and hover handlers
+│   ├── print-viewer.tsx     # Full-size viewer for a pulled card's photos and videos
+│   └── scenery.tsx          # Page curl, page turn, scenery backdrops, dot-printed name
 ├── content/
 │   └── portfolio.ts         # Schema definitions, type guards, and fallback content
 ├── lib/
@@ -246,6 +256,8 @@ portfolio-2/
 │   ├── portfolio-media.ts   # Magic-byte file validation and media helpers
 │   ├── r2.ts                # S3-compatible Cloudflare R2 client and presigning utilities
 │   ├── r2-limits.ts         # Storage quota guard, bucket counter, and hard limit blocker
+│   ├── riffle.ts            # The synthesised paper flick as a card goes past, and its switch
+│   ├── scenery/             # Dot-field renderer and the four scenery versions
 │   └── site-url.ts          # Canonical site origin resolver
 ├── scripts/
 │   ├── manage-blobs.mjs     # Legacy Vercel Blob inspection and migration utility

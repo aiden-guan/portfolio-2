@@ -6,9 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Added
+## [1.3.0] — 2026-10-19
+
+### Summary
+Rebuilt the homepage as a physical object: the portfolio is now an index-card file you flip through, pull cards from and thumb along, standing in a lit room, with four animated scenery versions behind a peelable page corner.
+
+### Architectural & Functional Highlights
+| Component / Layer | Change | Impact |
+| :--- | :--- | :--- |
+| **Cards** | `components/cards.tsx` builds every card as server-rendered HTML from the live content | Content stays readable, linkable and in reading order for keyboards, screen readers and search; the 3D is presentation only. |
+| **Card File** | `components/card-file.tsx` drives a `preserve-3d` stack from the page's own scroll, with one scroll-snap stop per card and springs per card | Native scrolling, keyboard and touch all work; motion is continuous and interruptible, and the front card stays pixel-sharp. |
+| **Print Viewer** | Extracted to `components/print-viewer.tsx` from the old frame | Any photo on a pulled card opens full size, with the zoom from and back onto the card. |
+| **Scenery** | `components/scenery.tsx` veils the scene only behind the masthead and scrubber, and anchors the scene's subject in the margin beside the cards | The scenes show around solid card stock instead of behind a reading column. |
+| **Styles** | New `app/card-file.css`; `app/globals.css` and `app/scenery.css` stripped of the two-column layout | About 1,000 lines of dead layout CSS removed. |
+
+### Detailed Changes
+
+#### Added
 - **Scenery versions**: a curled-up page corner at the top left, peeled back by dragging it, turns the portfolio through four extra versions (Chongqing in the rain, the Rockies at dusk, the Great Barrier Reef, San Francisco), each drawn as animated dot "ascii" with the same content restyled to match. The choice is remembered per browser.
 - **Page-turn transition**: the old page peels away under the pointer, revealing the live new version beneath; let go past the middle and it turns, otherwise it falls back. Enter or Space turns it in one go (View Transitions; an instant switch where unsupported or with reduced motion).
+- **The card file**: the portfolio is now an index-card file. A title card, a manila divider with a tab for each section, and a ruled card for every project, role and note stand one behind another on a brass rod. Scrolling runs a thumb through them: each card tips forward as it passes, settling on one card at a time (scroll snap), and the next card's header shows above the one in front.
+  - **Motion**: the thumb follows the scroll on a critically damped spring and every card has springs of its own, so a flick riffles, a card set back upright rocks once before it settles, and the cards drop into the file one by one when the page opens.
+  - **Grab to flip**: the front card can be taken by the top and pulled down to flip it; a flick carries on through a card or two.
+  - **Depth and light**: the file stands on a lit sweep with a floor shadow and film grain; cards cast shadows up onto the card behind, fade into the room the deeper they sit, and catch a sheen that follows the pointer. The eye drifts with the pointer so the file shows its depth, while the card in front, which sits in the picture plane, stays pin-sharp.
+  - **Photos and stamps**: a project's photos are taped to its card, the first on top; roles are date-stamped in worn red ink.
+  - **Pull a card**: clicking the front card lifts it out of the file and fans its photos beside it (videos play); a photo then opens in the viewer. Escape, a click elsewhere or a scroll puts it back. On a phone the photos stay tucked behind the card until it is pulled.
+  - **Thumb through**: resting the pointer on the file raises a card far enough to read its header; clicking it flips straight there. Arrow keys, links and the section names along the top flip too.
+  - **Scrubber**: a rule of ticks along the foot of the window, one per card, with a marker that slides with the thumb, to hover, click or drag through the file, and a card count.
+  - **Status marks**: live projects pulse, work in progress turns, wins shine and retired work is hollow.
+  - **Sound**: a soft paper flick as each card goes past, synthesised in the browser, with a switch to turn it off.
+  - In the scenery versions the cards stay card stock, typed in mono, catch the scene's coloured light on their edges, and the name on the title card is printed in the scene's own dots.
+
+#### Removed
+- The two-column index (name column, reading column, image cabinet and spotlight) and its components (`portfolio-frame`, `cabinet`, `project-index`, `experience-index`, `index-navigation`), replaced by the card file.
+
+### Verification Proof
+- `npm run lint` passed with 0 errors.
+- `npm run typecheck` passed with 0 errors.
+- `npm run build` completed a full production build across all routes.
+- Driven in headless Chrome at desktop and phone sizes, in light and dark themes, in two scenery versions and with reduced motion: flipping, pulling, thumbing, the photo viewer and the intro; a fast riffle held a 16.7 ms median frame.
+
+---
 
 ## [1.2.3] — 2026-10-05
 
