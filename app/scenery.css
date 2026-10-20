@@ -10,7 +10,8 @@
   --curl-under-b: #1a1030;
   --curl-under-dot: rgb(255 255 255 / 0.55);
   position: fixed;
-  z-index: 30;
+  /* over the masthead, whose band runs under the corner */
+  z-index: 31;
   top: 0;
   left: 0;
   width: var(--curl);
@@ -407,32 +408,6 @@ html[data-scene="golden-gate"] .scenery-glow {
   pointer-events: none;
 }
 
-/* The masthead and the scrubber sit straight on the scene: a soft halo of
-   the ground behind their type keeps them legible over bright dots. */
-html[data-scene] :is(.masthead, .scrubber) {
-  text-shadow: 0 1px 10px var(--ground), 0 0 3px var(--ground), 0 0 1px var(--ground);
-}
-
-html[data-scene] .masthead-mark,
-html[data-scene] .file-nav a[aria-current] .file-nav-index {
-  color: var(--accent-2);
-}
-
-html[data-scene] .scrubber-marker {
-  background: var(--accent-2);
-}
-
-/* the ticks are lines, not type; they get a dark bed of their own */
-html[data-scene] .scrubber-ticks::before {
-  position: absolute;
-  inset: -0.35rem -0.75rem -0.45rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ground) 62%, transparent);
-  content: "";
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-}
-
 html[data-scene] .theme-toggle {
   display: none;
 }
@@ -460,12 +435,12 @@ html[data-scene] .theme-toggle {
   color: var(--ink);
 }
 
-/* Gazing: the file steps aside and leaves the scene. */
-html[data-scene] :is(.card-stage, .scrubber, .masthead > :not(.masthead-tools), .masthead-tools > :not(.scene-caption)) {
+/* Gazing: everything on the mat steps aside and leaves the scene. */
+html[data-scene] :is(.mat, .masthead > :not(.masthead-tools), .masthead-tools > :not(.scene-caption)) {
   transition: opacity 600ms var(--ease-out);
 }
 
-html[data-gaze] :is(.card-stage, .scrubber, .masthead > :not(.masthead-tools), .masthead-tools > :not(.scene-caption)) {
+html[data-gaze] :is(.mat, .masthead > :not(.masthead-tools), .masthead-tools > :not(.scene-caption)) {
   opacity: 0;
   pointer-events: none;
 }
@@ -474,8 +449,8 @@ html[data-gaze] .scenery-weather {
   opacity: 0.6;
 }
 
-/* After a page turn the scene is shown bare for a beat, then the file settles in. */
-html[data-revealing] :is(.card-stage, .masthead, .scrubber) {
+/* After a page turn the scene is shown bare for a beat, then the mat's things settle in. */
+html[data-revealing] :is(.mat, .masthead) {
   animation: page-settle 2.2s var(--ease-out) both;
 }
 

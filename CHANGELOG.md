@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-10-20
+
+### Summary
+Rebuilt the homepage as a designer's cutting mat with the work laid out on it as printed things, each the object its project's own idea suggests, all of which can be picked up, thrown, turned over, torn, punched and squared back up.
+
+### Architectural & Functional Highlights
+| Component / Layer | Change | Impact |
+| :--- | :--- | :--- |
+| **Things** | `components/mat/things.tsx` prints each project as a receipt, approval form, postcard, measured drawing or ticket (picked by `lib/mat.ts` or chosen in the editor), with prints, time cards, an index card and an envelope | Every project reads as its own object, from the same CMS content, still plain HTML in reading order. |
+| **Table** | `components/mat/table.tsx` adds paper physics on top of the CSS layout: a held sheet swings about the held point, slides when thrown, turns over, and Tidy springs it home | The page is a document and a toy at once; only transforms change per frame, and things get compositor layers only while moving. |
+| **Places** | `components/mat/places.tsx` renders each scenery version live in a postcard with the dot-field engine; clicking one travels there | The scenes are on the mat, not only behind the page curl. |
+| **Editor** | A "Printed as" field per project in `/admin`; `artifact` is optional in the content schema | Older content parses unchanged and gets an automatic choice. |
+| **Sharing image** | `lib/portfolio-social-image.tsx` draws the top of the mat with static font instances from `assets/fonts/` | Shared links show the new look. |
+| **Styles** | New `app/mat.css`; `app/card-file.css`, `components/card-file.tsx` and `components/cards.tsx` removed | One stylesheet for the mat, its stocks and inks. |
+
+### Detailed Changes
+
+#### Added
+- **The mat**: a self-healing cutting mat, a centimetre grid heavier every five, rulers down its edge and along the masthead, the name printed into it a word to a line as large as the window allows. Green in the light theme, black in the dark.
+- **The business card**: lying across the name and dimensioned on the mat (89 × 51 mm); it turns over to a red back with the initials pressed in blind.
+- **Projects as things**: a till receipt in a dot-matrix face with a real Code 128 barcode and a TOTAL line taken from the notes; a carbon approval form, typed in and stamped (the stamp's word follows the status); a postcard with a postmark and a riso two-ink picture side; a measured face-proportion drawing with a title block; an admission ticket with a perforated stub. Photos lie beside each as prints and short films as instant film, playing while in view.
+- **Hands**: anything can be picked up by any point and swings about it like paper; thrown, it slides to a stop with paper sounds; a click turns it over. The ticket punches where you click and its stub tears off along the perforation; a time card clocks in at the current Berkeley time; the envelope opens a new email; Tidy appears once anything is out of square and knolls it all back (punch holes stay). Keyboard: every thing is focusable, Enter acts, arrow keys nudge.
+- **Experience as time cards**: one per role, the period punched in by the clock.
+- **Postcards of places**: the four scenery versions as living postcards in About; picking one up and clicking it turns the mat into that place, franked "Here".
+- **Type**: Archivo (variable width), Martian Mono, Doto and Libre Barcode 128 through `next/font`.
+
+#### Changed
+- The scenery versions now lay the same paper things over the scene; the printed name is redrawn in the scene's dots.
+- The print viewer opens from any print and steps through that project's prints.
+- The sharing image is the top of the mat.
+
+#### Removed
+- The index-card file (`components/card-file.tsx`, `components/cards.tsx`, `app/card-file.css`) and its scrubber.
+
+### Verification Proof
+- `npm run lint` passed with 0 errors (the three existing `<img>` warnings remain).
+- `npm run typecheck` passed with 0 errors.
+- `npm run build` completed a full production build across all routes.
+- Driven in headless Chrome at 1440, 1280, 768 and 390 px wide, in light and dark themes, in three scenery versions and with reduced motion: dragging, throwing, turning over, punching, tearing, clocking in, Tidy, postcard travel, the print viewer and keyboard access, with no console errors.
+
+---
+
 ## [1.3.0] — 2026-10-19
 
 ### Summary

@@ -1,5 +1,7 @@
-import { CardFile, FileNavigation, SoundToggle } from "@/components/card-file";
-import { buildCards } from "@/components/cards";
+import { SoundToggle } from "@/components/sound-toggle";
+import { Mat } from "@/components/mat/mat";
+import { MatNavigation } from "@/components/mat/navigation";
+import { Table, TidyButton } from "@/components/mat/table";
 import { PrintViewer } from "@/components/print-viewer";
 import { PageCurl, SceneCaption, SceneryBackdrop } from "@/components/scenery";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -10,7 +12,6 @@ export const revalidate = 3600;
 export default async function Home() {
   const content = await getPortfolioContent();
   const { navigation, profile } = content;
-  const { meta, cards } = buildCards(content);
 
   return (
     <>
@@ -24,15 +25,18 @@ export default async function Home() {
           {profile.mark ? <span className="masthead-mark">{profile.mark}</span> : null}
           <span>{profile.name}</span>
         </a>
-        <FileNavigation navigation={navigation} />
+        <MatNavigation navigation={navigation} />
         <div className="masthead-tools">
+          <TidyButton />
           <SceneCaption />
           <SoundToggle />
           <ThemeToggle />
         </div>
       </header>
       <main id="main-content" tabIndex={-1}>
-        <CardFile cards={meta}>{cards}</CardFile>
+        <Table>
+          <Mat content={content} />
+        </Table>
       </main>
       <PrintViewer />
     </>

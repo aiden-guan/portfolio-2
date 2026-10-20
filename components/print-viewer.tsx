@@ -83,8 +83,8 @@ export function PrintViewer() {
     const onClick = (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof Element) || viewer.current?.contains(target)) return;
-      const print = target.closest<HTMLElement>(".card-print");
-      if (!print || print.closest(".index-card:not(.is-pulled)")) return;
+      const print = target.closest<HTMLElement>('.thing[data-action="open"]');
+      if (!print) return;
       event.preventDefault();
       actions.current.open(print, event.detail === 0);
     };
@@ -116,7 +116,7 @@ export function PrintViewer() {
   }, []);
 
   function surface(print: HTMLElement) {
-    return print.querySelector<HTMLElement>(".card-print-photo") ?? print;
+    return print.querySelector<HTMLElement>(".print-window") ?? print;
   }
 
   function slots() {
@@ -251,9 +251,12 @@ export function PrintViewer() {
   }
 
   function openViewer(print: HTMLElement, fromKeyboard: boolean) {
-    const card = print.closest<HTMLElement>("[data-card]");
-    if (!card || open.current) return;
-    const all = [...card.querySelectorAll<HTMLElement>(".card-print")];
+    const name = print.dataset.gallery;
+    if (!name || open.current) return;
+    // every print of the same piece of work, in order
+    const all = [...document.querySelectorAll<HTMLElement>(`.thing[data-gallery="${CSS.escape(name)}"]`)].sort(
+      (a, b) => Number(a.dataset.print ?? 0) - Number(b.dataset.print ?? 0),
+    );
     const gallery = all.flatMap((item): GalleryImage[] => {
       const media = printMedia(item);
       if (!media) return [];
@@ -278,7 +281,7 @@ export function PrintViewer() {
     prints.current = all;
     document.documentElement.dataset.viewing = "true";
     setImages(gallery);
-    setTitle(card.querySelector(".card-title")?.textContent?.trim() || "Portfolio images");
+    setTitle(print.dataset.title || "Portfolio images");
     setSource(Math.max(0, all.indexOf(print)));
     placeStage(print);
     setIsClosing(false);

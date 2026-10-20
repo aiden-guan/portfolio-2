@@ -46,6 +46,33 @@ function reducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+// Going somewhere without the page turn (a postcard picked up off the mat):
+// the scene comes in bare, then the page settles over it. Going to the
+// place already showing comes home.
+export async function visitScene(id: SceneId) {
+  const to = currentScene() === id ? "original" : id;
+  if (to !== "original") await loadScene(to).catch(() => {});
+  const root = document.documentElement;
+  if (!reducedMotion()) root.dataset.revealing = "true";
+  applyScene(to);
+  window.setTimeout(() => delete root.dataset.revealing, 2400);
+}
+
+// A scene in a frame of its own, `cell` pixels to a dot, playing while it
+// is on screen. Returns a function that stops it.
+export function mountMiniScene(canvas: HTMLCanvasElement, program: SceneProgram, ground: string, cell: number) {
+  const box = canvas.parentElement;
+  if (!box) return () => {};
+  const cols = Math.max(8, Math.ceil(box.clientWidth / cell));
+  const rows = Math.max(6, Math.ceil(box.clientHeight / cell));
+  const field = new DotField(canvas, { ground, light: program.light });
+  field.resize(cols, rows, cell);
+  canvas.style.width = `${cols * cell}px`;
+  canvas.style.height = `${rows * cell}px`;
+  const frame = program.build(coverGrid(cols, rows, program.focusX, program.focusY, program.width, program.height));
+  return animate(Math.min(program.fps, 15), (t) => field.render(frame, t));
+}
+
 // Runs `draw` at the scene's frame rate while the page is visible; under
 // reduced motion it draws once and holds.
 // One clock for every scene on the page, so a backdrop that is mounted again
@@ -97,13 +124,13 @@ const FRAME_BUDGET = 20;
 // The scene is drawn this far past every edge so it can drift with the pointer.
 const PAD = 28;
 
-// How much of the scene shows through behind the page's own words. The cards
-// are solid stock, so only the masthead and the scrubber, which sit straight
-// on the scene, have the dots behind them dimmed.
+// How much of the scene shows through behind the page's own words. The things
+// on the mat are solid stock, so only the masthead, which sits straight on
+// the scene, has the dots behind it dimmed.
 function veilFor(cols: number, rows: number, cell: number, levels: SceneProgram["veil"]) {
   const veil = new Float32Array(cols * rows).fill(1);
   const edge = cell * 5;
-  const boxes = [...document.querySelectorAll(".masthead > *, .scrubber > *")].map((node) => node.getBoundingClientRect());
+  const boxes = [...document.querySelectorAll(".masthead > *")].map((node) => node.getBoundingClientRect());
   for (let y = 0, k = 0; y < rows; y++) {
     const py = (y + 0.5) * cell - PAD;
     for (let x = 0; x < cols; x++, k++) {
@@ -123,10 +150,10 @@ function veilFor(cols: number, rows: number, cell: number, levels: SceneProgram[
   return veil;
 }
 
-// On a wide window the scene's subject is set in the margin beside the cards,
-// where it can be seen.
+// On a wide window the scene's subject is set in the margin beside the
+// business card, where it can be seen.
 function gridFor(program: SceneProgram, cols: number, rows: number, width: number) {
-  const card = document.querySelector(".index-card")?.getBoundingClientRect();
+  const card = document.querySelector(".mat-hero-card .thing")?.getBoundingClientRect();
   const anchor =
     program.anchor && card && width > 880 && card.left > 120
       ? { ...program.anchor, atX: (card.left * 0.5 + PAD) / width }
@@ -296,7 +323,7 @@ export function SceneryBackdrop() {
 }
 
 // The name drawn in the scene's dots. The real heading text stays in the page.
-export function AsciiTitle({ text }: { text: string }) {
+export function AsciiTitle({ text, max = 92 }: { text: string; max?: number }) {
   const scene = useScene();
   const canvas = useRef<HTMLCanvasElement>(null);
 
@@ -309,12 +336,12 @@ export function AsciiTitle({ text }: { text: string }) {
     const start = (shader: SceneProgram["title"]) => {
       const box = node.parentElement!;
       let width = box.clientWidth;
-      let halt = drawTitle(node, text, width, shader);
+      let halt = drawTitle(node, text, width, shader, max);
       const observer = new ResizeObserver(() => {
         if (box.clientWidth === width) return;
         width = box.clientWidth;
         halt();
-        halt = drawTitle(node, text, width, shader);
+        halt = drawTitle(node, text, width, shader, max);
       });
       observer.observe(box);
       stop = () => {
@@ -331,21 +358,22 @@ export function AsciiTitle({ text }: { text: string }) {
       cancelled = true;
       stop?.();
     };
-  }, [scene, text]);
+  }, [scene, text, max]);
 
   if (scene === "original") return null;
   return <canvas ref={canvas} className="ascii-title" aria-hidden="true" />;
 }
 
-function drawTitle(canvas: HTMLCanvasElement, text: string, width: number, shader: SceneProgram["title"]) {
-  const cell = width < 420 ? 2.8 : 3.1;
+function drawTitle(canvas: HTMLCanvasElement, text: string, width: number, shader: SceneProgram["title"], max = 92) {
+  // big type takes bigger dots, so the name stays a few hundred cells across
+  const cell = width < 420 ? 2.8 : Math.max(3.1, width / 420);
   const cols = Math.max(8, Math.floor(width / cell));
   // Measure at a reference size, then fit the name to the column.
   const probe = document.createElement("canvas").getContext("2d")!;
   const family = '"Helvetica Neue", Helvetica, Arial, sans-serif';
   probe.font = `800 100px ${family}`;
   const measured = probe.measureText(text).width || 1;
-  const fontPx = Math.min((cols * cell * 0.98 * 100) / measured, 92);
+  const fontPx = Math.min((cols * cell * 0.98 * 100) / measured, max);
   const rows = Math.ceil((fontPx * 0.9) / cell) + 2;
 
   const scale = 4;
