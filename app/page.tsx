@@ -32,6 +32,7 @@ export default async function Home() {
           <SoundToggle />
           <ThemeToggle />
         </div>
+        <span className="ruler-guide ruler-guide-x" aria-hidden="true" />
       </header>
       <main id="main-content" tabIndex={-1}>
         <Table>

@@ -620,7 +620,7 @@ export function NotesCard({ paragraphs, interests, title }: { paragraphs: string
   );
 }
 
-// An envelope addressed to the owner; it opens a new email.
+// An envelope addressed to the owner; it is franked, then opens a new email.
 export function Envelope({ profile }: { profile: PortfolioContent["profile"] }) {
   const email = profile.links.find((link) => link.href.startsWith("mailto:"))?.href ?? (profile.email ? `mailto:${profile.email}` : "");
   if (!email) return null;
@@ -645,6 +645,21 @@ export function Envelope({ profile }: { profile: PortfolioContent["profile"] }) 
         <span className="ev-air" aria-hidden="true">
           Par avion
         </span>
+        {/* the dater beside the stamp, its bars across it; the table fills
+            in the sender's town, the hour and the date */}
+        <svg className="ev-postmark" viewBox="0 0 120 64" aria-hidden="true" focusable="false">
+          <defs>
+            <path id="ev-postmark-ring" d="M 32 50 a 22 22 0 1 1 0.1 0" />
+          </defs>
+          <circle cx="32" cy="28" r="24" />
+          <circle cx="32" cy="28" r="15.5" />
+          <text className="ev-postmark-ring">
+            <textPath href="#ev-postmark-ring" startOffset="2" />
+          </text>
+          <text className="ev-postmark-day" x="32" y="28" textAnchor="middle" />
+          <text className="ev-postmark-year" x="32" y="35" textAnchor="middle" />
+          <path d="M60 16c6 -4 10 4 16 0s10 4 16 0 10 4 16 0 M60 28c6 -4 10 4 16 0s10 4 16 0 10 4 16 0 M60 40c6 -4 10 4 16 0s10 4 16 0 10 4 16 0" />
+        </svg>
       </div>
     </Thing>
   );

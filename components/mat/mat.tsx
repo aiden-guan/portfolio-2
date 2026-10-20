@@ -82,6 +82,31 @@ function ProjectRow({ project, index, owner }: { project: Project; index: number
   );
 }
 
+// The angles printed in the mat's corner for cutting by, the way every
+// cutting mat has them, kept clear of the corner itself. In millimetres.
+function Angles() {
+  const from = 30;
+  const to = 110;
+  return (
+    <svg className="mat-angles" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+      {[30, 45, 60].map((degrees) => {
+        const a = (degrees * Math.PI) / 180;
+        const x = (r: number) => (r * Math.cos(a)).toFixed(2);
+        const y = (r: number) => (120 - r * Math.sin(a)).toFixed(2);
+        return (
+          <g key={degrees}>
+            <path d={`M${x(from)} ${y(from)}L${x(to)} ${y(to)}`} />
+            <text x={x(to + 3)} y={y(to + 3)} transform={`rotate(${-degrees} ${x(to + 3)} ${y(to + 3)})`}>
+              {degrees}°
+            </text>
+          </g>
+        );
+      })}
+      <path d={`M${to} 120A${to} ${to} 0 0 0 0 ${120 - to}`} />
+    </svg>
+  );
+}
+
 function Band({ id, children, className }: { id: string; children: ReactNode; className?: string }) {
   return (
     <section className={`mat-band${className ? ` ${className}` : ""}`} id={id} aria-labelledby={`${id}-title`}>
@@ -118,6 +143,10 @@ export function Mat({ content }: { content: PortfolioContent }) {
           <span>
             <span className="hint-pointer">Click to turn over</span>
             <span className="hint-touch">Tap to turn over</span>
+          </span>
+          <span>
+            <span className="hint-pointer">Cut the mat</span>
+            <span className="hint-touch">Hold the mat to cut it</span>
           </span>
         </p>
       </section>
@@ -158,6 +187,7 @@ export function Mat({ content }: { content: PortfolioContent }) {
       </section>
 
       <footer className="mat-foot">
+        <Angles />
         <span>Self-healing cutting mat</span>
         <span>{profile.mark}</span>
         <span>

@@ -6,6 +6,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-10-20
+
+### Summary
+The cutting mat is now a self-healing one you can cut: a craft knife, drawn to scale, opens a hairline in the bare mat that closes up behind the blade and fades. Around it, the small things a designer's mat and tools do: crop marks where every thing belongs, things that seat onto them, numbered rulers that follow the pointer, angle guides in the corner, and a postmark on the envelope.
+
+### Architectural & Functional Highlights
+| Component / Layer | Change | Impact |
+| :--- | :--- | :--- |
+| **Cuts** | New `lib/cuts.ts`: cuts recorded in mat coordinates with a time to heal per point, drawn into a canvas inside the mat that scrolls with it and is released once everything has healed | The cut stays locked to the mat while scrolling, passes under the paper and over the mat's print, and costs nothing at rest. |
+| **Knife** | New `components/mat/knife.tsx`: an X-Acto-style knife with a No. 11 blade as flat-shaded SVG in millimetres, its shadow sheared along its length | It is to scale beside the business card on every screen. |
+| **Table** | `components/mat/table.tsx` prints crop marks at each thing's home, seats things dropped near them, numbers the ruler, drives the ruler guides and franks the envelope | Moving things around stays legible and reversible without Tidy. |
+| **Sound** | `lib/riffle.ts` adds the blade, a stab, a seat and a postmark | Same few-grains-of-noise foley, nothing loaded. |
+| **Styles** | `app/mat.css` adds the cut inks per theme, the blade cursor, the knife, the readout, crop marks, ruler guides and numerals, the angle guides and the postmark | One stylesheet still holds the mat. |
+
+### Detailed Changes
+
+#### Added
+- **Cutting the mat**: over the bare mat the pointer is a blade; drag and the knife comes down to scale, leaning into the stroke, and opens a cut with a lit lower lip. It stays open a moment, then heals behind the blade from where it began, like a zip, leaving a faint line that fades. A click is a stab. A readout beside the blade gives the cut's length in millimetres; Shift lays a straight edge at 0°, 45° or 90° and reads off the angle too. Pens cut wider the harder they press. On touch screens the mat is held for a moment before it cuts, so a finger still scrolls it.
+- **The knife shows how**: once a visit, after the card has landed, the knife underlines the hint "Cut the mat" (on phones, the foot of the opening), lifts, and the cut heals. Skipped with reduced motion, in a background tab until it is looked at, or once anything has been pressed.
+- **Crop marks**: wherever a thing has been taken from, crop marks are printed at its corners until it's back; a ticket's include its stub.
+- **Seating**: a thing that comes to rest within a few millimetres of its marks, close to square, is pulled onto them with a soft click.
+- **Ruler guides**: the masthead's ruler and the mat's side ruler mark the pointer, and the extent of whatever is held, like a drawing program's.
+- **Numbered ruler**: the side ruler is numbered every centimetre down the mat (on windows wide enough to have the margin for it).
+- **Angle guides**: 30°, 45° and 60° lines and a quarter arc printed in the mat's bottom corner.
+- **Postmark**: the envelope is franked before it opens an email, with the sender's town (from their clock's time zone), the hour and the date; its address link does the same.
+- **Tab icon**: the mat itself, "AG" cut from the wordmark's own condensed black face on the green mat and its grid (the black mat in dark mode), in place of the old paper "A"; the web manifest's colours follow.
+
+#### Changed
+- The opening hint reads "Cut the mat" (on touch, "Hold the mat to cut it") after the existing two.
+- The 404 page is the mat with nothing on it: 404 printed into it like the name, and the place a page would lie marked out with crop marks, empty. Its old paper styles and the unused `.identity-mark` are gone from `app/globals.css`.
+
+### Verification Proof
+- `npm run lint` passed with 0 errors (the three existing `<img>` warnings remain).
+- `npm run typecheck` passed with 0 errors.
+- `npm run build` completed a full production build across all routes.
+- Driven with synthetic pointer events at 1440, 800 and 375 px wide, in the light and dark themes: cutting, stabs, Shift straight edges (a wobbly drag ran dead straight at 45° and read it off), the heal (frozen mid-heal and inspected at 6×), the readout, the demo, touch hold-to-cut and the hand-off from scrolling, crop marks, seating, ruler guides and spans, the postmark, and the page's height unchanged while cutting at the very bottom of the mat.
+
+---
+
 ## [1.4.0] — 2026-10-20
 
 ### Summary

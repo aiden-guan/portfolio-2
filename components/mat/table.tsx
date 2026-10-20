@@ -1,9 +1,11 @@
 "use client";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { CuttingLayer } from "@/components/mat/knife";
 import { visitScene } from "@/components/scenery";
+import { mountCuts } from "@/lib/cuts";
 import { isSceneId } from "@/lib/scenery/catalog";
-import { punch, rustle, tap, tear, turnOver, unlockSound } from "@/lib/riffle";
+import { frank, punch, rustle, seat, tap, tear, turnOver, unlockSound } from "@/lib/riffle";
 
 // The mat as a table top. Every thing on it (components/mat/things) can be
 // picked up and moved: the point the hand holds stays under the pointer,
@@ -12,9 +14,13 @@ import { punch, rustle, tap, tear, turnOver, unlockSound } from "@/lib/riffle";
 // it slides to a stop. A click turns a sheet over (or punches a ticket, or
 // opens a print or the envelope, or clocks in on a time card), a ticket's
 // stub tears off along its perforation, and Tidy squares everything back up.
+// Wherever a thing has been taken from, crop marks stay printed on the mat,
+// and a thing set down close to its marks is pulled square onto them.
 //
 // Everything is laid out by CSS where it belongs; the table only adds an
-// offset and a turn to each thing, as transforms.
+// offset and a turn to each thing, as transforms. The bare mat is for
+// cutting (lib/cuts), and its rulers follow the pointer, or the extent of
+// whatever is held, the way a drawing program's do.
 
 export const MESS_EVENT = "aiden-mat-mess";
 export const TIDY_EVENT = "aiden-mat-tidy";
@@ -48,6 +54,11 @@ type Body = {
   joinedTo: Body | null;
   written: string;
   writtenTurn: string;
+  // the crop marks where it belongs, whether they show, and whether it is
+  // being pulled onto them
+  mark: HTMLElement | null;
+  marked: boolean;
+  seating: boolean;
 };
 
 type Grab = {
@@ -87,6 +98,10 @@ const SWING_DAMP = 3.2;
 const MAX_SPEED = 2600;
 // how far a stub has to be pulled before it gives
 const TEAR_AT = 46;
+// how close to its marks (in mm, and radians off square) a thing has to come
+// to rest to be pulled onto them
+const SEAT_MM = 4.5;
+const SEAT_TURN = 0.1;
 
 const clockTime = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/Los_Angeles",
@@ -129,6 +144,9 @@ export function Table({ children }: { children: ReactNode }) {
       joinedTo: null,
       written: "",
       writtenTurn: "",
+      mark: null,
+      marked: false,
+      seating: false,
     }));
     const byEl = new Map(bodies.map((body) => [body.el, body]));
     for (const body of bodies) {
@@ -136,8 +154,37 @@ export function Table({ children }: { children: ReactNode }) {
     }
     const stubsOf = (body: Body) => bodies.filter((other) => other.joinedTo === body);
 
+    // Crop marks where each thing belongs, printed under everything and only
+    // shown while it's away. The card's place is dimensioned on the mat
+    // already, and a stub's place is part of its ticket's until it's torn.
+    const cuts = mat.querySelector(".mat-cuts");
+    for (const body of bodies) {
+      if (body.el.closest(".mat-hero-card")) continue;
+      const mark = document.createElement("span");
+      mark.className = "home-mark";
+      mark.setAttribute("aria-hidden", "true");
+      if (cuts) cuts.before(mark);
+      else mat.append(mark);
+      body.mark = mark;
+    }
+
+    // The ruler printed down the mat's edge, numbered every centimetre.
+    const scale = document.createElement("div");
+    scale.className = "mat-scale";
+    scale.setAttribute("aria-hidden", "true");
+    mat.prepend(scale);
+    let scaleKey = "";
+
+    const guideX = document.querySelector<HTMLElement>(".ruler-guide-x");
+    const guideY = mat.querySelector<HTMLElement>(".ruler-guide-y");
+    const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
+    let pointerX = -1;
+    let pointerY = -1;
+    let guideRaf = 0;
+
     let matW = 0;
     let matH = 0;
+    let mm = 4;
     let topZ = 10;
     let raf = 0;
     let last = 0;
@@ -149,6 +196,8 @@ export function Table({ children }: { children: ReactNode }) {
     function measure() {
       matW = mat!.offsetWidth;
       matH = mat!.offsetHeight;
+      // .mat-scale is 100 mm wide, which says how big a millimetre is here
+      mm = scale.getBoundingClientRect().width / 100 || 4;
       for (const body of bodies) {
         let x = 0;
         let y = 0;
@@ -164,6 +213,45 @@ export function Table({ children }: { children: ReactNode }) {
         body.hy = y + body.h / 2;
         body.written = "";
       }
+      for (const body of bodies) {
+        if (!body.mark) continue;
+        let x0 = body.hx - body.w / 2;
+        let y0 = body.hy - body.h / 2;
+        let x1 = body.hx + body.w / 2;
+        let y1 = body.hy + body.h / 2;
+        // a ticket's place takes in its stub's
+        for (const stub of bodies) {
+          if (!body.joint || stub.stubOf !== body.joint) continue;
+          x0 = Math.min(x0, stub.hx - stub.w / 2);
+          y0 = Math.min(y0, stub.hy - stub.h / 2);
+          x1 = Math.max(x1, stub.hx + stub.w / 2);
+          y1 = Math.max(y1, stub.hy + stub.h / 2);
+        }
+        const style = body.mark.style;
+        style.left = `${x0}px`;
+        style.top = `${y0}px`;
+        style.width = `${x1 - x0}px`;
+        style.height = `${y1 - y0}px`;
+      }
+      number();
+    }
+
+    // A number beside every centimetre of the ruler, counted from the top.
+    function number() {
+      const band = parseFloat(getComputedStyle(html).getPropertyValue("--band")) * 16 || 50;
+      const step = mm * 10;
+      const count = Math.max(0, Math.floor((matH - band) / step));
+      const key = `${count}:${step.toFixed(3)}:${band}`;
+      if (key === scaleKey) return;
+      scaleKey = key;
+      const numbers = document.createDocumentFragment();
+      for (let n = 1; n <= count; n++) {
+        const label = document.createElement("span");
+        label.textContent = String(n);
+        label.style.top = `${(band + n * step).toFixed(2)}px`;
+        numbers.append(label);
+      }
+      scale.replaceChildren(numbers);
     }
 
     function toMat(clientX: number, clientY: number) {
@@ -277,10 +365,53 @@ export function Table({ children }: { children: ReactNode }) {
             body.lift > 0 ||
             (joined !== null && (grab?.body === joined || joined.moving || joined.homing)),
         );
+        markHome(body);
       }
 
+      if (grab) guides();
       if (busy) wake();
       else checkMess();
+    }
+
+    // Its crop marks show while a thing is away from them.
+    function markHome(body: Body) {
+      if (!body.mark) return;
+      const away = Math.abs(body.x) > 1 || Math.abs(body.y) > 1 || Math.abs(body.a) > 0.01;
+      const show = away && !(body.stubOf !== undefined && body.joinedTo !== null);
+      if (show === body.marked) return;
+      body.marked = show;
+      body.mark.toggleAttribute("data-shown", show);
+    }
+
+    // The rulers mark where the pointer is, or the extent of what's held.
+    function guides() {
+      guideRaf = 0;
+      if (!guideX || !guideY) return;
+      const held = grab?.body;
+      const shown = pointerX >= 0 && fine.matches;
+      guideX.toggleAttribute("data-shown", shown);
+      guideY.toggleAttribute("data-shown", shown);
+      if (!shown) return;
+      let x = pointerX;
+      let y = pointerY;
+      let across = 1;
+      let down = 1;
+      if (held) {
+        const box = mat!.getBoundingClientRect();
+        const lift = 1 + 0.028 * held.lift;
+        const cos = Math.abs(Math.cos(held.a));
+        const sin = Math.abs(Math.sin(held.a));
+        across = (cos * held.w + sin * held.h) * lift;
+        down = (sin * held.w + cos * held.h) * lift;
+        x = box.left + held.hx + held.x - across / 2;
+        y = box.top + held.hy + held.y - down / 2;
+      }
+      guideX.toggleAttribute("data-span", Boolean(held));
+      guideY.toggleAttribute("data-span", Boolean(held));
+      guideX.style.transform = `translate3d(${x.toFixed(1)}px, 0, 0)`;
+      guideX.style.width = `${Math.max(1, across).toFixed(1)}px`;
+      guideY.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`;
+      guideY.style.height = `${Math.max(1, down).toFixed(1)}px`;
     }
 
     // Carrying something to the top or bottom of the window scrolls the mat
@@ -374,9 +505,29 @@ export function Table({ children }: { children: ReactNode }) {
         body.vy = 0;
         body.va = 0;
         body.moving = false;
+        // come to rest by its marks: pulled square onto them
+        if (nearHome(body)) {
+          if (still) {
+            body.x = 0;
+            body.y = 0;
+            body.a = 0;
+            arrive(body);
+            seat();
+            return false;
+          }
+          body.homing = true;
+          body.homeAt = performance.now();
+          body.seating = true;
+          return true;
+        }
         return false;
       }
       return true;
+    }
+
+    function nearHome(body: Body) {
+      const turn = body.a - Math.round(body.a / (Math.PI * 2)) * Math.PI * 2;
+      return Math.hypot(body.x, body.y) < mm * SEAT_MM && Math.abs(turn) < SEAT_TURN;
     }
 
     // Squaring up: a critically damped spring back to where CSS put it.
@@ -396,24 +547,35 @@ export function Table({ children }: { children: ReactNode }) {
         body.x = 0;
         body.y = 0;
         body.a = 0;
-        body.vx = 0;
-        body.vy = 0;
-        body.va = 0;
-        body.homing = false;
-        body.moving = false;
-        // a stub that was torn off goes back on once both are home
-        if (body.stubOf && !body.joinedTo) {
-          const ticket = bodies.find((other) => other.joint === body.stubOf);
-          if (ticket && !ticket.homing && ticket.x === 0 && ticket.y === 0) body.joinedTo = ticket;
-        }
-        if (body.joint) {
-          for (const stub of bodies) {
-            if (stub.stubOf === body.joint && !stub.joinedTo && !stub.homing) stub.joinedTo = body;
-          }
+        arrive(body);
+        if (body.seating) {
+          body.seating = false;
+          seat();
         }
         return false;
       }
       return true;
+    }
+
+    // Home and square: at rest, and joined back up with its stub.
+    function arrive(body: Body) {
+      body.vx = 0;
+      body.vy = 0;
+      body.va = 0;
+      body.homing = false;
+      body.moving = false;
+      // a stub that was torn off goes back on once both are home
+      if (body.stubOf && !body.joinedTo) {
+        const ticket = bodies.find((other) => other.joint === body.stubOf);
+        if (ticket && !ticket.homing && ticket.x === 0 && ticket.y === 0) body.joinedTo = ticket;
+      }
+      if (body.joint) {
+        for (const stub of bodies) {
+          if (stub.stubOf === body.joint && !stub.joinedTo && !stub.homing && stub.x === 0 && stub.y === 0) {
+            stub.joinedTo = body;
+          }
+        }
+      }
     }
 
     function keepOnMat(body: Body) {
@@ -446,6 +608,7 @@ export function Table({ children }: { children: ReactNode }) {
       const sin = Math.sin(-body.a);
       body.homing = false;
       body.moving = false;
+      body.seating = false;
       body.vx = 0;
       body.vy = 0;
       grab = {
@@ -476,6 +639,8 @@ export function Table({ children }: { children: ReactNode }) {
       grab = null;
       delete html.dataset.holding;
       body.el.classList.remove("is-held");
+      // the rulers go back to the pointer
+      if (!guideRaf) guideRaf = requestAnimationFrame(guides);
       if (body.joinedTo) {
         // never came off: back flat on its ticket
         wake();
@@ -524,8 +689,36 @@ export function Table({ children }: { children: ReactNode }) {
         }
       } else if (body.action === "mail") {
         const href = body.el.dataset.href;
-        if (href) window.location.href = href;
+        if (!href) return;
+        // franked where and when it was posted, then off it goes
+        postmark(body);
+        window.setTimeout(() => (window.location.href = href), still ? 0 : 420);
       }
+    }
+
+    // The postmark comes down on the envelope's stamp with the sender's town
+    // (as far as their clock says) and the hour it was posted.
+    function postmark(body: Body) {
+      const mark = body.el.querySelector(".ev-postmark");
+      if (!mark) return;
+      const now = new Date();
+      let town = "";
+      try {
+        town = Intl.DateTimeFormat().resolvedOptions().timeZone.split("/").pop()?.replace(/_/g, " ") ?? "";
+      } catch {}
+      const time = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(now);
+      const day = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(now);
+      const ring = mark.querySelector("textPath");
+      if (ring) ring.textContent = `${town || "Par avion"} · ${time} ·`.toUpperCase();
+      const dayText = mark.querySelector(".ev-postmark-day");
+      if (dayText) dayText.textContent = day.toUpperCase();
+      const year = mark.querySelector(".ev-postmark-year");
+      if (year) year.textContent = String(now.getFullYear());
+      body.el.classList.remove("is-franked");
+      void body.el.offsetWidth;
+      body.el.classList.add("is-franked");
+      unlockSound();
+      frank();
     }
 
     function punchHole(body: Body, clientX?: number, clientY?: number) {
@@ -632,7 +825,8 @@ export function Table({ children }: { children: ReactNode }) {
               const held = pending;
               pending = null;
               begin(held.body, held.id, held.x, held.y);
-              navigator.vibrate?.(6);
+              // a tick under the finger, once the page is allowed to give one
+              if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(6);
             }, 360)
           : 0,
       };
@@ -694,6 +888,12 @@ export function Table({ children }: { children: ReactNode }) {
       const target = event.target instanceof Element ? event.target : null;
       const el = target?.closest<HTMLElement>(".thing");
       const body = el ? byEl.get(el) : undefined;
+      // the address on the envelope posts it too, postmark and all
+      if (body?.action === "mail" && target?.closest('a[href^="mailto:"]')) {
+        event.preventDefault();
+        act(body);
+        return;
+      }
       if (!body || target?.closest("a, button")) return;
       if (body.action === "open") return;
       act(body, event.detail === 0 ? undefined : event.clientX, event.detail === 0 ? undefined : event.clientY);
@@ -745,6 +945,20 @@ export function Table({ children }: { children: ReactNode }) {
       for (const body of bodies) write(body);
     };
 
+    const onGuide = (event: PointerEvent) => {
+      if (event.pointerType === "touch") return;
+      pointerX = event.clientX;
+      pointerY = event.clientY;
+      if (!guideRaf) guideRaf = requestAnimationFrame(guides);
+    };
+
+    const onLeave = (event: MouseEvent) => {
+      if (event.relatedTarget) return;
+      pointerX = -1;
+      pointerY = -1;
+      if (!guideRaf) guideRaf = requestAnimationFrame(guides);
+    };
+
     // Films play while they're in view, and stop when they're not.
     const films = [...mat.querySelectorAll<HTMLVideoElement>("video[data-print-media]")];
     const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
@@ -778,9 +992,16 @@ export function Table({ children }: { children: ReactNode }) {
     mat.addEventListener("keydown", onKey);
     document.addEventListener("touchmove", onTouchMove, { passive: false });
     window.addEventListener(TIDY_EVENT, onTidy);
+    window.addEventListener("pointermove", onGuide, { passive: true });
+    document.addEventListener("mouseout", onLeave);
+    const unmountCuts = mountCuts(mat);
 
     return () => {
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(guideRaf);
+      unmountCuts();
+      scale.remove();
+      for (const body of bodies) body.mark?.remove();
       if (pending) window.clearTimeout(pending.timer);
       sizes.disconnect();
       watcher?.disconnect();
@@ -795,12 +1016,16 @@ export function Table({ children }: { children: ReactNode }) {
       mat.removeEventListener("keydown", onKey);
       document.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener(TIDY_EVENT, onTidy);
+      window.removeEventListener("pointermove", onGuide);
+      document.removeEventListener("mouseout", onLeave);
     };
   }, []);
 
   return (
     <div className="mat" ref={root}>
       {children}
+      <CuttingLayer />
+      <span className="ruler-guide ruler-guide-y" aria-hidden="true" />
     </div>
   );
 }
