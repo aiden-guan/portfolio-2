@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from "react";
 
 // Paper on a mat: slides, landings, a sheet turned over, a stub torn, a
-// ticket punched, each a few grains of filtered noise synthesised on the spot.
+// ticket punched, a blade drawn through the mat, an envelope franked, each a
+// few grains of filtered noise synthesised on the spot.
 // Browsers keep audio silent until the visitor presses something, so nothing
 // sounds before the first click or key.
 
@@ -127,6 +128,51 @@ export function punch() {
   if (!ctx) return;
   grain(ctx, { length: 0.05, freq: 900, type: "lowpass", q: 1, gain: 0.16 });
   grain(ctx, { at: 0.012, length: 0.02, freq: 5200, q: 3, gain: 0.05 });
+}
+
+let scoreAt = 0;
+
+// A blade drawn through the mat's top layer: a fine, dry scratch, called
+// every time the blade moves, `speed` in px/s.
+export function score(speed: number) {
+  const ctx = audio();
+  if (!ctx || speed < 30) return;
+  const now = ctx.currentTime;
+  const gap = Math.max(0.022, 0.06 - speed / 50000);
+  if (now - scoreAt < gap) return;
+  scoreAt = now;
+  const k = Math.min(1, speed / 1600);
+  grain(ctx, {
+    length: 0.03 + Math.random() * 0.02,
+    freq: 3600 + k * 2200 + Math.random() * 500,
+    q: 2.6,
+    gain: 0.008 + 0.028 * k,
+    rate: 0.9 + Math.random() * 0.3,
+  });
+}
+
+// The blade going into the mat.
+export function nick() {
+  const ctx = audio();
+  if (!ctx) return;
+  grain(ctx, { length: 0.016, freq: 5600, q: 3.5, gain: 0.045 });
+  grain(ctx, { length: 0.028, freq: 1100, type: "lowpass", q: 0.8, gain: 0.05 });
+}
+
+// A sheet dropped near where it belongs, pulled square onto its marks.
+export function seat() {
+  const ctx = audio();
+  if (!ctx) return;
+  grain(ctx, { length: 0.045, freq: 520, type: "lowpass", q: 0.7, gain: 0.13 });
+  grain(ctx, { length: 0.014, freq: 3400, q: 2.4, gain: 0.04 });
+}
+
+// A postmark hammered onto an envelope.
+export function frank() {
+  const ctx = audio();
+  if (!ctx) return;
+  grain(ctx, { length: 0.08, freq: 260, type: "lowpass", q: 0.9, gain: 0.24 });
+  grain(ctx, { length: 0.035, freq: 1500, q: 1.2, gain: 0.05 });
 }
 
 export function setMuted(next: boolean) {

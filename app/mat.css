@@ -17,6 +17,11 @@
   --mat-ink: #d6e8dc;
   --mat-ink-dim: rgb(214 232 220 / 0.62);
   --hole: #234536;
+  /* a cut in it: the slit, its lower lip catching the light, and the faint
+     line it leaves once it has healed */
+  --cut: #132b20;
+  --cut-lip: rgb(214 236 222 / 0.42);
+  --cut-scar: rgb(214 236 222 / 0.2);
 
   /* stocks */
   --stock-cotton: #f4f0e7;
@@ -57,6 +62,9 @@ html[data-theme="dark"] {
   --mat-ink: #c3c9c2;
   --mat-ink-dim: rgb(195 201 194 / 0.52);
   --hole: #0f100f;
+  --cut: #040504;
+  --cut-lip: rgb(232 240 234 / 0.22);
+  --cut-scar: rgb(232 240 234 / 0.09);
   --stock-cotton: #ebe6dc;
   --stock-thermal: #efede7;
   --stock-bond: #edeae2;
@@ -304,6 +312,271 @@ html[data-holding] {
   pointer-events: none;
 }
 
+/* the numbers beside the ruler, a centimetre apart (the table writes them) */
+.mat-scale {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  /* a hundred millimetres wide, so the table can tell how big one is */
+  width: calc(var(--mm) * 100);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mat-scale > span {
+  position: absolute;
+  left: calc(var(--mm) * 4.4);
+  color: var(--mat-ink-dim);
+  font-family: var(--font-mono), var(--mono);
+  font-size: max(7px, calc(var(--mm) * 1.45));
+  font-variation-settings: "wdth" 85;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  opacity: 0.75;
+  translate: 0 -50%;
+}
+
+/* ---- cutting the mat ---------------------------------------------------- */
+
+/* Over the bare mat the pointer is a blade. */
+@media (hover: hover) and (pointer: fine) {
+  html:not([data-scene]) .mat {
+    cursor:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cg transform='translate(1.6 1.6) rotate(38)' stroke='%2314221b' stroke-width='1.1' stroke-linejoin='round'%3E%3Cpath d='M0 0L11 0V2.6L8 2.6Z' fill='%23f4f5f3'/%3E%3Cpath d='M10.6 -0.5L15 -1.1V3.7L10.6 3.1Z' fill='%23a3a8a4'/%3E%3Cpath d='M15 -1.1H40V3.7H15Z' fill='%23d6d9d5'/%3E%3C/g%3E%3C/svg%3E")
+        2 2,
+      crosshair;
+  }
+}
+
+/* while cutting, the knife itself is the pointer */
+html[data-cutting],
+html[data-cutting] * {
+  cursor: none !important;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Touch screens: holding the mat cuts it, so it never selects its print. */
+@media (hover: none) {
+  .mat {
+    -webkit-touch-callout: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+/* the cuts, under the things on the mat and over its print */
+.mat-cuts {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  display: none;
+  pointer-events: none;
+}
+
+.mat-cuts[data-live] {
+  display: block;
+}
+
+/* the knife, drawn to scale, its tip on the cut; above everything on the mat */
+.knife {
+  position: absolute;
+  z-index: 2147483000;
+  top: 0;
+  left: 0;
+  width: calc(var(--mm) * 132);
+  height: 0;
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+
+/* it comes down onto the mat and lifts away about its tip */
+.knife-hand {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  scale: 1.06;
+  transform-origin: 0 0;
+  visibility: hidden;
+  transition:
+    opacity 170ms var(--ease-out),
+    scale 220ms var(--ease-out),
+    visibility 0s linear 220ms;
+}
+
+.knife[data-down] .knife-hand {
+  opacity: 1;
+  scale: 1;
+  visibility: visible;
+  transition:
+    opacity 90ms var(--ease-out),
+    scale 150ms var(--ease-out),
+    visibility 0s;
+}
+
+.knife-art {
+  position: absolute;
+  top: calc(var(--mm) * -8);
+  left: calc(var(--mm) * -4);
+  width: calc(var(--mm) * 132);
+  height: calc(var(--mm) * 24);
+  overflow: visible;
+}
+
+/* the tip touches the mat; the handle is up off it, so its shadow falls
+   further away along the knife, and further still as it's lifted */
+.knife-shadow {
+  fill: rgb(6 16 10 / 0.34);
+  transform: matrix(1.06, 0.08, 0, 1, 0, 0);
+  transition:
+    transform 220ms var(--ease-out),
+    opacity 220ms var(--ease-out);
+}
+
+.knife:not([data-down]) .knife-shadow {
+  opacity: 0.4;
+  transform: matrix(1.1, 0.16, 0, 1, 0.8, 1.8);
+}
+
+.knife-engraving {
+  fill: #7e837f;
+  font-family: var(--font-mono), var(--mono);
+  font-size: 2.2px;
+  letter-spacing: 0.25px;
+}
+
+/* how long the cut is, read off beside the blade as it goes */
+.cut-readout {
+  position: absolute;
+  z-index: 2147483001;
+  top: 0;
+  left: 0;
+  color: var(--mat-ink);
+  font-family: var(--font-mono), var(--mono);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  font-variation-settings: "wdth" 90;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  opacity: 0;
+  padding: 0.32em 0.5em 0.3em;
+  border-radius: 2px;
+  /* on the mat's own ground, like the dimensions, so it reads over paper */
+  background: var(--mat);
+  pointer-events: none;
+  translate: calc(-100% - 0.6rem) calc(-100% - 0.45rem);
+  white-space: nowrap;
+  transition: opacity 600ms var(--ease-out) 700ms;
+}
+
+.cut-readout[data-shown] {
+  opacity: 1;
+  transition-delay: 0s;
+  transition-duration: 120ms;
+}
+
+/* clear of the finger */
+.cut-readout[data-touch] {
+  translate: calc(-100% - 1.4rem) calc(-100% - 2.4rem);
+}
+
+.cut-readout-value::after {
+  content: " mm";
+  opacity: 0.6;
+}
+
+.cut-readout-angle:not(:empty) {
+  margin-left: 0.7em;
+  color: var(--accent);
+}
+
+/* Crop marks where a thing belongs, printed while it's away. */
+.home-mark {
+  --gap: calc(var(--mm) * 1.5);
+  --len: calc(var(--mm) * 4);
+  --reach: calc(var(--gap) + var(--len));
+  position: absolute;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 360ms var(--ease-out);
+}
+
+.home-mark[data-shown] {
+  opacity: 1;
+  transition-duration: 200ms;
+}
+
+.home-mark::before {
+  --c: var(--mat-ink-dim);
+  position: absolute;
+  inset: calc(var(--reach) * -1);
+  background:
+    linear-gradient(var(--c) 0 0) 0 var(--reach) / var(--len) 1px,
+    linear-gradient(var(--c) 0 0) var(--reach) 0 / 1px var(--len),
+    linear-gradient(var(--c) 0 0) 100% var(--reach) / var(--len) 1px,
+    linear-gradient(var(--c) 0 0) calc(100% - var(--reach)) 0 / 1px var(--len),
+    linear-gradient(var(--c) 0 0) 0 calc(100% - var(--reach)) / var(--len) 1px,
+    linear-gradient(var(--c) 0 0) var(--reach) 100% / 1px var(--len),
+    linear-gradient(var(--c) 0 0) 100% calc(100% - var(--reach)) / var(--len) 1px,
+    linear-gradient(var(--c) 0 0) calc(100% - var(--reach)) 100% / 1px var(--len);
+  background-repeat: no-repeat;
+  content: "";
+}
+
+/* The rulers follow the pointer, or span whatever is held. */
+.ruler-guide {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms var(--ease-out);
+}
+
+.ruler-guide[data-shown] {
+  opacity: 1;
+}
+
+.ruler-guide-x {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 1px;
+  height: calc(var(--mm) * 3);
+  background: var(--accent);
+}
+
+.ruler-guide-y {
+  position: fixed;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: calc(var(--mm) * 4);
+  height: 1px;
+  background: var(--accent);
+}
+
+.ruler-guide[data-span] {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.ruler-guide-x[data-span] {
+  border-inline: 1px solid var(--accent);
+}
+
+.ruler-guide-y[data-span] {
+  border-block: 1px solid var(--accent);
+}
+
+@media not ((hover: hover) and (pointer: fine)) {
+  .ruler-guide {
+    display: none;
+  }
+}
+
 /* ---- the top of the mat: the name, and the card ------------------------- */
 
 .mat-hero {
@@ -458,7 +731,8 @@ html[data-holding] {
   bottom: calc(var(--mm) * 8);
   left: var(--gutter);
   display: flex;
-  gap: 2.2rem;
+  flex-wrap: wrap;
+  gap: 0.6rem 2.2rem;
   margin: 0;
   color: var(--mat-ink);
   font-family: var(--font-mono), var(--mono);
@@ -667,6 +941,31 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
   font-variation-settings: "wdth" 90;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+/* the angle guides in the corner, printed in the grid's own ink */
+.mat-angles {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--mm) * 120);
+  height: calc(var(--mm) * 120);
+  overflow: visible;
+  fill: none;
+  pointer-events: none;
+}
+
+.mat-angles path {
+  stroke: var(--mat-line-strong);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.mat-angles text {
+  fill: var(--mat-ink-dim);
+  font-family: var(--font-mono), var(--mono);
+  font-size: 1.7px;
+  letter-spacing: 0.08px;
 }
 
 /* ---- a thing ------------------------------------------------------------ */
@@ -2295,6 +2594,66 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
   text-transform: uppercase;
 }
 
+/* posted: a postmark comes down beside the stamp, its bars across it */
+.ev-postmark {
+  position: absolute;
+  top: calc(var(--u) * 7.5);
+  right: calc(var(--u) * -2.5);
+  width: calc(var(--u) * 46);
+  overflow: visible;
+  fill: none;
+  mix-blend-mode: multiply;
+  opacity: 0;
+  pointer-events: none;
+  rotate: -7deg;
+  stroke: #2a2a44;
+  stroke-width: 0.9;
+  -webkit-mask: var(--wear) 0 0 / 120px;
+  mask: var(--wear) 0 0 / 120px;
+}
+
+.ev-postmark text {
+  fill: #2a2a44;
+  stroke: none;
+  font-family: var(--font-mono), var(--mono);
+  font-weight: 600;
+}
+
+.ev-postmark-ring {
+  font-size: 5.1px;
+  letter-spacing: 0.4px;
+}
+
+.ev-postmark-day {
+  font-size: 6.2px;
+}
+
+.ev-postmark-year {
+  font-size: 4.8px;
+}
+
+.is-franked .ev-postmark {
+  opacity: 0.82;
+  animation: frank-in 300ms var(--ease-pop);
+}
+
+.is-franked .thing-body {
+  animation: frank-press 260ms var(--ease-out);
+}
+
+@keyframes frank-in {
+  from {
+    opacity: 0;
+    scale: 1.25;
+  }
+}
+
+@keyframes frank-press {
+  25% {
+    scale: 0.985;
+  }
+}
+
 /* ---- postcards of places ------------------------------------------------------------- */
 
 .thing-place {
@@ -2376,12 +2735,107 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
   scale: 1;
 }
 
+/* ---- the page that isn't there --------------------------------------------------- */
+
+/* The mat with nothing on it: 404 printed into it, and the place a page
+   would lie marked out with crop marks, empty. */
+.not-found {
+  position: relative;
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  padding: var(--gutter);
+  color: var(--mat-ink);
+}
+
+.not-found-print {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  margin: 0;
+  place-items: center;
+  color: var(--mat-print);
+  font-family: var(--font-grotesk), var(--sans);
+  font-size: min(58vw, 118svh);
+  font-variation-settings: "wdth" 66;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 0.78;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.not-found-place {
+  position: relative;
+  display: flex;
+  width: min(100%, calc(var(--mm) * 124));
+  min-height: calc(var(--mm) * 76);
+  flex-direction: column;
+  justify-content: center;
+  padding: calc(var(--mm) * 9);
+}
+
+.not-found-place > .home-mark {
+  inset: 0;
+}
+
+.not-found-label {
+  margin: 0;
+  font-family: var(--font-mono), var(--mono);
+  font-size: max(0.62rem, calc(var(--mm) * 2.2));
+  font-variation-settings: "wdth" 90;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.not-found h1 {
+  margin: calc(var(--mm) * 4) 0 0;
+  font-family: var(--font-grotesk), var(--sans);
+  font-size: max(1.9rem, calc(var(--mm) * 11));
+  font-variation-settings: "wdth" 112;
+  font-weight: 780;
+  letter-spacing: -0.035em;
+  line-height: 0.92;
+  text-wrap: balance;
+}
+
+.not-found-place > p:not(.not-found-label) {
+  margin: calc(var(--mm) * 3) 0 calc(var(--mm) * 7);
+  color: var(--mat-ink-dim);
+}
+
+.not-found a {
+  width: fit-content;
+  color: var(--mat-ink);
+  font-family: var(--font-mono), var(--mono);
+  font-size: max(0.66rem, calc(var(--mm) * 2.3));
+  font-variation-settings: "wdth" 90;
+  letter-spacing: 0.1em;
+  text-decoration: underline;
+  text-decoration-color: var(--mat-line-strong);
+  text-decoration-thickness: 1px;
+  text-transform: uppercase;
+  text-underline-offset: 0.4em;
+  transition: color 140ms var(--ease), text-decoration-color 140ms var(--ease);
+}
+
+.not-found a:hover {
+  color: var(--accent);
+  text-decoration-color: currentColor;
+}
+
 /* ---- narrow windows ------------------------------------------------------------------ */
 
 @media (max-width: 1099px) {
   :root {
     --gutter: 1.25rem;
     --mm: clamp(2.6px, calc(100vw / 220), 4.4px);
+  }
+
+  /* the margin is too narrow to number the ruler in */
+  .mat-scale > span {
+    display: none;
   }
 
   .thing {
@@ -2633,8 +3087,13 @@ html[data-scene] .mat-hero-card {
   margin-top: calc(var(--mm) * -8);
 }
 
-/* the dimensions are the mat's print; there is no mat under a scene */
-html[data-scene] .dim {
+/* the dimensions are the mat's print; there is no mat under a scene, and
+   nothing to cut */
+html[data-scene] :is(.dim, .mat-scale, .mat-angles, .home-mark, .mat-cuts, .knife, .cut-readout, .ruler-guide) {
+  display: none;
+}
+
+html[data-revealing] .ruler-guide {
   display: none;
 }
 
@@ -2647,10 +3106,16 @@ html[data-scene] .dim {
   }
 
   .thing.is-turning .thing-body,
+  .is-franked .thing-body,
+  .is-franked .ev-postmark,
   .hole {
     animation: none;
   }
 
+  .knife-hand,
+  .knife[data-down] .knife-hand {
+    scale: 1;
+  }
 }
 
 /* the card comes down onto the mat as the page opens */

@@ -1,6 +1,6 @@
 {
   "name": "aiden-portfolio-index",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Aiden Guan's portfolio as printed things on a cutting mat, with a private headless CMS — built with Next.js 16, React 19, TypeScript, and Cloudflare R2 storage.",
   "scripts": {
