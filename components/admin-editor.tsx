@@ -16,8 +16,19 @@ import type {
   PortfolioContent,
   ProfileLink,
   Project,
+  ThingKind,
   TimelineEntry,
 } from "@/content/portfolio";
+import { projectKind } from "@/lib/mat";
+
+// What a project can lie on the mat as (components/mat/things).
+const thingKinds: { id: ThingKind; label: string }[] = [
+  { id: "receipt", label: "Receipt" },
+  { id: "form", label: "Approval form" },
+  { id: "postcard", label: "Postcard" },
+  { id: "drawing", label: "Measured drawing" },
+  { id: "ticket", label: "Ticket" },
+];
 
 type EditorTab = "profile" | "projects" | "experience" | "about" | "settings";
 
@@ -804,6 +815,27 @@ export function AdminEditor() {
                         multiline
                         rows={4}
                       />
+                      <label className="editor-field">
+                        <span className="editor-label">Printed as</span>
+                        <select
+                          value={project.artifact ?? "auto"}
+                          onChange={(event) =>
+                            updateProject(index, {
+                              artifact: event.target.value as ThingKind | "auto",
+                            })
+                          }
+                        >
+                          <option value="auto">
+                            Automatic ({thingKinds.find((kind) => kind.id === projectKind({ ...project, artifact: "auto" }, index))?.label})
+                          </option>
+                          {thingKinds.map((kind) => (
+                            <option value={kind.id} key={kind.id}>
+                              {kind.label}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="editor-hint">The thing this project lies on the mat as.</span>
+                      </label>
                     </div>
                     <div className="editor-subsection">
                       <div className="editor-subsection-heading">

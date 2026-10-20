@@ -1,12 +1,22 @@
 import type { Metadata, Viewport } from "next";
+import { Archivo, Doto, Libre_Barcode_128, Martian_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import { getPortfolioContent } from "@/lib/portfolio-content";
 import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 import "./scenery.css";
-import "./card-file.css";
+import "./mat.css";
 
 const siteUrl = getSiteUrl();
+
+// The type the things on the mat are printed in: a grotesk with widths for
+// the cards and the mat's own print, a mono for receipts and forms, a
+// dot-matrix face for what a thermal head prints, and real barcodes.
+const grotesk = Archivo({ subsets: ["latin"], axes: ["wdth"], variable: "--font-grotesk", display: "swap" });
+const mono = Martian_Mono({ subsets: ["latin"], axes: ["wdth"], variable: "--font-mono", display: "swap" });
+const dots = Doto({ subsets: ["latin"], variable: "--font-dots", display: "swap" });
+const barcode = Libre_Barcode_128({ subsets: ["latin"], weight: "400", variable: "--font-barcode", display: "swap" });
+const fonts = [grotesk.variable, mono.variable, dots.variable, barcode.variable].join(" ");
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile, seo } = await getPortfolioContent();
@@ -50,8 +60,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   colorScheme: "light dark",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f5f0" },
-    { media: "(prefers-color-scheme: dark)", color: "#11110f" },
+    { media: "(prefers-color-scheme: light)", color: "#2e5946" },
+    { media: "(prefers-color-scheme: dark)", color: "#161816" },
   ],
 };
 
@@ -73,7 +83,7 @@ const themeScript = `
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={fonts} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

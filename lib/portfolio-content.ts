@@ -1,4 +1,5 @@
 import { get, put } from "@vercel/blob";
+import { THING_KINDS } from "@/lib/mat";
 import { isR2Configured, getR2Object, putR2Object } from "@/lib/r2";
 import {
   defaultPortfolio,
@@ -132,15 +133,23 @@ function readProject(value: unknown): Project | null {
   const stack = readTextArray(value.stack, 16);
   const links = readProjectLinks(value.links);
   const images = readImages(value.images);
+  const artifact = THING_KINDS.find((kind) => kind === value.artifact);
 
-  return name !== null &&
-    status !== null &&
-    summary !== null &&
-    detail !== null &&
-    stack !== null &&
-    links !== null
-    ? { name, status, summary, detail, stack, links, images }
-    : null;
+  if (
+    name === null ||
+    status === null ||
+    summary === null ||
+    detail === null ||
+    stack === null ||
+    links === null
+  ) {
+    return null;
+  }
+
+  const project: Project = { name, status, summary, detail, stack, links, images };
+  // Older content has no artifact; a missing or unknown one means "auto".
+  if (artifact) project.artifact = artifact;
+  return project;
 }
 
 function readProjects(value: unknown) {

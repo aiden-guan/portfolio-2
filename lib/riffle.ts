@@ -1,8 +1,9 @@
 import { useSyncExternalStore } from "react";
 
-// The sound of a card going past a thumb: a few milliseconds of filtered
-// noise, synthesised on the spot. Browsers keep audio silent until the
-// visitor presses something, so the first riffles are quiet whatever happens.
+// Paper on a mat: slides, landings, a sheet turned over, a stub torn, a
+// ticket punched, each a few grains of filtered noise synthesised on the spot.
+// Browsers keep audio silent until the visitor presses something, so nothing
+// sounds before the first click or key.
 
 const KEY = "aiden-sound";
 const event = "aiden-sound-change";
@@ -12,7 +13,6 @@ let out: GainNode | null = null;
 let noise: AudioBuffer | null = null;
 let unlocked = false;
 let muted: boolean | null = null;
-let lastAt = 0;
 
 function isMuted() {
   if (muted === null) {
@@ -47,27 +47,86 @@ export function unlockSound() {
   audio();
 }
 
-// One card flicking past; `strength` 0..1 is how hard.
-export function flick(strength = 0.5) {
-  const ctx = audio();
-  if (!ctx || !noise || !out) return;
-  const now = ctx.currentTime;
-  // a fast riffle is a buzz, not a hundred separate clicks
-  if (now - lastAt < 0.028) return;
-  lastAt = now;
+// One grain of filtered noise: the building block of every paper sound here.
+function grain(
+  ctx: AudioContext,
+  { at = 0, length = 0.04, freq = 2000, q = 0.9, type = "bandpass", gain = 0.1, rate = 1 }: {
+    at?: number;
+    length?: number;
+    freq?: number;
+    q?: number;
+    type?: BiquadFilterType;
+    gain?: number;
+    rate?: number;
+  },
+) {
+  if (!noise || !out) return;
+  const now = ctx.currentTime + at;
   const source = ctx.createBufferSource();
   source.buffer = noise;
-  source.playbackRate.value = 0.85 + Math.random() * 0.3;
-  const band = ctx.createBiquadFilter();
-  band.type = "bandpass";
-  band.frequency.value = 2200 + Math.random() * 900;
-  band.Q.value = 0.9;
+  source.loop = length > 0.055;
+  source.playbackRate.value = rate;
+  const filter = ctx.createBiquadFilter();
+  filter.type = type;
+  filter.frequency.value = freq;
+  filter.Q.value = q;
   const level = ctx.createGain();
-  const peak = 0.06 + 0.22 * Math.min(1, strength);
-  level.gain.setValueAtTime(peak, now);
-  level.gain.exponentialRampToValueAtTime(0.0001, now + 0.035);
-  source.connect(band).connect(level).connect(out);
-  source.start(now, Math.random() * 0.02, 0.04);
+  level.gain.setValueAtTime(0.0001, now);
+  level.gain.exponentialRampToValueAtTime(gain, now + Math.min(0.006, length / 4));
+  level.gain.exponentialRampToValueAtTime(0.0001, now + length);
+  source.connect(filter).connect(level).connect(out);
+  source.start(now, Math.random() * 0.02);
+  source.stop(now + length + 0.02);
+}
+
+let rustleAt = 0;
+
+// Paper sliding over the mat; called every frame a sheet moves, `speed` in
+// px/s. Faster is louder and brighter, and it thins out to nothing at rest.
+export function rustle(speed: number) {
+  const ctx = audio();
+  if (!ctx || speed < 60) return;
+  const now = ctx.currentTime;
+  const gap = Math.max(0.03, 0.09 - speed / 40000);
+  if (now - rustleAt < gap) return;
+  rustleAt = now;
+  const k = Math.min(1, speed / 2400);
+  grain(ctx, { length: 0.05 + Math.random() * 0.03, freq: 1400 + k * 2600 + Math.random() * 600, q: 0.7, gain: 0.012 + 0.05 * k, rate: 0.8 + Math.random() * 0.4 });
+}
+
+// A sheet landing flat on the mat.
+export function tap(strength = 0.5) {
+  const ctx = audio();
+  if (!ctx) return;
+  const k = Math.min(1, Math.max(0.15, strength));
+  grain(ctx, { length: 0.07, freq: 420 + Math.random() * 120, type: "lowpass", q: 0.6, gain: 0.08 + 0.14 * k });
+  grain(ctx, { length: 0.03, freq: 2600, q: 1.2, gain: 0.02 + 0.03 * k });
+}
+
+// Turning a sheet over: a swish through the air, then it lands.
+export function turnOver() {
+  const ctx = audio();
+  if (!ctx) return;
+  grain(ctx, { length: 0.16, freq: 1800, q: 0.5, gain: 0.04, rate: 0.7 });
+  grain(ctx, { at: 0.22, length: 0.06, freq: 460, type: "lowpass", q: 0.6, gain: 0.12 });
+  grain(ctx, { at: 0.22, length: 0.025, freq: 3000, q: 1.4, gain: 0.025 });
+}
+
+// Card stock giving along a perforation.
+export function tear() {
+  const ctx = audio();
+  if (!ctx) return;
+  for (let i = 0; i < 9; i++) {
+    grain(ctx, { at: i * 0.018 + Math.random() * 0.01, length: 0.03, freq: 2400 + Math.random() * 2400, q: 2, gain: 0.05 + Math.random() * 0.04 });
+  }
+}
+
+// A conductor's punch through a ticket.
+export function punch() {
+  const ctx = audio();
+  if (!ctx) return;
+  grain(ctx, { length: 0.05, freq: 900, type: "lowpass", q: 1, gain: 0.16 });
+  grain(ctx, { at: 0.012, length: 0.02, freq: 5200, q: 3, gain: 0.05 });
 }
 
 export function setMuted(next: boolean) {

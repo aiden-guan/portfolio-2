@@ -1,8 +1,8 @@
 <div align="center">
 
-# Aiden Guan — The Card File
+# Aiden Guan — The Cutting Mat
 
-**A portfolio built as a physical index-card file, with a private headless CMS, made with Next.js 16, React 19, TypeScript, and Cloudflare R2 storage.**
+**A portfolio laid out as printed things on a cutting mat, to pick up, throw, turn over, tear and punch, with a private headless CMS, made with Next.js 16, React 19, TypeScript, and Cloudflare R2 storage.**
 
 [Live Site](https://aidenguan.com) · [Architecture](#system-architecture) · [Admin CMS](#private-headless-cms-admin-editor) · [Engineering Deep Dives](#engineering-deep-dives) · [Quick Start](#getting-started)
 
@@ -16,7 +16,7 @@
 
 <br/>
 
-![The card file: a title card standing in front of the file, with the Work divider's tab behind it](assets/readme/hero.jpg)
+![The top of the mat: the name printed huge into a green cutting mat, a business card lying across it, dimensioned 89 by 51 mm](assets/readme/hero.jpg)
 
 </div>
 
@@ -26,23 +26,25 @@
 
 This repository powers **[aidenguan.com](https://aidenguan.com)**, the personal index of Aiden Guan (studying Business Administration and Data Science at UC Berkeley).
 
-The site takes the word *index* literally. The portfolio is an index-card file: a title card, a manila divider with a tab for each section, and a ruled card for every project, role and note, standing one behind another on a brass rod. Scrolling runs a thumb through them, so each card tips forward as it passes and the next one's header shows above it. A card can be pulled out of the file to fan its photos beside it, or grabbed and pulled down to flip it. Every card is plain HTML; the 3D is only how they are stood up.
+The portfolio is a designer's cutting mat with the work laid out on it, knolled square to the grid. The name is printed into the mat; a business card lies across it. Every project is printed as the thing its own idea suggests: a sneaker-reselling business is a till receipt (its revenue on the TOTAL line), an approval gatekeeper is a stamped carbon form, an email client is a postcard, a facial-geometry model is a measured drawing with a title block, and a hackathon win is a ticket with a stub to tear off. Roles are punch-clock time cards; notes are an index card; contact is an envelope.
 
-Behind the file is a private, authenticated in-browser CMS. Content edits and project media publish instantly to production via Cloudflare R2 object storage with zero build latency, zero egress fees, and zero redeployment requirements.
+Everything on the mat can be picked up. The point you hold stays under the pointer and the sheet swings about it the way paper does, slides to a stop when thrown, and turns over on a click. Tickets punch, time cards clock in at the current Berkeley time, and **Tidy** squares everything back up. Each thing is plain HTML in reading order; the physics is only transforms on top.
+
+Behind the mat is a private, authenticated in-browser CMS. Content edits and project media publish instantly to production via Cloudflare R2 object storage with zero build latency, zero egress fees, and zero redeployment requirements.
 
 ---
 
 ## Core Capabilities
 
-| The Card File | Scenery Versions |
+| The Mat | Scenery Versions |
 | :--- | :--- |
-| ![A project card pulled out of the file, its demo video playing in a fanned photo](assets/readme/card-preview.jpg) | ![The card file standing in the Chongqing night-rain scene](assets/readme/scenery-preview.jpg) |
-| **Scroll-Driven 3D File**: Each card tips forward as the scroll goes past it, on springs of its own, settling one card at a time. Clicking the front card pulls it out and fans its taped photos beside it (videos play); hovering the file raises a card to read its header; a tick scrubber along the foot riffles through it. | **Peel to Another World**: The curled page corner peels the room away to four animated dot-"ascii" scenes. The cards stay card stock, typed in mono, catch the scene's coloured light, and the name is printed in the scene's own dots. |
+| ![PigeonBox's postcard turned over to its riso-printed picture side, its instant film thrown across it](assets/readme/mat-preview.jpg) | ![The receipt and prints lying over the Chongqing night-rain scene](assets/readme/scenery-preview.jpg) |
+| **Things With Weight**: Each project is printed as its own object (receipt, stamped form, postcard, measured drawing, ticket) with its photos and films beside it. Grab anything by any point and it swings about your hand; throw it and it slides; click to turn it over; tear the ticket's stub, punch it, clock in on a time card; Tidy knolls it all back. Films play while they're in view; a print opens full size. | **Peel to Another World**: The curled page corner peels the mat away to four animated dot-"ascii" scenes, and the same places lie on the mat as living postcards: click one and the mat becomes that place. The paper stays paper, lying on the scene, and the printed name is redrawn in the scene's own dots. |
 
 | Private In-Browser Headless CMS | Zero-Flicker Theme Engine |
 | :--- | :--- |
-| ![Admin CMS Portal](assets/readme/admin-preview.png) | **Instant Dark / Light Adaptation**: Zero-dependency inline `<head>` script evaluates `localStorage` and OS `prefers-color-scheme` before the DOM paints, eliminating theme flash (FOIT) without layout shift. Dark mode puts the lit file in a dark room. |
-| **Zero-Redeploy Publishing**: Dedicated `/admin` route protected by cryptographic session tokens. Allows full editing of profile copy, social links, section titles, project details, and asset uploads directly to Cloudflare R2 with pre-signed size validation and hard storage blockers. | **Edge Social Generation**: Dynamically generates high-resolution Open Graph image cards via `@vercel/og` with automatic sitemap generation and canonical metadata routing. |
+| ![Admin CMS Portal](assets/readme/admin-preview.png) | **Instant Dark / Light Adaptation**: Zero-dependency inline `<head>` script evaluates `localStorage` and OS `prefers-color-scheme` before the DOM paints, eliminating theme flash (FOIT) without layout shift. Dark mode swaps the green mat for the black one. |
+| **Zero-Redeploy Publishing**: Dedicated `/admin` route protected by cryptographic session tokens. Allows full editing of profile copy, social links, section titles, project details (including what each project is printed as on the mat), and asset uploads directly to Cloudflare R2 with pre-signed size validation and hard storage blockers. | **Edge Social Generation**: Dynamically generates high-resolution Open Graph image cards via `@vercel/og` with automatic sitemap generation and canonical metadata routing. |
 
 ---
 
@@ -54,8 +56,8 @@ The project operates across a dual-surface architecture separating public visito
 flowchart LR
     subgraph PublicClient["Public Surface (Visitor)"]
         Index["Page (app/page.tsx)"]
-        Cards["Cards (components/cards.tsx)"]
-        File["Card File (components/card-file.tsx)"]
+        Things["Things (components/mat/things.tsx)"]
+        Mat["Mat & Table (components/mat/mat.tsx, table.tsx)"]
         Viewer["Print Viewer (components/print-viewer.tsx)"]
         Theme["Theme Script (inline head)"]
     end
@@ -82,8 +84,8 @@ flowchart LR
     end
 
     Index -->|SSR & ISR Revalidation| ContentAPI
-    Index --> Cards --> File
-    File -->|Pulled card's photos| Viewer
+    Index --> Mat --> Things
+    Things -->|A print, clicked| Viewer
     Viewer -->|HTTP 206 Byte-Range Video & Stills| MediaRoute
     AdminUI -->|Password Auth / SHA-256| SessionAPI
     Editor -->|Validated JSON Payload| ContentAPI
@@ -101,8 +103,8 @@ flowchart LR
 1. **Request Intake**: Incoming requests to `aidenguan.com` hit the Next.js App Router (`app/page.tsx`).
 2. **Content Resolution**: `getPortfolioContent()` checks for configured Cloudflare R2 credentials (falling back to legacy Vercel Blob or typed schema defaults in `content/portfolio.ts`). If present, it retrieves the live private `portfolio/content.json` document with a 60-second cache-control window.
 3. **Payload Sanitization**: Payloads pass through `parsePortfolioContent()`, which validates all strings, arrays, safe URI protocols (`http:`, `https:`, `mailto:`), and bounds check text lengths.
-4. **DOM Painting & Theme Application**: An inline script in `<head>` applies `dataset.theme` prior to paint. The server renders every card as plain HTML (`buildCards()` in `components/cards.tsx`): the title card with the Berkeley clock and contents, a divider per section, and a card per project, role and note.
-5. **Standing Up the File**: The client `CardFile` sizes the cards to the window, lays out one scroll stop per card (CSS scroll snap), and on every frame turns the scroll position into a thumb position that drives each card's spring-animated angle, height and depth inside a `preserve-3d` stack. Pulling a card fans its photos; the print viewer opens any photo full-size.
+4. **DOM Painting & Theme Application**: An inline script in `<head>` applies `dataset.theme` prior to paint. The server renders the mat as plain HTML (`components/mat/mat.tsx`): the printed name and business card, then a band per section, with each project printed as the thing `projectKind()` in `lib/mat.ts` picks for it (or the editor's choice), its prints beside it.
+5. **Picking Things Up**: The client `Table` (`components/mat/table.tsx`) measures where CSS put each thing and adds only an offset and a turn on top, as transforms. A held sheet keeps the held point under the pointer and swings about it under the mat's drag; let go, it slides to a stop. Clicks turn things over, punch tickets, clock in, open prints in the print viewer, or travel to a scene; Tidy springs everything home.
 6. **Authenticated Publishing**: When the maintainer accesses `/admin`, credentials authenticate against SHA-256 session cookies. Updated JSON documents write atomically to Cloudflare R2 via `savePortfolioContent()`. Direct media uploads stream straight to R2 via S3 presigned URLs with exact `ContentLength` verification and storage quota checks, updating public visitor traffic immediately.
 
 ---
@@ -128,12 +130,12 @@ The repository integrates a full-featured content management suite under `app/ad
 - **Why**: Delivers fast video playback and zero-rebuild publishing while guaranteeing that accidental bandwidth or storage spikes can never incur cloud bills.
 - **Tradeoff**: Single-document persistence uses atomic put overwrites optimized for a single author. Concurrent administrative sessions rely on last-write-wins semantics.
 
-### 2. A Scroll-Driven 3D Card File That Stays Crisp, Accessible and Smooth
+### 2. Paper Physics on Plain HTML That Stays Readable, Accessible and Smooth
 
 - **Problem**: A physical-object portfolio tends to trade away the things a portfolio needs: readable type, keyboard and screen-reader access, native scrolling, and a steady frame rate.
-- **Approach**: The cards are server-rendered HTML in reading order; `components/card-file.tsx` only positions them. The page's own scroll drives a thumb position (a critically damped spring), one CSS scroll-snap stop per card; each card then follows on lightly underdamped springs for its angle and height, so motion is continuous and interruptible. Only `transform` and `opacity` change per frame, and each card's styles are written only when they change. The card in front always sits in the picture plane (`translateZ(0)`, no rotation) so its text is never resampled, while the eye's drift with the pointer moves `perspective-origin` rather than the cards. Light and depth are separate overlay layers whose opacity is set directly, never through inherited custom properties.
-- **Why**: Keeps the page a document (scrollbar, keyboard, find-in-page, links in tab order, a focused link flips its card forward) while giving it weight and depth; reduced motion turns the file into instant cuts.
-- **Tradeoff**: A card holds a fixed amount of text; the file sets a card's type a little smaller (`--fit`) when its notes run long, so very long copy is better split across cards.
+- **Approach**: Every thing is server-rendered HTML in reading order, laid out by CSS in millimetres of mat (`--u`), so a business card is a business card's size next to a receipt. `components/mat/table.tsx` adds only a translate and a rotation per thing. A held sheet is a rigid body pinned at the held point: the mat's drag acts at its middle, and the torque about the pin swings the sheet into line behind the hand; released, it keeps its velocity and spin under sliding friction. Styles are written only when they change, things get their own compositor layers only while they move, and a ticket's stub is a second body joined to the ticket until it is pulled past its tear strength.
+- **Why**: Keeps the page a document (scrollbar, find-in-page, links in tab order, every thing focusable: Enter turns it over or acts, arrow keys nudge it) while giving it weight; reduced motion keeps the drag and drops the momentum and animation.
+- **Tradeoff**: Text that runs long makes a thing taller rather than smaller; fixed-shape things (business card, postcard) hold their proportions on wide screens and grow to fit on phones.
 
 ### 3. Zero-Hydration-Flash Dark & Light Theme Architecture
 
@@ -149,7 +151,7 @@ The repository integrates a full-featured content management suite under `app/ad
 ### Client & Presentation
 - **Framework**: Next.js 16.3.4 (App Router, Server Components)
 - **UI Runtime**: React 19.2.8
-- **Typography & Styling**: CSS custom properties, CSS 3D transforms (`preserve-3d`), container query units for card type, scroll snap, and a few kilobytes of Web Audio for the card flick
+- **Typography & Styling**: Archivo (variable width), Martian Mono, Doto (dot-matrix) and Libre Barcode 128 via `next/font`; CSS custom properties sized in millimetres of mat; CSS 3D for turning things over; and a few kilobytes of Web Audio for paper foley (slides, landings, tears, punches)
 - **Media Optimization**: Next.js Image component with responsive sizing and layout containment
 
 ### Server & Route Handlers
@@ -228,24 +230,29 @@ portfolio-2/
 │   ├── api/
 │   │   ├── admin/           # Authenticated session, content, media, and quota API handlers
 │   │   └── media/[name]/    # Secure media streaming route with HTTP 206 Range & dev proxy
-│   ├── card-file.css        # The card file: room, card stock, light, photos, stamps, scrubber
 │   ├── globals.css          # Core design tokens, links, print viewer, admin editor
-│   ├── layout.tsx           # Root layout, zero-flicker theme script, and canonical metadata
+│   ├── layout.tsx           # Root layout, fonts, zero-flicker theme script, and canonical metadata
+│   ├── mat.css              # The mat and everything on it: stocks, inks, stamps, prints, rulers
 │   ├── opengraph-image.tsx  # Dynamic 1200x630 OpenGraph card generation via @vercel/og
-│   ├── page.tsx             # Masthead and the card file, built from the live content
+│   ├── page.tsx             # Masthead and the mat, built from the live content
 │   ├── scenery.css          # Page curl, page turn, and the scenery versions
 │   ├── robots.ts            # Dynamic robots.txt generation
 │   └── sitemap.ts           # Dynamic sitemap.xml generation
 ├── assets/
+│   ├── fonts/               # Static font instances for the generated sharing image
 │   └── readme/              # High-resolution README presentation assets
 ├── components/
 │   ├── admin-editor.tsx     # Full reactive admin editor form interface
 │   ├── admin-image-editor.tsx # Direct presigned media uploader & format validator
 │   ├── admin-storage-guard.tsx # Visual storage quota gauge & 1-click orphan cleaner
-│   ├── card-file.tsx        # The 3D file: scroll-driven springs, pull-out, scrubber, section nav
-│   ├── cards.tsx            # Every card as plain HTML: title, dividers, projects, roles, notes
 │   ├── local-time.tsx       # Live-updating Berkeley time calculation
-│   ├── print-viewer.tsx     # Full-size viewer for a pulled card's photos and videos
+│   ├── mat/
+│   │   ├── mat.tsx          # The mat from the live content: name, card, a band per section
+│   │   ├── things.tsx       # Business card, receipt, form, postcard, drawing, ticket, time card, envelope, prints
+│   │   ├── table.tsx        # Picking things up: paper physics, turning over, tearing, punching, Tidy
+│   │   ├── places.tsx       # Living postcards of the scenery versions, which travel there
+│   │   └── wordmark.tsx     # The name printed into the mat, fitted to it
+│   ├── print-viewer.tsx     # Full-size viewer for the prints and films on the mat
 │   └── scenery.tsx          # Page curl, page turn, scenery backdrops, dot-printed name
 ├── content/
 │   └── portfolio.ts         # Schema definitions, type guards, and fallback content
@@ -256,7 +263,8 @@ portfolio-2/
 │   ├── portfolio-media.ts   # Magic-byte file validation and media helpers
 │   ├── r2.ts                # S3-compatible Cloudflare R2 client and presigning utilities
 │   ├── r2-limits.ts         # Storage quota guard, bucket counter, and hard limit blocker
-│   ├── riffle.ts            # The synthesised paper flick as a card goes past, and its switch
+│   ├── mat.ts               # What each project is printed as, stamps, barcodes, periods
+│   ├── riffle.ts            # Synthesised paper foley (slide, land, turn, tear, punch) and its switch
 │   ├── scenery/             # Dot-field renderer and the four scenery versions
 │   └── site-url.ts          # Canonical site origin resolver
 ├── scripts/

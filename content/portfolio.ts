@@ -44,6 +44,10 @@ function clampFocus(value: number | undefined) {
 
 export const MAX_PROJECT_IMAGES = 6;
 
+// The printed thing a project lies on the mat as. "auto" (or nothing) lets
+// the site pick from what the project is (lib/mat).
+export type ThingKind = "receipt" | "form" | "postcard" | "drawing" | "ticket";
+
 export type Project = {
   name: string;
   status: string;
@@ -52,6 +56,7 @@ export type Project = {
   stack: string[];
   links: ProjectLink[];
   images: PortfolioImage[];
+  artifact?: ThingKind | "auto";
 };
 
 export type TimelineEntry = {
