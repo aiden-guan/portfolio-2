@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-10-21
+
+### Summary
+The knife cuts everything now, and there's a torch. A cut looks carved into the mat, and drawn across paper it cuts the paper too: right across a sheet, the sheet comes apart in two along the line the blade took, and each piece can be picked up, thrown and turned over on its own. The torch browns, chars and burns through paper and scorches the mat, with flame, smoke, sparks and ash. Tidy puts every piece back and mends it.
+
+### Architectural & Functional Highlights
+| Component / Layer | Change | Impact |
+| :--- | :--- | :--- |
+| **Wear** | New `lib/wear.ts`: a sheet's outline, the holes burnt in it, a millimetre grid of how charred it is, and its slits, kept in the sheet's own frame; the outline less the holes clips each face (the back mirrored), and two canvases on each face carry the scorch and the slits and embers | Paper is cut and burnt in place, on its own print, and both faces agree. |
+| **Pieces** | `components/mat/table.tsx` parts a sheet by laying a copy of it over itself, each clipped to one side of the cut, with each piece turning about its own middle; Tidy brings them home, takes the copies away and fades the damage | The page stays the same HTML underneath; a reload or Tidy leaves it whole. |
+| **Torch** | New `lib/torch.ts` and `components/mat/torch.tsx`: a pocket butane torch drawn to scale, a jet drawn as layered cones with particles for flame, smoke, sparks and ash in a canvas over the mat, and scorches in one under it that scrolls with the mat | Burning stays smooth while scrolling, and the canvases are released at rest. |
+| **Cuts** | `lib/cuts.ts` lights each cut by which way it faces, wedges it open behind the blade, presses the mat in round the tip, and reports the blade's path to the table | The cut reads as a slit in a material, and paper in its way is cut. |
+| **Sound** | `lib/riffle.ts` adds the blade through card, a sheet coming apart, the torch's click and roar, and paper crackling | Still synthesised on the spot, nothing loaded. |
+
+### Detailed Changes
+
+#### Added
+- **Cutting paper**: the knife cuts whatever it's drawn across, every layer of a stack. A cut that stops inside a sheet leaves a slit in it; one that goes right across parts it in two along the exact line, the halves easing a hair apart. Pieces can be cut again, moved, thrown and turned over (a piece turned over shows the other side of itself, mirrored, as paper does).
+- **The torch**: Knife and Torch in the masthead (or K and T; Escape puts the torch down). With the torch, pressing anywhere on the mat, things included, lights it with a click: a blue jet lands where the pointer is and fans out. Paper under it browns, chars and burns through, the hole's edge glowing and creeping on a little after the flame moves; held there, the hole keeps widening, and the flame reaches through it to whatever is beneath. Paper alight flares orange and smokes; a sheet burnt almost all away falls to ash. On the bare mat it scorches the surface, which glows while it's hot and heals slowly, as the cuts do. On touch screens the mat is held for a moment before the torch lights.
+- **Mending**: Tidy brings every piece home, and once all of a sheet is home the pieces join, the holes close and the scorch fades.
+
+#### Changed
+- Cuts in the mat are wider and stay open longer; the far wall catches the light more the more squarely the cut faces it, the blade wedges the cut open just behind it, the mat dips round the point, and the point itself is out of sight below the surface.
+- The opening hint reads "Cut anything".
+- The print viewer opens the whole print when a piece of one is clicked.
+
+### Verification Proof
+- `npm run lint` passed with 0 errors (the three existing `<img>` warnings remain).
+- `npm run typecheck` passed with 0 errors.
+- `npm run build` completed a full production build across all routes.
+- Driven with synthetic mouse events in headless Chromium at 1440 px, in the light and dark themes: cuts across and into the business card, a cut through the stack of three prints (all three parted), cutting a turned-over card and turning a piece back, dragging pieces, burning the card and a receipt through, burning through to the mat, scorching the mat, and Tidy mending everything (no pieces, no wear and Tidy hidden afterwards). The masthead's Knife and Torch switch was checked at an iPhone 13 size; touch hold-to-light was not driven.
+
 ## [1.5.0] — 2026-10-20
 
 ### Summary

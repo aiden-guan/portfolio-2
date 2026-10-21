@@ -159,6 +159,110 @@ export function nick() {
   grain(ctx, { length: 0.028, freq: 1100, type: "lowpass", q: 0.8, gain: 0.05 });
 }
 
+let sliceAt = 0;
+
+// The blade through card stock rather than the mat: drier, crisper, with a
+// little tick of fibre now and then; `speed` in px/s.
+export function slice(speed: number) {
+  const ctx = audio();
+  if (!ctx || speed < 20) return;
+  const now = ctx.currentTime;
+  const gap = Math.max(0.018, 0.05 - speed / 60000);
+  if (now - sliceAt < gap) return;
+  sliceAt = now;
+  const k = Math.min(1, speed / 1400);
+  grain(ctx, { length: 0.024 + Math.random() * 0.016, freq: 2600 + k * 1800 + Math.random() * 900, q: 1.6, gain: 0.02 + 0.04 * k, rate: 1.1 });
+  if (Math.random() < 0.3) grain(ctx, { length: 0.008, freq: 6800, q: 4, gain: 0.025 });
+}
+
+// A sheet coming apart in two as the blade leaves it.
+export function snip() {
+  const ctx = audio();
+  if (!ctx) return;
+  grain(ctx, { length: 0.02, freq: 4200, q: 2.2, gain: 0.06 });
+  grain(ctx, { at: 0.012, length: 0.05, freq: 900, type: "lowpass", q: 0.7, gain: 0.07 });
+}
+
+// ---- the torch
+
+let hissBuffer: AudioBuffer | null = null;
+
+// A long run of noise, for a sound that holds: a short loop would flutter.
+function longNoise(ctx: AudioContext) {
+  if (!hissBuffer) {
+    hissBuffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 2), ctx.sampleRate);
+    const data = hissBuffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  }
+  return hissBuffer;
+}
+
+export type Burner = { level(roar: number): void; stop(): void };
+
+// The torch lit: the piezo's click, then the gas roaring through the nozzle
+// for as long as it's held, louder when it's held against something. Gives
+// back a handle to set how hard it roars and to put it out.
+export function ignite(): Burner {
+  const ctx = audio();
+  if (!ctx || !out) return { level() {}, stop() {} };
+  grain(ctx, { length: 0.012, freq: 5200, q: 5, gain: 0.09 });
+  grain(ctx, { at: 0.004, length: 0.03, freq: 1600, q: 1.4, gain: 0.04 });
+  const now = ctx.currentTime;
+  const source = ctx.createBufferSource();
+  source.buffer = longNoise(ctx);
+  source.loop = true;
+  // the hiss of the jet, and the roar of it burning
+  const hiss = ctx.createBiquadFilter();
+  hiss.type = "bandpass";
+  hiss.frequency.value = 3400;
+  hiss.Q.value = 0.6;
+  const roar = ctx.createBiquadFilter();
+  roar.type = "lowpass";
+  roar.frequency.value = 340;
+  roar.Q.value = 0.9;
+  const hissGain = ctx.createGain();
+  const roarGain = ctx.createGain();
+  hissGain.gain.setValueAtTime(0.0001, now);
+  hissGain.gain.exponentialRampToValueAtTime(0.035, now + 0.09);
+  roarGain.gain.setValueAtTime(0.0001, now);
+  roarGain.gain.exponentialRampToValueAtTime(0.16, now + 0.14);
+  source.connect(hiss).connect(hissGain).connect(out);
+  source.connect(roar).connect(roarGain).connect(out);
+  source.start(now + 0.01, Math.random());
+  let stopped = false;
+  return {
+    level(k: number) {
+      if (stopped) return;
+      const t = ctx.currentTime;
+      roarGain.gain.setTargetAtTime(0.16 + 0.12 * k, t, 0.08);
+      hiss.frequency.setTargetAtTime(3400 - 900 * k, t, 0.1);
+    },
+    stop() {
+      if (stopped) return;
+      stopped = true;
+      const t = ctx.currentTime;
+      hissGain.gain.cancelScheduledValues(t);
+      roarGain.gain.cancelScheduledValues(t);
+      hissGain.gain.setTargetAtTime(0.0001, t, 0.03);
+      roarGain.gain.setTargetAtTime(0.0001, t, 0.05);
+      source.stop(t + 0.3);
+    },
+  };
+}
+
+let crackleAt = 0;
+
+// Paper burning: small dry cracks, more of them the more of it is alight.
+export function crackle(intensity: number) {
+  const ctx = audio();
+  if (!ctx || intensity <= 0) return;
+  const now = ctx.currentTime;
+  if (now - crackleAt < 0.03) return;
+  crackleAt = now;
+  if (Math.random() > 0.25 + intensity * 0.6) return;
+  grain(ctx, { length: 0.006 + Math.random() * 0.01, freq: 1800 + Math.random() * 4200, q: 3, gain: 0.02 + Math.random() * 0.05 * intensity });
+}
+
 // A sheet dropped near where it belongs, pulled square onto its marks.
 export function seat() {
   const ctx = audio();

@@ -2,6 +2,7 @@ import { SoundToggle } from "@/components/sound-toggle";
 import { Mat } from "@/components/mat/mat";
 import { MatNavigation } from "@/components/mat/navigation";
 import { Table, TidyButton } from "@/components/mat/table";
+import { ToolSwitch } from "@/components/mat/tools";
 import { PrintViewer } from "@/components/print-viewer";
 import { PageCurl, SceneCaption, SceneryBackdrop } from "@/components/scenery";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -28,6 +29,7 @@ export default async function Home() {
         <MatNavigation navigation={navigation} />
         <div className="masthead-tools">
           <TidyButton />
+          <ToolSwitch />
           <SceneCaption />
           <SoundToggle />
           <ThemeToggle />

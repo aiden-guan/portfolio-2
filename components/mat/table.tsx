@@ -2,10 +2,13 @@
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { CuttingLayer } from "@/components/mat/knife";
+import { TorchLayer } from "@/components/mat/torch";
 import { visitScene } from "@/components/scenery";
 import { mountCuts } from "@/lib/cuts";
 import { isSceneId } from "@/lib/scenery/catalog";
-import { frank, punch, rustle, seat, tap, tear, turnOver, unlockSound } from "@/lib/riffle";
+import { frank, punch, rustle, seat, snip, tap, tear, turnOver, unlockSound } from "@/lib/riffle";
+import { mountTorch } from "@/lib/torch";
+import { ASH_EVENT, type Pt, type Surface, Wear } from "@/lib/wear";
 
 // The mat as a table top. Every thing on it (components/mat/things) can be
 // picked up and moved: the point the hand holds stays under the pointer,
@@ -16,6 +19,13 @@ import { frank, punch, rustle, seat, tap, tear, turnOver, unlockSound } from "@/
 // stub tears off along its perforation, and Tidy squares everything back up.
 // Wherever a thing has been taken from, crop marks stay printed on the mat,
 // and a thing set down close to its marks is pulled square onto them.
+//
+// Things can be cut and burnt (lib/wear). The knife cuts whatever it's drawn
+// across, every layer of it, and drawn right across a sheet parts it in two:
+// the piece that comes away is a copy of the sheet laid exactly over it,
+// each clipped to its own side of the cut, and from then on each moves on
+// its own. A flame burns the topmost sheet under it, and through a hole, the
+// next. Tidy puts the pieces back where they belong and mends them.
 //
 // Everything is laid out by CSS where it belongs; the table only adds an
 // offset and a turn to each thing, as transforms. The bare mat is for
@@ -59,6 +69,16 @@ type Body = {
   mark: HTMLElement | null;
   marked: boolean;
   seating: boolean;
+  // the point it turns about, in its own pixels: its middle, or once it's
+  // been cut, the middle of what's left of it
+  ox: number;
+  oy: number;
+  // what's been done to it, the thing it was cut from (itself, if it's
+  // whole), whether it's burnt away, and whether Tidy is mending it
+  wear: Wear | null;
+  root: Body;
+  gone: boolean;
+  mend: boolean;
 };
 
 type Grab = {
@@ -102,6 +122,8 @@ const TEAR_AT = 46;
 // to rest to be pulled onto them
 const SEAT_MM = 4.5;
 const SEAT_TURN = 0.1;
+// how many pieces things can be cut into, all told
+const MAX_PIECES = 40;
 
 const clockTime = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/Los_Angeles",
@@ -119,7 +141,8 @@ export function Table({ children }: { children: ReactNode }) {
     const html = document.documentElement;
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const els = [...mat.querySelectorAll<HTMLElement>(".thing")];
-    const bodies: Body[] = els.map((el) => ({
+    const bodies: Body[] = els.map((el) => {
+      const body: Body = {
       el,
       turn: el.querySelector<HTMLElement>(".thing-turn") ?? el,
       action: el.dataset.action ?? "none",
@@ -147,7 +170,16 @@ export function Table({ children }: { children: ReactNode }) {
       mark: null,
       marked: false,
       seating: false,
-    }));
+      ox: 0,
+      oy: 0,
+      wear: null,
+      root: null as unknown as Body,
+      gone: false,
+      mend: false,
+      };
+      body.root = body;
+      return body;
+    });
     const byEl = new Map(bodies.map((body) => [body.el, body]));
     for (const body of bodies) {
       if (body.stubOf) body.joinedTo = bodies.find((other) => other.joint === body.stubOf) ?? null;
@@ -198,6 +230,12 @@ export function Table({ children }: { children: ReactNode }) {
       matH = mat!.offsetHeight;
       // .mat-scale is 100 mm wide, which says how big a millimetre is here
       mm = scale.getBoundingClientRect().width / 100 || 4;
+      // a piece lies exactly where the thing it was cut from does
+      for (const body of bodies) {
+        if (body.root === body) continue;
+        body.el.style.left = `${body.root.el.offsetLeft}px`;
+        body.el.style.top = `${body.root.el.offsetTop}px`;
+      }
       for (const body of bodies) {
         let x = 0;
         let y = 0;
@@ -209,16 +247,23 @@ export function Table({ children }: { children: ReactNode }) {
         }
         body.w = body.el.offsetWidth;
         body.h = body.el.offsetHeight;
-        body.hx = x + body.w / 2;
-        body.hy = y + body.h / 2;
+        if (body.wear) {
+          body.wear.resize(body.w, body.h);
+          pivotAt(body, body.wear.pivot());
+        } else {
+          body.ox = body.w / 2;
+          body.oy = body.h / 2;
+        }
+        body.hx = x + body.ox;
+        body.hy = y + body.oy;
         body.written = "";
       }
       for (const body of bodies) {
         if (!body.mark) continue;
-        let x0 = body.hx - body.w / 2;
-        let y0 = body.hy - body.h / 2;
-        let x1 = body.hx + body.w / 2;
-        let y1 = body.hy + body.h / 2;
+        let x0 = body.hx - body.ox;
+        let y0 = body.hy - body.oy;
+        let x1 = x0 + body.w;
+        let y1 = y0 + body.h;
         // a ticket's place takes in its stub's
         for (const stub of bodies) {
           if (!body.joint || stub.stubOf !== body.joint) continue;
@@ -305,7 +350,9 @@ export function Table({ children }: { children: ReactNode }) {
           Math.abs(body.y) > 0.5 ||
           Math.abs(body.a) > 0.002 ||
           body.el.classList.contains("is-turned") ||
-          (body.stubOf !== undefined && body.joinedTo === null),
+          (body.stubOf !== undefined && body.joinedTo === null) ||
+          body.wear !== null ||
+          body.gone,
       );
       if (now === messy) return;
       messy = now;
@@ -526,6 +573,8 @@ export function Table({ children }: { children: ReactNode }) {
     }
 
     function nearHome(body: Body) {
+      // a piece only goes back with the rest of its sheet, when it's tidied
+      if (cut(body)) return false;
       const turn = body.a - Math.round(body.a / (Math.PI * 2)) * Math.PI * 2;
       return Math.hypot(body.x, body.y) < mm * SEAT_MM && Math.abs(turn) < SEAT_TURN;
     }
@@ -576,6 +625,7 @@ export function Table({ children }: { children: ReactNode }) {
           }
         }
       }
+      if (body.root.mend) mendSheet(body.root);
     }
 
     function keepOnMat(body: Body) {
@@ -670,11 +720,18 @@ export function Table({ children }: { children: ReactNode }) {
           // restart the lift that goes with the turn
           void body.el.offsetWidth;
           body.el.classList.add("is-turning");
-          window.setTimeout(() => body.el.classList.remove("is-turning"), 760);
+          window.setTimeout(() => {
+            body.el.classList.remove("is-turning");
+            body.wear?.refresh();
+          }, 760);
         }
         raise(body);
         unlockSound();
         turnOver();
+        if (body.wear) {
+          body.wear.refresh();
+          wakeWear();
+        }
         window.setTimeout(checkMess, 50);
       } else if (body.action === "punch") {
         punchHole(body, clientX, clientY);
@@ -766,6 +823,12 @@ export function Table({ children }: { children: ReactNode }) {
     function tidy() {
       const now = performance.now();
       let order = 0;
+      // what was burnt away comes back, to be mended with the rest
+      for (const body of bodies) {
+        if (!body.gone) continue;
+        body.gone = false;
+        body.el.classList.remove("is-ash");
+      }
       // whatever is out of place, the furthest out first
       const out = bodies
         .filter(
@@ -798,14 +861,360 @@ export function Table({ children }: { children: ReactNode }) {
       if (still) {
         for (const body of bodies) if (body.stubOf) body.joinedTo = bodies.find((other) => other.joint === body.stubOf) ?? null;
       }
+      // everything cut or burnt is mended once all of it is home
+      for (const body of bodies) {
+        if (!body.wear) continue;
+        body.root.mend = true;
+      }
+      for (const body of bodies.slice()) if (body.root === body && body.mend) mendSheet(body);
       if (order) tap(0.4);
       wake();
     }
 
+    // ---- cutting and burning
+
+    // A point on the mat in a thing's own frame: its pixels from the top
+    // left of its front, wherever it lies and whichever way up.
+    function local(body: Body, x: number, y: number): Pt {
+      const s = 1 + 0.028 * body.lift;
+      const dx = x - (body.hx + body.x);
+      const dy = y - (body.hy + body.y);
+      const cos = Math.cos(body.a);
+      const sin = Math.sin(body.a);
+      let lx = (dx * cos + dy * sin) / s;
+      const ly = (dy * cos - dx * sin) / s;
+      if (body.el.classList.contains("is-turned")) lx = -lx;
+      return { x: body.ox + lx, y: body.oy + ly };
+    }
+
+    // ...and back to the mat.
+    function onMat(body: Body, p: Pt): Pt {
+      const s = 1 + 0.028 * body.lift;
+      let lx = p.x - body.ox;
+      const ly = p.y - body.oy;
+      if (body.el.classList.contains("is-turned")) lx = -lx;
+      const cos = Math.cos(body.a);
+      const sin = Math.sin(body.a);
+      return { x: body.hx + body.x + s * (lx * cos - ly * sin), y: body.hy + body.y + s * (lx * sin + ly * cos) };
+    }
+
+    function covers(body: Body, p: Pt) {
+      if (body.wear) return body.wear.contains(p);
+      return p.x >= 0 && p.y >= 0 && p.x <= body.w && p.y <= body.h;
+    }
+
+    // Whether a thing has been cut into pieces.
+    function cut(body: Body) {
+      return body.root !== body || bodies.some((other) => other !== body && other.root === body);
+    }
+
+    const wearing = new Set<Body>();
+    let wearRaf = 0;
+    let wearLast = 0;
+
+    function worn(body: Body) {
+      if (!body.wear) body.wear = new Wear(body.el, body.w, body.h, mm);
+      wearing.add(body);
+      return body.wear;
+    }
+
+    function wakeWear() {
+      if (wearRaf) return;
+      wearLast = performance.now();
+      wearRaf = requestAnimationFrame(wearFrame);
+    }
+
+    function wearFrame(now: number) {
+      wearRaf = 0;
+      const dt = Math.min(1 / 20, Math.max(1 / 240, (now - wearLast) / 1000));
+      wearLast = now;
+      let busy = false;
+      for (const body of wearing) {
+        const wear = body.wear;
+        if (!wear) {
+          wearing.delete(body);
+          continue;
+        }
+        busy = wear.tick(dt, now) || busy;
+        if (wear.mended) {
+          // whole again, and nothing left to show of it
+          wear.dispose();
+          body.wear = null;
+          wearing.delete(body);
+          body.el.style.removeProperty("--ox");
+          body.el.style.removeProperty("--oy");
+          window.setTimeout(checkMess, 0);
+        }
+      }
+      if (busy) wearRaf = requestAnimationFrame(wearFrame);
+    }
+
+    // Moves the point a thing turns about without moving the thing.
+    function pivotAt(body: Body, o: Pt) {
+      const dx = o.x - body.ox;
+      const dy = o.y - body.oy;
+      if (Math.abs(dx) > 1e-3 || Math.abs(dy) > 1e-3) {
+        const s = 1 + 0.028 * body.lift;
+        const fx = body.el.classList.contains("is-turned") ? -dx : dx;
+        const cos = Math.cos(body.a);
+        const sin = Math.sin(body.a);
+        body.x += -dx + s * (fx * cos - dy * sin);
+        body.y += -dy + s * (fx * sin + dy * cos);
+        body.hx += dx;
+        body.hy += dy;
+        body.ox = o.x;
+        body.oy = o.y;
+      }
+      body.el.style.setProperty("--ox", `${o.x.toFixed(2)}px`);
+      body.el.style.setProperty("--oy", `${o.y.toFixed(2)}px`);
+      body.written = "";
+      body.writtenTurn = "";
+    }
+
+    // The blade's way through each thing it's crossing, this stroke.
+    type Pass = { inside: boolean; from: { edge: number; t: number } | null; path: Pt[]; prev: Pt };
+    let stroke = -1;
+    const passes = new Map<Body, Pass>();
+
+    function blade(id: number, x: number, y: number) {
+      if (id !== stroke) {
+        lift();
+        stroke = id;
+      }
+      let paper = false;
+      let marked = false;
+      for (const body of bodies.slice()) {
+        if (body.gone || grab?.body === body) continue;
+        const p = local(body, x, y);
+        const pass = passes.get(body);
+        const now = covers(body, p);
+        if (now) paper = true;
+        if (!pass) {
+          // the blade came down on it (through a hole in what's above)
+          passes.set(body, { inside: now, from: null, path: now ? [p] : [], prev: p });
+          if (now) {
+            worn(body).slitTo(p, true);
+            marked = true;
+          }
+          continue;
+        }
+        if (now) {
+          const wear = worn(body);
+          if (!pass.inside) {
+            // in across its edge
+            const edge = wear.edgeOf(p, pass.prev);
+            const start = edge?.point ?? p;
+            pass.from = edge ? { edge: edge.edge, t: edge.t } : null;
+            pass.path = [start, p];
+            wear.slitTo(start, true);
+          } else {
+            pass.path.push(p);
+          }
+          wear.slitTo(p, false);
+          pass.inside = true;
+          marked = true;
+        } else if (pass.inside) {
+          // out across its edge: right through, so it parts
+          const wear = worn(body);
+          const edge = wear.edgeOf(pass.prev, p);
+          if (edge) {
+            pass.path.push(edge.point);
+            wear.slitTo(edge.point, false);
+          }
+          pass.inside = false;
+          marked = true;
+          if (edge && pass.from && partSheet(body, pass.path, pass.from, edge)) {
+            const piece = bodies[bodies.indexOf(body) + 1];
+            if (piece) passes.set(piece, { inside: false, from: null, path: [], prev: local(piece, x, y) });
+          } else {
+            wear.endSlit();
+          }
+          pass.path = [];
+          pass.from = null;
+        }
+        pass.prev = p;
+      }
+      if (marked) {
+        wakeWear();
+        if (!messy) checkMess();
+      }
+      return paper;
+    }
+
+    function lift() {
+      for (const [body, pass] of passes) if (pass.inside) body.wear?.endSlit();
+      passes.clear();
+      stroke = -1;
+    }
+
+    // Parts a sheet along the way the blade took through it: the sheet keeps
+    // one side, and a copy of it laid over it takes the other.
+    function partSheet(body: Body, path: Pt[], from: { edge: number; t: number }, to: { edge: number; t: number }) {
+      const wear = body.wear;
+      if (!wear || bodies.length - els.length >= MAX_PIECES) return false;
+      const other = wear.part(path, from.edge, from.t, to.edge, to.t);
+      if (!other) return false;
+      const root = body.root;
+      const el = body.el.cloneNode(true) as HTMLElement;
+      el.removeAttribute("id");
+      el.dataset.piece = "";
+      delete el.dataset.joint;
+      delete el.dataset.stub;
+      el.classList.remove("is-held", "is-turning", "is-live");
+      // the sheet is read once, whole: its pieces are just paper
+      el.setAttribute("aria-hidden", "true");
+      el.tabIndex = -1;
+      el.querySelectorAll("a, button, video, [tabindex]").forEach((node) => node.setAttribute("tabindex", "-1"));
+      el.style.position = "absolute";
+      el.style.margin = "0";
+      el.style.left = `${root.el.offsetLeft}px`;
+      el.style.top = `${root.el.offsetTop}px`;
+      body.el.after(el);
+      const piece: Body = {
+        ...body,
+        el,
+        turn: el.querySelector<HTMLElement>(".thing-turn") ?? el,
+        joint: undefined,
+        stubOf: undefined,
+        joinedTo: null,
+        written: "",
+        writtenTurn: "",
+        mark: null,
+        marked: false,
+        homing: false,
+        seating: false,
+        wear: null,
+        mend: false,
+      };
+      piece.wear = new Wear(el, body.w, body.h, mm, wear);
+      piece.wear.outline(other);
+      bodies.splice(bodies.indexOf(body) + 1, 0, piece);
+      byEl.set(el, piece);
+      wearing.add(piece);
+      // cut through, a stub comes away from its ticket, and a ticket its stub
+      body.joinedTo = null;
+      for (const stub of stubsOf(body)) stub.joinedTo = null;
+      // a film keeps playing in both halves
+      el.querySelectorAll<HTMLVideoElement>("video").forEach((film, i) => {
+        const source = body.el.querySelectorAll<HTMLVideoElement>("video")[i];
+        film.muted = true;
+        if (source) film.currentTime = source.currentTime;
+        if (source && !source.paused) film.play().catch(() => {});
+      });
+
+      // each side settles about its own middle, and they come apart a hair
+      const a = path[0]!;
+      const b = path[path.length - 1]!;
+      const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const nx = -(b.y - a.y) / length;
+      const ny = (b.x - a.x) / length;
+      for (const side of [body, piece]) {
+        pivotAt(side, side.wear!.pivot());
+        if (still) continue;
+        const sign = Math.sign((side.ox - (a.x + b.x) / 2) * nx + (side.oy - (a.y + b.y) / 2) * ny) || 1;
+        const speed = 9 + Math.random() * 5;
+        const vx = nx * sign * speed * (side.el.classList.contains("is-turned") ? -1 : 1);
+        const vy = ny * sign * speed;
+        side.vx += vx * Math.cos(side.a) - vy * Math.sin(side.a);
+        side.vy += vx * Math.sin(side.a) + vy * Math.cos(side.a);
+        side.va += (Math.random() - 0.5) * 0.06;
+        side.moving = true;
+        side.homing = false;
+        write(side);
+      }
+      snip();
+      wake();
+      return true;
+    }
+
+    // The flame's heat on whatever's uppermost under it.
+    function heat(x: number, y: number, radius: number, power: number, dt: number) {
+      const stack = bodies
+        .map((body, index) => ({ body, index }))
+        .filter(({ body }) => !body.gone)
+        .sort((p, q) => q.body.z - p.body.z || q.index - p.index);
+      for (const { body } of stack) {
+        const p = local(body, x, y);
+        if (!covers(body, p)) continue;
+        const wear = worn(body);
+        // over a hole, the flame eats at its edge and goes on through
+        const through = wear.inHole(p);
+        const char = wear.burn(p, radius, power, dt);
+        wakeWear();
+        if (wear.left < 0.16) crumble(body);
+        if (!messy) checkMess();
+        if (through) continue;
+        return { on: "paper" as const, char, kind: body.el.dataset.thing ?? "" };
+      }
+      return { on: "mat" as const, char: 0, kind: "" };
+    }
+
+    // Burnt almost all away: what's left of it falls to ash.
+    function crumble(body: Body) {
+      if (body.gone) return;
+      body.gone = true;
+      body.el.classList.add("is-ash");
+      const box = body.el.getBoundingClientRect();
+      const at = mat!.getBoundingClientRect();
+      window.dispatchEvent(
+        new CustomEvent(ASH_EVENT, { detail: { x: box.left - at.left, y: box.top - at.top, w: box.width, h: box.height } }),
+      );
+    }
+
+    function embers() {
+      const out: { x: number; y: number; r: number; hot: number }[] = [];
+      for (const body of wearing) {
+        if (body.gone || !body.wear?.burning) continue;
+        for (const ember of body.wear.embers()) out.push({ ...onMat(body, ember), r: ember.r, hot: ember.hot });
+      }
+      return out;
+    }
+
+    // All of a sheet is home and square: its pieces go back into it, and
+    // what was done to it fades away.
+    function mendSheet(root: Body) {
+      const group = bodies.filter((body) => body.root === root);
+      if (
+        group.some(
+          (body) =>
+            body.homing ||
+            body.moving ||
+            grab?.body === body ||
+            body.x !== 0 ||
+            body.y !== 0 ||
+            body.a !== 0 ||
+            body.el.classList.contains("is-turned"),
+        )
+      ) {
+        return;
+      }
+      root.mend = false;
+      if (!group.some((body) => body.wear)) return;
+      const wear = worn(root);
+      for (const piece of group) {
+        if (piece === root) continue;
+        if (piece.wear) {
+          wear.absorb(piece.wear);
+          piece.wear.dispose();
+        }
+        wearing.delete(piece);
+        byEl.delete(piece.el);
+        bodies.splice(bodies.indexOf(piece), 1);
+        piece.el.remove();
+      }
+      wear.mend();
+      pivotAt(root, wear.pivot());
+      write(root);
+      wakeWear();
+    }
+
+    const surface: Surface = { blade, lift, heat, embers };
+
     // ---- input
 
     const onPointerDown = (event: PointerEvent) => {
-      if (grab || event.button > 0) return;
+      // with the torch in hand, things are for burning
+      if (grab || event.button > 0 || html.dataset.tool === "torch") return;
       const target = event.target instanceof Element ? event.target : null;
       const el = target?.closest<HTMLElement>(".thing");
       const body = el ? byEl.get(el) : undefined;
@@ -878,6 +1287,11 @@ export function Table({ children }: { children: ReactNode }) {
 
     // A drag ends in a click on whatever is under it; that click isn't one.
     const onClickCapture = (event: MouseEvent) => {
+      if (html.dataset.tool === "torch" && event.detail > 0) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if (!swallowClick) return;
       swallowClick = false;
       event.preventDefault();
@@ -994,12 +1408,19 @@ export function Table({ children }: { children: ReactNode }) {
     window.addEventListener(TIDY_EVENT, onTidy);
     window.addEventListener("pointermove", onGuide, { passive: true });
     document.addEventListener("mouseout", onLeave);
-    const unmountCuts = mountCuts(mat);
+    const unmountCuts = mountCuts(mat, surface);
+    const unmountTorch = mountTorch(mat, surface);
 
     return () => {
       cancelAnimationFrame(raf);
       cancelAnimationFrame(guideRaf);
       unmountCuts();
+      unmountTorch();
+      cancelAnimationFrame(wearRaf);
+      for (const body of bodies) {
+        body.wear?.dispose();
+        if (body.root !== body) body.el.remove();
+      }
       scale.remove();
       for (const body of bodies) body.mark?.remove();
       if (pending) window.clearTimeout(pending.timer);
@@ -1025,6 +1446,7 @@ export function Table({ children }: { children: ReactNode }) {
     <div className="mat" ref={root}>
       {children}
       <CuttingLayer />
+      <TorchLayer />
       <span className="ruler-guide ruler-guide-y" aria-hidden="true" />
     </div>
   );
