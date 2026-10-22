@@ -1,0 +1,375 @@
+/* ------------------------------------------------------------------------ */
+/* Recents: a clothesline strung across the mat under the card, the latest  */
+/* photos pegged on it (lib/clothesline swings them, and the knife cuts     */
+/* them down). Lengths are millimetres of mat (--mm).                        */
+/* ------------------------------------------------------------------------ */
+
+.line {
+  --cord: #ddd0b2;
+  --cord-dark: #a08c66;
+  --brass: #c9a55a;
+  --brass-dark: #7d6230;
+  --peg-wood: #e2c79a;
+  --peg-edge: #9d7d4c;
+  position: relative;
+  max-width: calc(var(--mm) * 262);
+  height: var(--line-height, auto);
+  margin: 0 auto;
+}
+
+html[data-theme="dark"] .line {
+  --cord: #c9bd9f;
+  --cord-dark: #857452;
+}
+
+.line-mm {
+  position: absolute;
+  width: calc(var(--mm) * 100);
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ---- the cord */
+
+.line-cord {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.line-cord path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* it hangs up off the mat, so its shadow falls well away from it */
+.line-cord-shadow {
+  stroke: rgb(0 0 0 / 0.17);
+  stroke-width: calc(var(--mm) * 0.9);
+  transform: translate(calc(var(--mm) * 2.4), calc(var(--mm) * 6));
+}
+
+.line-cord-rope,
+.line-cord-loose {
+  stroke: var(--cord);
+  stroke-width: max(1.6px, calc(var(--mm) * 0.5));
+}
+
+/* the twist of its strands */
+.line-cord-twist {
+  stroke: var(--cord-dark);
+  stroke-width: max(0.8px, calc(var(--mm) * 0.24));
+  stroke-dasharray: 1.4 2.6;
+  stroke-linecap: butt;
+  opacity: 0.8;
+}
+
+.line-cord-fray {
+  stroke: var(--cord);
+  stroke-width: max(0.7px, calc(var(--mm) * 0.16));
+}
+
+/* ---- a screw eye at each end */
+
+.line-eyes {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+}
+
+.line-eye {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--mm) * 3.6);
+  height: calc(var(--mm) * 3.6);
+  margin: calc(var(--mm) * -1.2) 0 0 calc(var(--mm) * -1.8);
+  border: calc(var(--mm) * 0.75) solid var(--brass);
+  border-radius: 50%;
+  border-bottom-color: var(--brass-dark);
+  box-shadow:
+    inset 0 0 0 0.5px rgb(0 0 0 / 0.3),
+    calc(var(--mm) * 1) calc(var(--mm) * 1.6) calc(var(--mm) * 1) rgb(0 0 0 / 0.22);
+}
+
+/* its shank, screwed down into the mat */
+.line-eye::after {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: calc(var(--mm) * 1.3);
+  height: calc(var(--mm) * 2.4);
+  margin-left: calc(var(--mm) * -0.65);
+  border-radius: 0 0 40% 40%;
+  background: linear-gradient(to right, var(--brass-dark), var(--brass) 45%, var(--brass-dark));
+  content: "";
+}
+
+/* ---- the photos */
+
+.line-photos {
+  display: flex;
+  margin: 0;
+  padding: calc(var(--mm) * 8) 0 calc(var(--mm) * 20);
+  justify-content: space-around;
+  list-style: none;
+}
+
+.line-slot {
+  display: block;
+}
+
+/* before the line is strung (or with no script), they hang in a row */
+.line:not([data-live])::before {
+  position: absolute;
+  top: calc(var(--mm) * 8);
+  right: calc(var(--mm) * 5);
+  left: calc(var(--mm) * 5);
+  border-top: max(1.6px, calc(var(--mm) * 0.5)) solid var(--cord);
+  content: "";
+}
+
+.line[data-live] .line-photos {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  padding: 0;
+}
+
+.line[data-live] .line-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* only the photos themselves take the pointer; between them is bare mat */
+.line[data-live] :is(.line-photos, .line-slot) {
+  pointer-events: none;
+}
+
+.line[data-live] .line-photo {
+  pointer-events: auto;
+}
+
+.line-photo {
+  position: relative;
+  display: block;
+  width: calc(var(--mm) * 44);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: zoom-in;
+  transform: rotate(var(--tilt));
+  transform-origin: 0 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.line[data-live] .line-photo {
+  transform: none;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+@media (pointer: fine) {
+  .line[data-live] .line-photo:is([data-peg="1"], [data-peg="2"]),
+  .line-photo[data-mode="landed"] {
+    cursor: grab;
+  }
+}
+
+.line-photo[data-held] {
+  cursor: grabbing;
+}
+
+.line-photo:focus-visible {
+  outline: none;
+}
+
+.line-photo:focus-visible .line-photo-paper {
+  outline: 2px solid var(--mat-ink);
+  outline-offset: 3px;
+}
+
+.line-photo-paper {
+  display: block;
+  padding: calc(var(--mm) * 2.6) calc(var(--mm) * 2.6) 0;
+  background: var(--stock-photo);
+  /* hanging up off the mat: its shadow falls well away under it */
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.08),
+    0 1px 1.5px rgb(0 0 0 / 0.14),
+    calc(var(--mm) * 2.4) calc(var(--mm) * 6) calc(var(--mm) * 4) rgb(0 0 0 / 0.24);
+  transition: box-shadow 260ms ease-out;
+}
+
+.line-photo[data-held] .line-photo-paper {
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.08),
+    0 2px 2px rgb(0 0 0 / 0.14),
+    calc(var(--mm) * 3.4) calc(var(--mm) * 8) calc(var(--mm) * 5) rgb(0 0 0 / 0.26);
+}
+
+/* lying on the mat: a tight contact shadow */
+.line-photo[data-mode="landed"] .line-photo-paper {
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.1),
+    0 0.5px 0.8px rgb(0 0 0 / 0.3),
+    0 calc(var(--mm) * 0.8) calc(var(--mm) * 1.5) rgb(0 0 0 / 0.2);
+  transition-duration: 140ms;
+}
+
+.line-photo-window {
+  aspect-ratio: 4 / 5;
+}
+
+.line-photo-window img {
+  transition: filter 200ms;
+}
+
+/* the line about it, written on the print's deep bottom border */
+.line-photo-words {
+  display: flex;
+  height: calc(var(--mm) * 13);
+  padding: calc(var(--mm) * 1.6) calc(var(--mm) * 0.4) calc(var(--mm) * 1.4);
+  flex-direction: column;
+  justify-content: space-between;
+  gap: calc(var(--mm) * 0.6);
+}
+
+.line-photo-caption {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--print-ink);
+  font-family: var(--font-grotesk), var(--sans);
+  font-size: max(10.5px, calc(var(--mm) * 2.5));
+  font-variation-settings: "wdth" 96;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+  line-height: 1.18;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.line-photo-date {
+  color: var(--print-muted);
+  font-family: var(--font-mono), var(--mono);
+  font-size: max(8px, calc(var(--mm) * 1.6));
+  font-variation-settings: "wdth" 88;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ---- the pegs: little wooden ones, the line sitting in their notch at the
+   card's top edge */
+
+.line-peg {
+  position: absolute;
+  z-index: 1;
+  top: calc(var(--mm) * -8.3);
+  left: calc(var(--u) * 100%);
+  width: calc(var(--mm) * 3);
+  height: calc(var(--mm) * 10.2);
+  margin-left: calc(var(--mm) * -1.5);
+  filter: drop-shadow(calc(var(--mm) * 0.8) calc(var(--mm) * 1.6) calc(var(--mm) * 0.6) rgb(0 0 0 / 0.25));
+  pointer-events: none;
+}
+
+.line-peg svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.line-peg-wood {
+  fill: var(--peg-wood);
+  stroke: var(--peg-edge);
+  stroke-width: 0.35;
+}
+
+.line-peg-seam {
+  stroke: var(--peg-edge);
+  stroke-width: 0.45;
+}
+
+.line-peg-grain {
+  stroke: rgb(140 104 56 / 0.28);
+  stroke-width: 0.3;
+  fill: none;
+}
+
+.line-peg-spring {
+  fill: #aeb2ad;
+  stroke: #5f6460;
+  stroke-width: 0.3;
+}
+
+.line-peg-coil {
+  stroke: #6d726e;
+  stroke-width: 0.45;
+}
+
+.line-peg-notch {
+  fill: none;
+  stroke: var(--peg-edge);
+  stroke-width: 0.5;
+}
+
+/* a peg that's let go stays shut on nothing, and goes with the photo */
+.line-photo[data-mode] .line-peg {
+  filter: none;
+}
+
+/* ---- nothing on it yet */
+
+.line[data-empty] {
+  height: calc(var(--mm) * 46);
+}
+
+.line-empty {
+  position: absolute;
+  top: calc(var(--mm) * 32);
+  left: 0;
+  width: 100%;
+  margin: 0;
+  color: var(--mat-ink-dim);
+  font-family: var(--font-mono), var(--mono);
+  font-size: max(0.62rem, calc(var(--mm) * 2));
+  letter-spacing: 0.14em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+@media (max-width: 700px) {
+  .mat-band-recents {
+    padding-inline: calc(var(--mm) * 5);
+  }
+
+  .mat-band-recents .mat-head {
+    margin-inline: calc(var(--gutter) - var(--mm) * 5);
+  }
+
+  .line-photo {
+    width: calc(var(--mm) * 32);
+  }
+
+  .line-photo-words {
+    height: calc(var(--mm) * 18);
+  }
+
+  .line-photo-caption {
+    font-size: 10px;
+  }
+}

@@ -44,6 +44,16 @@ function clampFocus(value: number | undefined) {
 
 export const MAX_PROJECT_IMAGES = 6;
 
+// A photo pegged on the clothesline under the hero, newest first, with a
+// line about it written on the print's border.
+export type Recent = {
+  image: PortfolioImage;
+  caption: string;
+  date: string;
+};
+
+export const MAX_RECENTS = 12;
+
 // The printed thing a project lies on the mat as. "auto" (or nothing) lets
 // the site pick from what the project is (lib/mat).
 export type ThingKind = "receipt" | "form" | "postcard" | "drawing" | "ticket";
@@ -103,6 +113,7 @@ export type PortfolioContent = {
     paragraphs: string[];
   };
   interests: string[];
+  recents: Recent[];
 };
 
 export const defaultPortfolio: PortfolioContent = {
@@ -278,6 +289,7 @@ export const defaultPortfolio: PortfolioContent = {
     "Software that feels like a place",
     "Tools for small businesses",
   ],
+  recents: [],
 };
 
 export const {

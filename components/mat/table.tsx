@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { CuttingLayer } from "@/components/mat/knife";
 import { TorchLayer } from "@/components/mat/torch";
 import { visitScene } from "@/components/scenery";
+import { LINE_MESS_EVENT, withLines } from "@/lib/clothesline";
 import { mountCuts } from "@/lib/cuts";
 import { isSceneId } from "@/lib/scenery/catalog";
 import { frank, punch, rustle, seat, snip, tap, tear, turnOver, unlockSound } from "@/lib/riffle";
@@ -1208,7 +1209,8 @@ export function Table({ children }: { children: ReactNode }) {
       wakeWear();
     }
 
-    const surface: Surface = { blade, lift, heat, embers };
+    // the clotheslines are on the mat too (lib/clothesline)
+    const surface: Surface = withLines({ blade, lift, heat, embers });
 
     // ---- input
 
@@ -1454,12 +1456,19 @@ export function Table({ children }: { children: ReactNode }) {
 
 // Shows once anything on the mat is out of place, and squares it all up.
 export function TidyButton() {
-  const [messy, setMessy] = useState(false);
+  const [mat, setMat] = useState(false);
+  const [line, setLine] = useState(false);
+  const messy = mat || line;
 
   useEffect(() => {
-    const onMess = (event: Event) => setMessy((event as CustomEvent<boolean>).detail);
+    const onMess = (event: Event) => setMat((event as CustomEvent<boolean>).detail);
+    const onLine = (event: Event) => setLine((event as CustomEvent<boolean>).detail);
     window.addEventListener(MESS_EVENT, onMess);
-    return () => window.removeEventListener(MESS_EVENT, onMess);
+    window.addEventListener(LINE_MESS_EVENT, onLine);
+    return () => {
+      window.removeEventListener(MESS_EVENT, onMess);
+      window.removeEventListener(LINE_MESS_EVENT, onLine);
+    };
   }, []);
 
   return (

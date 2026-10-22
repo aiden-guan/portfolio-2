@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- **Recents on a clothesline**: a band right under the card, with the latest photos pegged on a cord strung between two screw eyes in the mat, each a print with a line about it and a date written on its border; a click opens it large. The cord and photos are weighed and swing (`lib/clothesline.ts`): a hand passing over the line brushes it, and a photo can be tugged, or pulled right off its pegs. The knife cuts the cord wherever it's drawn across it, and the torch burns through it: the cut ends drop and hang off their screw eyes, the pegs slide down and off the frayed ends, and the photos flutter down onto the mat. Tidy strings the line again and pegs everything back up. The line is only worked on while something on it moves and while it's on screen.
+- **Recents in the editor**: a Recents tab in `/admin` to add photos (newest go to the front of the line), crop them, and write what each one is and when. Up to 12.
+
 ## [1.6.0] — 2026-10-21
 
 ### Summary

@@ -46,7 +46,7 @@ Behind the mat is a private, authenticated in-browser CMS. Content edits and pro
 | Private In-Browser Headless CMS | Zero-Flicker Theme Engine |
 | :--- | :--- |
 | ![Admin CMS Portal](assets/readme/admin-preview.png) | **Instant Dark / Light Adaptation**: Zero-dependency inline `<head>` script evaluates `localStorage` and OS `prefers-color-scheme` before the DOM paints, eliminating theme flash (FOIT) without layout shift. Dark mode swaps the green mat for the black one. |
-| **Zero-Redeploy Publishing**: Dedicated `/admin` route protected by cryptographic session tokens. Allows full editing of profile copy, social links, section titles, project details (including what each project is printed as on the mat), and asset uploads directly to Cloudflare R2 with pre-signed size validation and hard storage blockers. | **Edge Social Generation**: Dynamically generates high-resolution Open Graph image cards via `@vercel/og` with automatic sitemap generation and canonical metadata routing. |
+| **Zero-Redeploy Publishing**: Dedicated `/admin` route protected by cryptographic session tokens. Allows full editing of profile copy, social links, section titles, project details (including what each project is printed as on the mat), the recent photos pegged on the clothesline, and asset uploads directly to Cloudflare R2 with pre-signed size validation and hard storage blockers. | **Edge Social Generation**: Dynamically generates high-resolution Open Graph image cards via `@vercel/og` with automatic sitemap generation and canonical metadata routing. |
 
 ---
 

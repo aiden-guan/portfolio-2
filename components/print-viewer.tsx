@@ -15,6 +15,8 @@ type GalleryImage = {
   fit: string;
   position: string;
   kind: MediaKind;
+  // a line of its own, under it, instead of the gallery's title
+  caption?: string;
 };
 
 type MediaKind = "image" | "video";
@@ -31,7 +33,7 @@ function mediaKind(media: Media): MediaKind {
 
 // Prints load videos with a `#t=` fragment to show a frame; the viewer plays from the start.
 function mediaSrc(media: Media) {
-  return (media.currentSrc || media.src).split("#")[0] ?? "";
+  return (media.dataset.full || media.currentSrc || media.src).split("#")[0] ?? "";
 }
 
 function mediaAlt(media: Media) {
@@ -83,7 +85,7 @@ export function PrintViewer() {
     const onClick = (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof Element) || viewer.current?.contains(target)) return;
-      const print = target.closest<HTMLElement>('.thing[data-action="open"]');
+      const print = target.closest<HTMLElement>('.thing[data-action="open"], .line-photo');
       if (!print) return;
       event.preventDefault();
       actions.current.open(print, event.detail === 0);
@@ -255,7 +257,7 @@ export function PrintViewer() {
     if (!name || open.current) return;
     // every print of the same piece of work, in order
     // (a print that's been cut in two shows as itself, whole)
-    const all = [...document.querySelectorAll<HTMLElement>(`.thing[data-gallery="${CSS.escape(name)}"]:not([data-piece])`)].sort(
+    const all = [...document.querySelectorAll<HTMLElement>(`:is(.thing, .line-photo)[data-gallery="${CSS.escape(name)}"]:not([data-piece])`)].sort(
       (a, b) => Number(a.dataset.print ?? 0) - Number(b.dataset.print ?? 0),
     );
     const gallery = all.flatMap((item): GalleryImage[] => {
@@ -268,6 +270,7 @@ export function PrintViewer() {
           fit: media.style.objectFit || "cover",
           position: media.style.objectPosition || "50% 50%",
           kind: mediaKind(media),
+          caption: item.dataset.caption,
         },
       ];
     });
@@ -394,7 +397,7 @@ export function PrintViewer() {
         </button>
         <div className="print-viewer-selection">
           <div className="print-viewer-caption" aria-live="polite">
-            <span>{title}</span>
+            <span>{images[index]?.caption || title}</span>
             <span className="print-viewer-count">{images.length ? `${index + 1} / ${images.length}` : ""}</span>
           </div>
           <div className="print-viewer-thumbnails" role="group" aria-label="Choose image">

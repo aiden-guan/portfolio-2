@@ -6,6 +6,7 @@ import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 import "./scenery.css";
 import "./mat.css";
+import "./recents.css";
 
 const siteUrl = getSiteUrl();
 

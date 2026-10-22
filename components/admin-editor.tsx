@@ -12,12 +12,15 @@ import {
 import Link from "next/link";
 import { AdminImageEditor } from "@/components/admin-image-editor";
 import { AdminStorageGuard } from "@/components/admin-storage-guard";
-import type {
-  PortfolioContent,
-  ProfileLink,
-  Project,
-  ThingKind,
-  TimelineEntry,
+import {
+  MAX_RECENTS,
+  type PortfolioContent,
+  type PortfolioImage,
+  type ProfileLink,
+  type Project,
+  type Recent,
+  type ThingKind,
+  type TimelineEntry,
 } from "@/content/portfolio";
 import { projectKind } from "@/lib/mat";
 
@@ -30,10 +33,11 @@ const thingKinds: { id: ThingKind; label: string }[] = [
   { id: "ticket", label: "Ticket" },
 ];
 
-type EditorTab = "profile" | "projects" | "experience" | "about" | "settings";
+type EditorTab = "profile" | "recents" | "projects" | "experience" | "about" | "settings";
 
 const tabs: { id: EditorTab; label: string }[] = [
   { id: "profile", label: "Profile" },
+  { id: "recents", label: "Recents" },
   { id: "projects", label: "Work" },
   { id: "experience", label: "Experience" },
   { id: "about", label: "About" },
@@ -122,6 +126,26 @@ function emptyTimelineEntry(): TimelineEntry {
     summary: "What you did.",
     images: [],
   };
+}
+
+// This month, the way it's written under a photo: "Oct 2026".
+function thisMonth() {
+  return new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+// The photos as the uploader has them, back onto the line: anything new goes
+// at the front (newest first), and what's already there keeps its words.
+function recentsFrom(images: PortfolioImage[], current: Recent[]) {
+  const known = new Map(current.map((recent) => [recent.image.src, recent]));
+  const fresh = images.filter((image) => !known.has(image.src));
+  if (fresh.length === 0) {
+    return images.map((image) => ({ ...known.get(image.src)!, image }));
+  }
+  const kept = new Set(images.map((image) => image.src));
+  return [
+    ...fresh.reverse().map((image) => ({ image, caption: "", date: thisMonth() })),
+    ...current.filter((recent) => kept.has(recent.image.src)),
+  ];
 }
 
 function reorderItems<T>(items: T[], fromIndex: number, toIndex: number) {
@@ -503,6 +527,16 @@ export function AdminEditor() {
     });
   }
 
+  function updateRecent(index: number, patch: Partial<Recent>) {
+    setContent((current) => {
+      if (!current) return current;
+      const recents = current.recents.map((recent, recentIndex) =>
+        recentIndex === index ? { ...recent, ...patch } : recent,
+      );
+      return { ...current, recents };
+    });
+  }
+
   function reorderProjects(fromIndex: number, toIndex: number) {
     setContent((current) =>
       current
@@ -595,7 +629,7 @@ export function AdminEditor() {
     );
   }
 
-  const { about, interests, profile, projects, sections, seo, timeline } = content;
+  const { about, interests, profile, projects, recents, sections, seo, timeline } = content;
 
   return (
     <main className="editor-shell">
@@ -913,6 +947,42 @@ export function AdminEditor() {
               >
                 + Add project
               </button>
+            </EditorSection>
+          ) : null}
+
+          {activeTab === "recents" ? (
+            <EditorSection eyebrow="01 / Recents" title="Photos pegged on the line, left to right.">
+              <AdminImageEditor
+                images={recents.map((recent) => recent.image)}
+                directUpload={configured}
+                nameForAlt="Recent photo"
+                max={MAX_RECENTS}
+                photosOnly
+                heading="On the line"
+                hint={`Add a photo and write a line about it. New photos go to the front of the line. Drag a photo to set its crop. Up to ${MAX_RECENTS}. Save to put them up.`}
+                onChange={(images) =>
+                  setContent((current) =>
+                    current ? { ...current, recents: recentsFrom(images, current.recents) } : current,
+                  )
+                }
+                fields={(index) => (
+                  <>
+                    <Field
+                      label="What it is"
+                      value={recents[index]?.caption ?? ""}
+                      onChange={(value) => updateRecent(index, { caption: value })}
+                      multiline
+                      rows={2}
+                      hint="Written on the print, two short lines at most."
+                    />
+                    <Field
+                      label="When"
+                      value={recents[index]?.date ?? ""}
+                      onChange={(value) => updateRecent(index, { date: value })}
+                    />
+                  </>
+                )}
+              />
             </EditorSection>
           ) : null}
 
