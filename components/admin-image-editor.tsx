@@ -1,6 +1,6 @@
 "use client";
 
-import { type DragEvent, type PointerEvent as ReactPointerEvent, useId, useRef, useState } from "react";
+import { type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode, useId, useRef, useState } from "react";
 import Image from "next/image";
 import { upload } from "@vercel/blob/client";
 import { imageFrame, isVideo, MAX_PROJECT_IMAGES, type PortfolioImage } from "@/content/portfolio";
@@ -29,6 +29,7 @@ const ACCEPT = [
   ...Object.keys(VIDEO_EXTENSIONS),
   ...Object.keys(VIDEO_TYPES_BY_EXTENSION).map((extension) => `.${extension}`),
 ].join(",");
+const PHOTO_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif";
 
 class UploadError extends Error {}
 
@@ -55,9 +56,22 @@ export function AdminImageEditor({
   nameForAlt,
   directUpload,
   onChange,
+  max = MAX_PROJECT_IMAGES,
+  photosOnly = false,
+  heading = "Images and videos",
+  hint,
+  fields,
 }: {
   images: PortfolioImage[];
   nameForAlt: string;
+  // how many it holds
+  max?: number;
+  // photos, no videos
+  photosOnly?: boolean;
+  heading?: string;
+  hint?: string;
+  // more fields for each item, in place of its description
+  fields?: (index: number) => ReactNode;
   // With Blob connected, videos upload straight from the browser, since they
   // outgrow the serverless request body limit.
   directUpload: boolean;
@@ -69,7 +83,10 @@ export function AdminImageEditor({
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
-  const atLimit = images.length >= MAX_PROJECT_IMAGES;
+  const atLimit = images.length >= max;
+  // photos on the line are always cropped to the print
+  const framing = (image: PortfolioImage) => imageFrame(photosOnly ? { ...image, fit: "cover" } : image);
+  const full = max === MAX_PROJECT_IMAGES ? "A row holds six items." : `This holds ${max} items.`;
 
   async function uploadVideo(file: File, extension: string, contentType: string) {
     const pathname = `portfolio/media/${crypto.randomUUID()}.${extension}`;
@@ -225,12 +242,12 @@ export function AdminImageEditor({
   }
 
   async function addFiles(list: FileList | File[]) {
-    const incoming = Array.from(list).filter((file) => file.size > 0);
+    const incoming = Array.from(list).filter((file) => file.size > 0 && !(photosOnly && videoTypeForFile(file)));
     if (incoming.length === 0) return;
 
-    const room = MAX_PROJECT_IMAGES - images.length;
+    const room = max - images.length;
     if (room <= 0) {
-      setError("A row holds six items.");
+      setError(full);
       return;
     }
 
@@ -250,7 +267,8 @@ export function AdminImageEditor({
         const item: PortfolioImage = {
           src,
           alt: position === 1 ? nameForAlt : `${nameForAlt} ${position}`,
-          fit: "contain",
+          // photos on the line are always cropped to the print
+          fit: photosOnly ? "cover" : "contain",
         };
         if (videoTypeForFile(file)) item.kind = "video";
         next.push(item);
@@ -263,7 +281,7 @@ export function AdminImageEditor({
       setUploadProgress(null);
       if (inputRef.current) inputRef.current.value = "";
       if (leftOut > 0) {
-        setError((current) => current || "A row holds six items. Extra files were left out.");
+        setError((current) => current || `${full} Extra files were left out.`);
       }
     }
   }
@@ -284,7 +302,7 @@ export function AdminImageEditor({
 
   function onPreviewPointerDown(event: ReactPointerEvent<HTMLDivElement>, index: number) {
     const image = images[index];
-    if (!image || imageFrame(image).fit !== "cover") return;
+    if (!image || framing(image).fit !== "cover") return;
     const preview = event.currentTarget;
     const startX = event.clientX;
     const startY = event.clientY;
@@ -333,11 +351,10 @@ export function AdminImageEditor({
     >
       <div className="editor-subsection-heading">
         <div>
-          <h3>Images and videos</h3>
+          <h3>{heading}</h3>
           <p className="editor-hint editor-image-hint">
-            Uploads keep their full frame. Choose Fill card if you want to crop one, then drag
-            it to set what stays visible. The last item sits on top. Videos play muted in the
-            viewer, up to 15 MB. MP4, M4V, WebM, and MOV are supported. Save after editing.
+            {hint ??
+              "Uploads keep their full frame. Choose Fill card if you want to crop one, then drag it to set what stays visible. The last item sits on top. Videos play muted in the viewer, up to 15 MB. MP4, M4V, WebM, and MOV are supported. Save after editing."}
           </p>
         </div>
         <div>
@@ -346,7 +363,7 @@ export function AdminImageEditor({
             id={inputId}
             className="editor-file-input"
             type="file"
-            accept={ACCEPT}
+            accept={photosOnly ? PHOTO_ACCEPT : ACCEPT}
             multiple
             disabled={uploading || atLimit}
             tabIndex={-1}
@@ -364,7 +381,9 @@ export function AdminImageEditor({
               ? uploadProgress?.phase === "preparing"
                 ? "Preparing video…"
                 : "Adding…"
-              : "Add media"}
+              : photosOnly
+                ? "Add photos"
+                : "Add media"}
           </button>
         </div>
       </div>
@@ -401,7 +420,7 @@ export function AdminImageEditor({
       {images.length > 0 ? (
         <div className="editor-image-grid">
           {images.map((image, index) => {
-            const frame = imageFrame(image);
+            const frame = framing(image);
             return (
             <article className="editor-image-card" key={`${image.src}-${index}`}>
               <div
@@ -427,37 +446,43 @@ export function AdminImageEditor({
                   />
                 )}
               </div>
-              <div className="editor-fit-toggle" role="group" aria-label={`Framing for image ${index + 1}`}>
-                <button
-                  className="editor-button editor-button-small"
-                  type="button"
-                  aria-pressed={frame.fit === "contain"}
-                  onClick={() => updateImage(index, { fit: "contain" })}
-                >
-                  Whole frame
-                </button>
-                <button
-                  className="editor-button editor-button-small"
-                  type="button"
-                  aria-pressed={frame.fit === "cover"}
-                  onClick={() => updateImage(index, { fit: "cover" })}
-                >
-                  Fill card
-                </button>
-              </div>
+              {photosOnly ? null : (
+                <div className="editor-fit-toggle" role="group" aria-label={`Framing for image ${index + 1}`}>
+                  <button
+                    className="editor-button editor-button-small"
+                    type="button"
+                    aria-pressed={frame.fit === "contain"}
+                    onClick={() => updateImage(index, { fit: "contain" })}
+                  >
+                    Whole frame
+                  </button>
+                  <button
+                    className="editor-button editor-button-small"
+                    type="button"
+                    aria-pressed={frame.fit === "cover"}
+                    onClick={() => updateImage(index, { fit: "cover" })}
+                  >
+                    Fill card
+                  </button>
+                </div>
+              )}
               <p className="editor-image-note">
                 {frame.fit === "cover"
                   ? `Drag the ${isVideo(image) ? "video" : "photo"} to set the crop.`
                   : `The full ${isVideo(image) ? "video" : "photo"} stays visible.`}
               </p>
-              <label className="editor-field" htmlFor={`${inputId}-alt-${index}`}>
-                <span className="editor-label">Description</span>
-                <input
-                  id={`${inputId}-alt-${index}`}
-                  value={image.alt}
-                  onChange={(event) => updateImage(index, { alt: event.target.value })}
-                />
-              </label>
+              {fields ? (
+                fields(index)
+              ) : (
+                <label className="editor-field" htmlFor={`${inputId}-alt-${index}`}>
+                  <span className="editor-label">Description</span>
+                  <input
+                    id={`${inputId}-alt-${index}`}
+                    value={image.alt}
+                    onChange={(event) => updateImage(index, { alt: event.target.value })}
+                  />
+                </label>
+              )}
               <div className="editor-image-actions">
                 <button
                   className="editor-icon-button"

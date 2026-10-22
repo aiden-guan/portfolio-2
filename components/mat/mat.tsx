@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Places } from "@/components/mat/places";
+import { Recents } from "@/components/mat/recents";
 import { Wordmark } from "@/components/mat/wordmark";
 import {
   ApprovalForm,
@@ -116,7 +117,7 @@ function Band({ id, children, className }: { id: string; children: ReactNode; cl
 }
 
 export function Mat({ content }: { content: PortfolioContent }) {
-  const { about, interests, profile, projects, sections, timeline } = content;
+  const { about, interests, profile, projects, recents, sections, timeline } = content;
   const paragraphs = about.paragraphs.filter((paragraph) => paragraph.length > 0);
   const notes = interests.filter((interest) => interest.length > 0);
   const year = new Date().getFullYear();
@@ -150,6 +151,11 @@ export function Mat({ content }: { content: PortfolioContent }) {
           </span>
         </p>
       </section>
+
+      <Band id="recents" className="mat-band-recents">
+        <SectionHead id="recents" label="00 / Recents" title="Lately, on the line." count={recents.length} />
+        <Recents recents={recents} />
+      </Band>
 
       <Band id="work">
         <SectionHead id="work" label={sections.work.label} title={sections.work.title} count={projects.length} />

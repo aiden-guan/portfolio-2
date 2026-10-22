@@ -4,9 +4,11 @@ import { isR2Configured, getR2Object, putR2Object } from "@/lib/r2";
 import {
   defaultPortfolio,
   MAX_PROJECT_IMAGES,
+  MAX_RECENTS,
   type PortfolioContent,
   type PortfolioImage,
   type Project,
+  type Recent,
   type ProjectLink,
   type SectionId,
   type TimelineEntry,
@@ -178,6 +180,23 @@ function readTimeline(value: unknown) {
   return timeline.every((item): item is TimelineEntry => item !== null) ? timeline : null;
 }
 
+// Older content has no recents; anything that isn't a photo is left off the line.
+function readRecents(value: unknown): Recent[] {
+  if (!Array.isArray(value)) return [];
+  const recents: Recent[] = [];
+  for (const item of value) {
+    if (recents.length >= MAX_RECENTS || !isRecord(item)) continue;
+    const [image] = readImages([item.image]);
+    if (!image) continue;
+    recents.push({
+      image,
+      caption: typeof item.caption === "string" ? item.caption.trim().slice(0, 240) : "",
+      date: typeof item.date === "string" ? item.date.trim().slice(0, 40) : "",
+    });
+  }
+  return recents;
+}
+
 function readSections(value: unknown) {
   if (!isRecord(value)) return null;
   const sectionIds: SectionId[] = ["work", "experience", "about"];
@@ -236,6 +255,7 @@ export function parsePortfolioContent(value: unknown): PortfolioContent | null {
   const timeline = readTimeline(value.timeline);
   const paragraphs = about && readTextArray(about.paragraphs, 12);
   const interests = readTextArray(value.interests, 24);
+  const recents = readRecents(value.recents);
 
   if (
     name === null ||
@@ -277,6 +297,7 @@ export function parsePortfolioContent(value: unknown): PortfolioContent | null {
     timeline,
     about: { paragraphs },
     interests,
+    recents,
   };
 }
 
