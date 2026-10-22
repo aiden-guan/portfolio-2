@@ -145,7 +145,7 @@ export function Mat({ content }: { content: PortfolioContent }) {
             <span className="hint-touch">Tap to turn over</span>
           </span>
           <span>
-            <span className="hint-pointer">Cut the mat</span>
+            <span className="hint-pointer">Cut anything</span>
             <span className="hint-touch">Hold the mat to cut it</span>
           </span>
         </p>

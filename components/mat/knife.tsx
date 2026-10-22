@@ -21,6 +21,14 @@ export function Knife() {
             <clipPath id="knife-barrel">
               <rect x="41" y="-1.8" width="73.5" height="9.2" />
             </clipPath>
+            {/* the point is down in the mat, out of sight below its surface */}
+            <linearGradient id="knife-sink-fade" x1="0.2" y1="0" x2="2.2" y2="0" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stopColor="#000" />
+              <stop offset="1" stopColor="#fff" />
+            </linearGradient>
+            <mask id="knife-sink" maskUnits="userSpaceOnUse" x="-4" y="-8" width="132" height="24">
+              <rect x="-4" y="-8" width="132" height="24" fill="url(#knife-sink-fade)" />
+            </mask>
           </defs>
           {/* the tip is on the mat and the handle is held up off it, so the
               shadow leaves the knife further along its length */}
@@ -29,7 +37,7 @@ export function Knife() {
             <path d="M28.6 -0.5 L41 -1.8 H121 C123.6 -1.8 124.4 7.4 121 7.4 H41 L28.6 6.1 Z" />
           </g>
           {/* the blade: its spine straight, its edge ground at a shallow angle */}
-          <g stroke="#5f6460" strokeWidth="0.22" strokeLinejoin="round">
+          <g stroke="#5f6460" strokeWidth="0.22" strokeLinejoin="round" mask="url(#knife-sink)">
             <path d="M0 0 L29.5 0 V5.6 L22 5.6 Z" fill="#d3d7d4" />
             <path d="M0 0 L22 5.6 L22.3 4.4 L4.6 0 Z" fill="#f3f4f2" stroke="none" />
             <path d="M4.6 0 L22.3 4.4" stroke="#a7aca8" strokeWidth="0.16" fill="none" />

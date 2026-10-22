@@ -2,7 +2,7 @@
 
 # Aiden Guan — The Cutting Mat
 
-**A portfolio laid out as printed things on a self-healing cutting mat, to pick up, throw, turn over, tear, punch and cut, with a private headless CMS, made with Next.js 16, React 19, TypeScript, and Cloudflare R2 storage.**
+**A portfolio laid out as printed things on a self-healing cutting mat, to pick up, throw, turn over, tear, punch, cut and burn, with a private headless CMS, made with Next.js 16, React 19, TypeScript, and Cloudflare R2 storage.**
 
 [Live Site](https://aidenguan.com) · [Architecture](#system-architecture) · [Admin CMS](#private-headless-cms-admin-editor) · [Engineering Deep Dives](#engineering-deep-dives) · [Quick Start](#getting-started)
 
@@ -30,7 +30,7 @@ The portfolio is a designer's cutting mat with the work laid out on it, knolled 
 
 Everything on the mat can be picked up. The point you hold stays under the pointer and the sheet swings about it the way paper does, slides to a stop when thrown, and turns over on a click. Tickets punch, time cards clock in at the current Berkeley time, the envelope is postmarked before it opens an email, and **Tidy** squares everything back up. Wherever a thing was taken from, crop marks stay printed on the mat, and a thing set down near them is pulled square onto them.
 
-The mat itself is a self-healing one, so it can be cut. Over the bare mat the pointer is a blade; drag it and a craft knife, drawn to scale, comes down and opens a hairline cut that reads off its length in millimetres, then closes up behind the blade from where it began, like a zip, and fades. Shift lays a straight edge. Once a visit the knife shows how, by underlining the hint that says to cut the mat. The rulers along the top and down the side follow the pointer, and the extent of whatever is held, the way a drawing program's do. Each thing is plain HTML in reading order; the physics is only transforms on top.
+The mat itself is a self-healing one, so it can be cut. Over the bare mat the pointer is a blade; drag it and a craft knife, drawn to scale, comes down and opens a hairline cut that reads off its length in millimetres, then closes up behind the blade from where it began, like a zip, and fades. Shift lays a straight edge. Once a visit the knife shows how, by underlining the hint that says to cut. The knife cuts whatever is on the mat too: drawn right across a sheet, it parts it in two along the line it took, and each piece moves on its own. Pick up the torch instead and it browns, chars and burns through paper, and scorches the mat; Tidy brings every piece home and mends it. The rulers along the top and down the side follow the pointer, and the extent of whatever is held, the way a drawing program's do. Each thing is plain HTML in reading order; the physics is only transforms on top.
 
 Behind the mat is a private, authenticated in-browser CMS. Content edits and project media publish instantly to production via Cloudflare R2 object storage with zero build latency, zero egress fees, and zero redeployment requirements.
 
@@ -41,7 +41,7 @@ Behind the mat is a private, authenticated in-browser CMS. Content edits and pro
 | The Mat | Scenery Versions |
 | :--- | :--- |
 | ![PigeonBox's postcard turned over to its riso-printed picture side, its instant film thrown across it](assets/readme/mat-preview.jpg) | ![The receipt and prints lying over the Chongqing night-rain scene](assets/readme/scenery-preview.jpg) |
-| **Things With Weight**: Each project is printed as its own object (receipt, stamped form, postcard, measured drawing, ticket) with its photos and films beside it. Grab anything by any point and it swings about your hand; throw it and it slides; click to turn it over; tear the ticket's stub, punch it, clock in on a time card; drop it near its crop marks and it seats; Tidy knolls it all back. Cut the bare mat and it heals. Films play while they're in view; a print opens full size. | **Peel to Another World**: The curled page corner peels the mat away to four animated dot-"ascii" scenes, and the same places lie on the mat as living postcards: click one and the mat becomes that place. The paper stays paper, lying on the scene, and the printed name is redrawn in the scene's own dots. |
+| **Things With Weight**: Each project is printed as its own object (receipt, stamped form, postcard, measured drawing, ticket) with its photos and films beside it. Grab anything by any point and it swings about your hand; throw it and it slides; click to turn it over; tear the ticket's stub, punch it, clock in on a time card; drop it near its crop marks and it seats; Tidy knolls it all back. Cut the mat and it heals; cut the paper and it comes apart; burn it with the torch. Films play while they're in view; a print opens full size. | **Peel to Another World**: The curled page corner peels the mat away to four animated dot-"ascii" scenes, and the same places lie on the mat as living postcards: click one and the mat becomes that place. The paper stays paper, lying on the scene, and the printed name is redrawn in the scene's own dots. |
 
 | Private In-Browser Headless CMS | Zero-Flicker Theme Engine |
 | :--- | :--- |
@@ -107,8 +107,9 @@ flowchart LR
 3. **Payload Sanitization**: Payloads pass through `parsePortfolioContent()`, which validates all strings, arrays, safe URI protocols (`http:`, `https:`, `mailto:`), and bounds check text lengths.
 4. **DOM Painting & Theme Application**: An inline script in `<head>` applies `dataset.theme` prior to paint. The server renders the mat as plain HTML (`components/mat/mat.tsx`): the printed name and business card, then a band per section, with each project printed as the thing `projectKind()` in `lib/mat.ts` picks for it (or the editor's choice), its prints beside it.
 5. **Picking Things Up**: The client `Table` (`components/mat/table.tsx`) measures where CSS put each thing and adds only an offset and a turn on top, as transforms. A held sheet keeps the held point under the pointer and swings about it under the mat's drag; let go, it slides to a stop, or seats onto its crop marks if it stops near them. Clicks turn things over, punch tickets, clock in, open prints in the print viewer, frank the envelope, or travel to a scene; Tidy springs everything home.
-6. **Cutting the Mat**: A press on the bare mat goes to `lib/cuts.ts` instead: the knife (`components/mat/knife.tsx`) comes down at the pointer, the cut is recorded in mat coordinates and drawn into a canvas that scrolls with the mat, and it heals on its own clock.
-7. **Authenticated Publishing**: When the maintainer accesses `/admin`, credentials authenticate against SHA-256 session cookies. Updated JSON documents write atomically to Cloudflare R2 via `savePortfolioContent()`. Direct media uploads stream straight to R2 via S3 presigned URLs with exact `ContentLength` verification and storage quota checks, updating public visitor traffic immediately.
+6. **Cutting the Mat**: A press on the bare mat goes to `lib/cuts.ts` instead: the knife (`components/mat/knife.tsx`) comes down at the pointer, the cut is recorded in mat coordinates and drawn into a canvas that scrolls with the mat, and it heals on its own clock. Every point of the blade's path is also handed to the table, which cuts the paper under it (`lib/wear.ts`) and parts a sheet the blade goes right across.
+7. **Burning**: With the torch in hand (`components/mat/tools.tsx`), a press anywhere on the mat goes to `lib/torch.ts`, which asks the table to heat whatever is uppermost under the flame each frame, scorches the bare mat, and draws the flame, smoke and sparks over everything.
+8. **Authenticated Publishing**: When the maintainer accesses `/admin`, credentials authenticate against SHA-256 session cookies. Updated JSON documents write atomically to Cloudflare R2 via `savePortfolioContent()`. Direct media uploads stream straight to R2 via S3 presigned URLs with exact `ContentLength` verification and storage quota checks, updating public visitor traffic immediately.
 
 ---
 
@@ -147,7 +148,14 @@ The repository integrates a full-featured content management suite under `app/ad
 - **Why**: Cutting is the one thing a cutting mat is for, and healing is the one thing this kind does; a canvas fixed to the window would trail a frame behind native scrolling, and a canvas the height of the page would cost tens of megabytes.
 - **Tradeoff**: Cuts are decoration and are not kept: they heal in a few seconds, and a reload leaves the mat whole. There is no mat under a scenery version, so there is nothing to cut there.
 
-### 4. Zero-Hydration-Flash Dark & Light Theme Architecture
+### 4. Paper That Comes Apart and Burns
+
+- **Problem**: A sheet on the mat is real HTML (links, text, a film), not a picture of one, yet a cut has to part it along the exact line the blade took and a flame has to burn holes through it, on both faces, while it can still be dragged, thrown and turned over, and all of it has to be undone by Tidy.
+- **Approach**: `lib/wear.ts` keeps a sheet's damage in its own frame: its outline, ragged holes, a millimetre grid of char and its slits. The outline less the holes (by `polygon-clipping`) becomes an even-odd `clip-path: path()` on each face, mirrored for the back, and on the box it turns in, so only paper catches the pointer. The table parts a sheet by cloning it, laying the clone exactly over it and giving each one side of the cut; each piece turns about the middle of what's left of it, shifted so nothing moves on screen. The char is a small image upscaled and multiplied into the paper; slits and glowing edges are drawn over it.
+- **Why**: Clipping the real element keeps its print crisp at any size and keeps everything working on the pieces, at the cost of only a canvas or two per damaged sheet.
+- **Tradeoff**: A piece is a copy, hidden from assistive technology, so the page is read once, whole. Damage isn't kept: Tidy or a reload undoes it.
+
+### 5. Zero-Hydration-Flash Dark & Light Theme Architecture
 
 - **Problem**: React App Router components hydrating asynchronously often cause a bright white flash when a visitor has selected dark mode (FOIT) if theme state is resolved within `useEffect`.
 - **Approach**: Injected an inline script block directly inside `app/layout.tsx` `<head>` before any body elements render. The script synchronously evaluates `localStorage.getItem('aiden-theme')` or system `window.matchMedia('(prefers-color-scheme: dark)')` and stamps `data-theme` directly onto `document.documentElement`.
@@ -161,7 +169,7 @@ The repository integrates a full-featured content management suite under `app/ad
 ### Client & Presentation
 - **Framework**: Next.js 16.3.4 (App Router, Server Components)
 - **UI Runtime**: React 19.2.8
-- **Typography & Styling**: Archivo (variable width), Martian Mono, Doto (dot-matrix) and Libre Barcode 128 via `next/font`; CSS custom properties sized in millimetres of mat; CSS 3D for turning things over; a 2D canvas for the cuts; and a few kilobytes of Web Audio for paper foley (slides, landings, tears, punches, the blade, a postmark)
+- **Typography & Styling**: Archivo (variable width), Martian Mono, Doto (dot-matrix) and Libre Barcode 128 via `next/font`; CSS custom properties sized in millimetres of mat; CSS 3D for turning things over; 2D canvases for the cuts, the scorch and the flame; `polygon-clipping` for what's left of a cut or burnt sheet; and a few kilobytes of Web Audio for paper foley (slides, landings, tears, punches, the blade, a postmark, the torch)
 - **Media Optimization**: Next.js Image component with responsive sizing and layout containment
 
 ### Server & Route Handlers
@@ -261,6 +269,8 @@ portfolio-2/
 │   │   ├── things.tsx       # Business card, receipt, form, postcard, drawing, ticket, time card, envelope, prints
 │   │   ├── table.tsx        # Picking things up: paper physics, turning over, tearing, punching, crop marks, rulers, Tidy
 │   │   ├── knife.tsx        # The craft knife, drawn to scale, and the layer the cuts are drawn on
+│   │   ├── torch.tsx        # The pocket torch, drawn to scale, and the layers the flame and scorch are drawn on
+│   │   ├── tools.tsx        # Knife or torch: what's in hand
 │   │   ├── places.tsx       # Living postcards of the scenery versions, which travel there
 │   │   └── wordmark.tsx     # The name printed into the mat, fitted to it
 │   ├── print-viewer.tsx     # Full-size viewer for the prints and films on the mat
@@ -276,7 +286,9 @@ portfolio-2/
 │   ├── r2-limits.ts         # Storage quota guard, bucket counter, and hard limit blocker
 │   ├── mat.ts               # What each project is printed as, stamps, barcodes, periods
 │   ├── cuts.ts              # Cutting the mat: the blade, the cut, and how it heals
-│   ├── riffle.ts            # Synthesised paper foley (slide, land, turn, tear, punch, blade, postmark) and its switch
+│   ├── wear.ts              # What a knife and a flame do to paper: outline, holes, char, slits
+│   ├── torch.ts             # Burning: the flame, smoke, sparks, ash and the mat's scorches
+│   ├── riffle.ts            # Synthesised paper foley (slide, land, turn, tear, punch, blade, postmark, torch) and its switch
 │   ├── scenery/             # Dot-field renderer and the four scenery versions
 │   └── site-url.ts          # Canonical site origin resolver
 ├── scripts/

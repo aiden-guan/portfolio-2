@@ -254,7 +254,8 @@ export function PrintViewer() {
     const name = print.dataset.gallery;
     if (!name || open.current) return;
     // every print of the same piece of work, in order
-    const all = [...document.querySelectorAll<HTMLElement>(`.thing[data-gallery="${CSS.escape(name)}"]`)].sort(
+    // (a print that's been cut in two shows as itself, whole)
+    const all = [...document.querySelectorAll<HTMLElement>(`.thing[data-gallery="${CSS.escape(name)}"]:not([data-piece])`)].sort(
       (a, b) => Number(a.dataset.print ?? 0) - Number(b.dataset.print ?? 0),
     );
     const gallery = all.flatMap((item): GalleryImage[] => {
@@ -282,7 +283,7 @@ export function PrintViewer() {
     document.documentElement.dataset.viewing = "true";
     setImages(gallery);
     setTitle(print.dataset.title || "Portfolio images");
-    setSource(Math.max(0, all.indexOf(print)));
+    setSource(Math.max(0, all.findIndex((item) => item === print || item.dataset.print === print.dataset.print)));
     placeStage(print);
     setIsClosing(false);
     setIsActive(true);

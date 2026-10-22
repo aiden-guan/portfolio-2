@@ -351,9 +351,22 @@ html[data-holding] {
   }
 }
 
-/* while cutting, the knife itself is the pointer */
+/* With the torch in hand, the pointer is a torch, over things as well. */
+@media (hover: hover) and (pointer: fine) {
+  html[data-tool="torch"]:not([data-scene]) .mat,
+  html[data-tool="torch"]:not([data-scene]) .mat * {
+    cursor:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 30 30'%3E%3Cg transform='translate(2 2) rotate(36)'%3E%3Cpath d='M3.2 0 L1 -1.1 L0 0 L1 1.1Z' fill='%236f8dff'/%3E%3Cpath d='M4 -0.9H10V0.9H4Z' fill='%23c99a4a' stroke='%2314221b' stroke-width='0.8'/%3E%3Cpath d='M10 -2.6H15V2.6H10Z' fill='%23232523' stroke='%2314221b' stroke-width='0.8'/%3E%3Cpath d='M15 -4.4H34V4.4H15Z' fill='%23c13a26' stroke='%2314221b' stroke-width='0.9'/%3E%3C/g%3E%3C/svg%3E")
+        2 2,
+      crosshair;
+  }
+}
+
+/* while cutting or burning, the knife or torch itself is the pointer */
 html[data-cutting],
-html[data-cutting] * {
+html[data-cutting] *,
+html[data-torching],
+html[data-torching] * {
   cursor: none !important;
   user-select: none;
   -webkit-user-select: none;
@@ -448,6 +461,210 @@ html[data-cutting] * {
   font-family: var(--font-mono), var(--mono);
   font-size: 2.2px;
   letter-spacing: 0.25px;
+}
+
+/* ---- burning ------------------------------------------------------------ */
+
+/* scorches on the mat, under the things on it, over the cuts */
+.mat-scorch {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  display: none;
+  pointer-events: none;
+}
+
+.mat-scorch[data-live] {
+  display: block;
+}
+
+/* the flame, its smoke and its sparks: over everything on the mat */
+.mat-fire {
+  position: fixed;
+  z-index: 2147483002;
+  inset: 0;
+  display: none;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.mat-fire[data-live] {
+  display: block;
+}
+
+/* the torch, drawn to scale; it's held up off the mat */
+.torch {
+  position: absolute;
+  z-index: 2147483000;
+  top: 0;
+  left: 0;
+  width: calc(var(--mm) * 166);
+  height: 0;
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+
+.torch-hand {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  scale: 1.08;
+  transform-origin: calc(var(--mm) * 17) 0;
+  visibility: hidden;
+  transition:
+    opacity 200ms var(--ease-out),
+    scale 260ms var(--ease-out),
+    visibility 0s linear 260ms;
+}
+
+.torch[data-down] .torch-hand {
+  opacity: 1;
+  scale: 1;
+  visibility: visible;
+  transition:
+    opacity 90ms var(--ease-out),
+    scale 170ms var(--ease-out),
+    visibility 0s;
+}
+
+.torch-art {
+  position: absolute;
+  top: calc(var(--mm) * -16);
+  left: calc(var(--mm) * -4);
+  width: calc(var(--mm) * 166);
+  height: calc(var(--mm) * 34);
+  overflow: visible;
+}
+
+.torch-shadow {
+  fill: rgb(6 16 10 / 0.3);
+  transform: matrix(1.05, 0.12, 0, 1, 2.5, 6);
+}
+
+.torch-label {
+  fill: #8f2818;
+  font-family: var(--font-mono), var(--mono);
+  font-size: 2.6px;
+  font-weight: 600;
+  letter-spacing: 0.35px;
+}
+
+/* ---- what's been done to a thing ------------------------------------------ */
+
+/* Cut or burnt, a thing is only there where there's paper left: the box
+   it's laid out in doesn't catch the pointer, only the paper, which lib/wear
+   clips the box it turns in to. */
+.thing[data-worn] {
+  pointer-events: none;
+}
+
+.thing[data-worn] > .thing-turn {
+  pointer-events: auto;
+}
+
+/* the char, browning the paper; and the slits and embers, over it */
+.wear-scorch,
+.wear-marks {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.wear-scorch {
+  mix-blend-mode: multiply;
+}
+
+/* the back's are the front's, seen from behind */
+.thing-back > .wear-scorch,
+.thing-back > .wear-marks {
+  transform: scaleX(-1);
+}
+
+/* a piece is paper, not a new arrival: nothing of the page's opening plays */
+.thing[data-piece],
+.thing[data-piece] * {
+  animation: none !important;
+}
+
+/* burnt almost all away, what's left falls to ash */
+.thing.is-ash {
+  opacity: 0;
+  filter: brightness(0.15) blur(1px);
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity 900ms var(--ease-out),
+    filter 500ms var(--ease-out),
+    visibility 0s linear 900ms;
+}
+
+.thing.is-ash > .thing-turn {
+  pointer-events: none;
+}
+
+/* ---- what's in hand --------------------------------------------------------- */
+
+.tool-switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--mat-line-strong);
+  border-radius: 999px;
+  gap: 2px;
+}
+
+.tool-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.3rem 0.65rem 0.3rem 0.55rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mat-ink-dim);
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  transition:
+    background-color 200ms var(--ease),
+    color 160ms var(--ease);
+}
+
+.tool-switch button:hover {
+  color: var(--mat-ink);
+}
+
+.tool-switch button[aria-pressed="true"] {
+  background: var(--mat-ink);
+  color: var(--mat);
+}
+
+.tool-switch button[aria-pressed="true"] svg {
+  color: var(--print-red);
+}
+
+.tool-switch svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: none;
+}
+
+.tool-switch button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* the mat's put away while a scene is up */
+html[data-scene] .tool-switch {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* how long the cut is, read off beside the blade as it goes */
@@ -1014,14 +1231,17 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
   color: inherit;
 }
 
+/* a thing turns about its middle; a piece cut from it, about its own */
 .thing-turn {
   position: relative;
-  transform-origin: 50% 50%;
+  transform-origin: var(--ox, 50%) var(--oy, 50%);
   perspective: calc(var(--W) * var(--u) * 4);
+  perspective-origin: var(--ox, 50%) var(--oy, 50%);
 }
 
 .thing-body {
   position: relative;
+  transform-origin: var(--ox, 50%) var(--oy, 50%);
   transform-style: preserve-3d;
   transition: transform 720ms var(--ease-turn);
 }
@@ -2938,6 +3158,15 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
     display: none;
   }
 
+  /* just the knife and the flame */
+  .tool-switch span {
+    display: none;
+  }
+
+  .tool-switch button {
+    padding: 0.32rem 0.45rem;
+  }
+
   .mat-hero {
     padding-top: calc(var(--band) + 3rem);
   }
@@ -3113,7 +3342,9 @@ html[data-revealing] .ruler-guide {
   }
 
   .knife-hand,
-  .knife[data-down] .knife-hand {
+  .knife[data-down] .knife-hand,
+  .torch-hand,
+  .torch[data-down] .torch-hand {
     scale: 1;
   }
 }
