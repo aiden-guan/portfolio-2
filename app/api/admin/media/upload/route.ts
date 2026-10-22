@@ -5,7 +5,9 @@ import { isR2Configured, isR2CorsConfigured, getR2PresignedUploadUrl, getR2Publi
 import {
   blobStoreAccess,
   isVideoPathname,
+  MAX_IMAGE_BYTES,
   MAX_VIDEO_BYTES,
+  photoPathnameType,
   PortfolioMediaError,
   VIDEO_TOO_LARGE_MESSAGE,
   VIDEO_TYPES,
@@ -45,7 +47,7 @@ export async function GET() {
 }
 
 // Issues short-lived tokens so the editor can upload videos straight to Blob or R2,
-// skipping the serverless request body limit.
+// and photos straight to R2, skipping the serverless request body limit.
 export async function POST(request: Request) {
   if (!isContentStoreConfigured()) {
     return Response.json(
@@ -63,16 +65,25 @@ export async function POST(request: Request) {
 
   if (isR2Configured()) {
     if (!(await isAdminAuthenticated())) {
-      return Response.json({ error: "Sign in to add videos." }, { status: 401, headers: noStore });
+      return Response.json({ error: "Sign in to add media." }, { status: 401, headers: noStore });
     }
 
     const payload = body as { pathname?: string; contentType?: string; size?: number };
     const pathname = payload.pathname;
-    const contentType = payload.contentType || "video/mp4";
+    const photoType = pathname ? photoPathnameType(pathname) : null;
+    const contentType = photoType ?? (payload.contentType || "video/mp4");
     const size = typeof payload.size === "number" ? payload.size : undefined;
 
-    if (!pathname || !isVideoPathname(pathname)) {
-      return Response.json({ error: "Use an MP4, WebM, or MOV." }, { status: 400, headers: noStore });
+    if (!pathname || !(photoType || isVideoPathname(pathname))) {
+      return Response.json(
+        { error: "Use a JPEG, PNG, WebP, GIF, AVIF, MP4, WebM, or MOV." },
+        { status: 400, headers: noStore },
+      );
+    }
+
+    // a photo's size is signed into its upload, so it can't come in bigger
+    if (photoType && (size === undefined || size > MAX_IMAGE_BYTES)) {
+      return Response.json({ error: "Use an image under 4 MB." }, { status: 400, headers: noStore });
     }
 
     if (size !== undefined && size > MAX_VIDEO_BYTES) {
@@ -92,7 +103,7 @@ export async function POST(request: Request) {
         return Response.json({ error: (error as Error).message }, { status: 403, headers: noStore });
       }
       console.error("Failed to generate R2 presigned upload URL:", error);
-      return Response.json({ error: "Could not prepare video upload." }, { status: 500, headers: noStore });
+      return Response.json({ error: "Could not prepare the upload." }, { status: 500, headers: noStore });
     }
   }
 

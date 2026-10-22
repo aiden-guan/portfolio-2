@@ -32,6 +32,7 @@ const VIDEO_TYPES_BY_EXTENSION = new Map<string, string>([
 
 const MEDIA_NAME = /^[A-Za-z0-9._-]+$/;
 const VIDEO_PATHNAME = /^portfolio\/media\/[0-9a-f-]{36}\.(mp4|webm|mov)$/;
+const PHOTO_PATHNAME = /^portfolio\/media\/[0-9a-f-]{36}\.(jpg|png|webp|gif|avif)$/;
 
 function hasSignature(bytes: Uint8Array, type: string) {
   if (bytes.length < 12) return false;
@@ -125,6 +126,13 @@ export function mediaPathname(name: string) {
 // Pathnames the browser may claim for a direct-to-Blob video upload.
 export function isVideoPathname(pathname: string) {
   return VIDEO_PATHNAME.test(pathname);
+}
+
+// The type of an image the browser may put straight into R2 at `pathname`,
+// or null if it may not.
+export function photoPathnameType(pathname: string) {
+  const extension = PHOTO_PATHNAME.exec(pathname)?.[1];
+  return [...IMAGE_TYPES].find(([, known]) => known === extension)?.[0] ?? null;
 }
 
 export function portfolioMediaType(type: string, filename: string) {

@@ -32,6 +32,13 @@ const ACCEPT = [
 ].join(",");
 const PHOTO_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif";
 const PHOTO_TYPES = new Set(PHOTO_ACCEPT.split(","));
+const PHOTO_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/avif": "avif",
+};
 // the longest side kept of a photo for the line (it opens about that big), and
 // of one too big to store as it came
 const LINE_PHOTO_EDGE = 2560;
@@ -259,6 +266,48 @@ export function AdminImageEditor({
     );
   }
 
+  // With the media in R2 and its CORS policy letting the browser in, a photo
+  // goes straight there rather than through the site's server. Null when it
+  // can't, so it goes the other way.
+  async function uploadPhotoToR2(file: File) {
+    const extension = PHOTO_EXTENSIONS[file.type];
+    if (!directUpload || !extension) return null;
+    try {
+      const signal = AbortSignal.timeout(UPLOAD_PREPARATION_TIMEOUT_MS);
+      const store = await videoStoreAccess(signal);
+      if (store.provider !== "r2" || !store.corsConfigured) return null;
+
+      const pathname = `portfolio/media/${crypto.randomUUID()}.${extension}`;
+      const response = await fetch("/api/admin/media/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pathname, contentType: file.type, size: file.size }),
+        signal,
+      });
+      const data = (await response.json().catch(() => null)) as { presignedUrl?: string; url?: string } | null;
+      if (!response.ok || !data?.presignedUrl) return null;
+
+      setUploadProgress({ kind: "image", phase: "uploading", percentage: 0 });
+      await uploadPresignedR2(
+        data.presignedUrl,
+        file,
+        file.type,
+        AbortSignal.timeout(IMAGE_UPLOAD_TIMEOUT_MS),
+        (percentage) => {
+          setUploadProgress({
+            kind: "image",
+            phase: percentage >= 100 ? "finishing" : "uploading",
+            percentage: clampPercent(percentage),
+          });
+        },
+      );
+      return data.url || `/api/media/${encodeURIComponent(pathname.split("/").pop() ?? "")}`;
+    } catch (error) {
+      console.warn("Direct R2 upload failed, sending the photo through the server:", error);
+      return null;
+    }
+  }
+
   async function uploadFile(file: File) {
     const videoType = videoTypeForFile(file);
     const extension = videoType ? VIDEO_EXTENSIONS[videoType] : undefined;
@@ -269,7 +318,9 @@ export function AdminImageEditor({
       return uploadVideo(file, extension, videoType);
     }
 
-    return uploadViaServer(videoType ? file : await preparePhoto(file), videoType ? "video" : "image");
+    if (videoType) return uploadViaServer(file, "video");
+    const photo = await preparePhoto(file);
+    return (await uploadPhotoToR2(photo)) ?? uploadViaServer(photo, "image");
   }
 
   async function addFiles(list: FileList | File[]) {
