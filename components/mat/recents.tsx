@@ -4,6 +4,7 @@ import { type CSSProperties, useEffect, useRef } from "react";
 import { TIDY_EVENT } from "@/components/mat/table";
 import { imageFrame, type Recent } from "@/content/portfolio";
 import { mountLine } from "@/lib/clothesline";
+import { imageSet } from "@/lib/media-image";
 
 // The latest photos, pegged on a clothesline strung across the mat under the
 // card (lib/clothesline hangs them, and lets the knife cut them down). Each
@@ -52,7 +53,7 @@ function Photo({ recent, index }: { recent: Recent; index: number }) {
             draggable={false}
             loading="lazy"
             decoding="async"
-            src={image.src}
+            {...imageSet(image.src, "(max-width: 700px) 92px, 210px")}
             data-full={image.src}
             style={{ objectFit: "cover", objectPosition: frame.position }}
           />
