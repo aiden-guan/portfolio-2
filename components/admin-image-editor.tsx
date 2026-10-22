@@ -5,6 +5,7 @@ import Image from "next/image";
 import { upload } from "@vercel/blob/client";
 import { imageFrame, isVideo, MAX_PROJECT_IMAGES, type PortfolioImage } from "@/content/portfolio";
 import { MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, VIDEO_TOO_LARGE_MESSAGE } from "@/lib/media-limits";
+import { shrinkPhoto } from "@/lib/shrink-photo";
 
 const VIDEO_EXTENSIONS: Record<string, string> = {
   "video/mp4": "mp4",
@@ -30,6 +31,18 @@ const ACCEPT = [
   ...Object.keys(VIDEO_TYPES_BY_EXTENSION).map((extension) => `.${extension}`),
 ].join(",");
 const PHOTO_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif";
+const PHOTO_TYPES = new Set(PHOTO_ACCEPT.split(","));
+const PHOTO_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/avif": "avif",
+};
+// the longest side kept of a photo for the line (it opens about that big), and
+// of one too big to store as it came
+const LINE_PHOTO_EDGE = 2560;
+const PHOTO_EDGE = 4096;
 
 class UploadError extends Error {}
 
@@ -228,6 +241,73 @@ export function AdminImageEditor({
     });
   }
 
+  // Photos for the line come down to the size they're shown at; any other
+  // only when it's over the limit, or in a format storage doesn't take (a
+  // HEIC dropped in from a Mac).
+  async function preparePhoto(file: File) {
+    const type = file.type.trim().toLowerCase();
+    if (type === "image/gif") {
+      // redrawn, it would lose its frames
+      if (file.size > MAX_IMAGE_BYTES) throw new UploadError("Use a GIF under 4 MB.");
+      return file;
+    }
+    const storable = PHOTO_TYPES.has(type) && file.size <= MAX_IMAGE_BYTES;
+    if (storable && !photosOnly) return file;
+
+    setUploadProgress({ kind: "image", phase: "preparing", percentage: null });
+    const edge = photosOnly ? LINE_PHOTO_EDGE : PHOTO_EDGE;
+    const shrunk = await shrinkPhoto(file, { edge, bytes: MAX_IMAGE_BYTES });
+    if (shrunk && (!storable || shrunk.size < file.size)) return shrunk;
+    if (storable) return file;
+    throw new UploadError(
+      PHOTO_TYPES.has(type)
+        ? "Use an image under 4 MB."
+        : "This browser can't open that photo. Save it as a JPEG and try again.",
+    );
+  }
+
+  // With the media in R2 and its CORS policy letting the browser in, a photo
+  // goes straight there rather than through the site's server. Null when it
+  // can't, so it goes the other way.
+  async function uploadPhotoToR2(file: File) {
+    const extension = PHOTO_EXTENSIONS[file.type];
+    if (!directUpload || !extension) return null;
+    try {
+      const signal = AbortSignal.timeout(UPLOAD_PREPARATION_TIMEOUT_MS);
+      const store = await videoStoreAccess(signal);
+      if (store.provider !== "r2" || !store.corsConfigured) return null;
+
+      const pathname = `portfolio/media/${crypto.randomUUID()}.${extension}`;
+      const response = await fetch("/api/admin/media/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pathname, contentType: file.type, size: file.size }),
+        signal,
+      });
+      const data = (await response.json().catch(() => null)) as { presignedUrl?: string; url?: string } | null;
+      if (!response.ok || !data?.presignedUrl) return null;
+
+      setUploadProgress({ kind: "image", phase: "uploading", percentage: 0 });
+      await uploadPresignedR2(
+        data.presignedUrl,
+        file,
+        file.type,
+        AbortSignal.timeout(IMAGE_UPLOAD_TIMEOUT_MS),
+        (percentage) => {
+          setUploadProgress({
+            kind: "image",
+            phase: percentage >= 100 ? "finishing" : "uploading",
+            percentage: clampPercent(percentage),
+          });
+        },
+      );
+      return data.url || `/api/media/${encodeURIComponent(pathname.split("/").pop() ?? "")}`;
+    } catch (error) {
+      console.warn("Direct R2 upload failed, sending the photo through the server:", error);
+      return null;
+    }
+  }
+
   async function uploadFile(file: File) {
     const videoType = videoTypeForFile(file);
     const extension = videoType ? VIDEO_EXTENSIONS[videoType] : undefined;
@@ -238,7 +318,9 @@ export function AdminImageEditor({
       return uploadVideo(file, extension, videoType);
     }
 
-    return uploadViaServer(file, videoType ? "video" : "image");
+    if (videoType) return uploadViaServer(file, "video");
+    const photo = await preparePhoto(file);
+    return (await uploadPhotoToR2(photo)) ?? uploadViaServer(photo, "image");
   }
 
   async function addFiles(list: FileList | File[]) {
@@ -379,7 +461,7 @@ export function AdminImageEditor({
           >
             {uploading
               ? uploadProgress?.phase === "preparing"
-                ? "Preparing video…"
+                ? `Preparing ${uploadProgress.kind === "video" ? "video" : "photo"}…`
                 : "Adding…"
               : photosOnly
                 ? "Add photos"
@@ -393,7 +475,9 @@ export function AdminImageEditor({
           <div className="editor-upload-progress-label">
             <span>
               {uploadProgress.phase === "preparing"
-                ? "Preparing video upload…"
+                ? uploadProgress.kind === "video"
+                  ? "Preparing video upload…"
+                  : "Preparing photo…"
                 : uploadProgress.phase === "finishing"
                   ? `Finishing ${uploadProgress.kind} upload…`
                   : `Uploading ${uploadProgress.kind}`}
@@ -574,7 +658,12 @@ function uploadMediaForm(
       }
 
       if (request.status < 200 || request.status >= 300 || !isUploadedImage(payload)) {
-        fail(new UploadError(errorMessage(payload, "The file could not be added.")));
+        // Vercel turns away a request body over 4.5 MB itself, not in JSON
+        const fallback =
+          request.status === 413
+            ? "The file is too big to upload. Use one under 4 MB."
+            : `The file could not be added (the server answered ${request.status}).`;
+        fail(new UploadError(errorMessage(payload, fallback)));
         return;
       }
 
