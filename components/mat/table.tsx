@@ -8,7 +8,7 @@ import { mountCuts } from "@/lib/cuts";
 import { isSceneId } from "@/lib/scenery/catalog";
 import { frank, punch, rustle, seat, snip, tap, tear, turnOver, unlockSound } from "@/lib/riffle";
 import { mountTorch } from "@/lib/torch";
-import { ASH_EVENT, type Pt, type Surface, Wear } from "@/lib/wear";
+import { ASH_EVENT, type Pt, SCORCH_EVENT, type Surface, TIDY_EVENT, Wear } from "@/lib/wear";
 
 // The mat as a table top. Every thing on it (components/mat/things) can be
 // picked up and moved: the point the hand holds stays under the pointer,
@@ -33,11 +33,14 @@ import { ASH_EVENT, type Pt, type Surface, Wear } from "@/lib/wear";
 // whatever is held, the way a drawing program's do.
 
 export const MESS_EVENT = "aiden-mat-mess";
-export const TIDY_EVENT = "aiden-mat-tidy";
+export { TIDY_EVENT };
 
 type Body = {
   el: HTMLElement;
   turn: HTMLElement;
+  // what turns over, and when it's done turning
+  card: HTMLElement;
+  turnTimer: number;
   action: string;
   // offset from home and turn (px, radians), and how fast each is changing
   x: number;
@@ -145,6 +148,8 @@ export function Table({ children }: { children: ReactNode }) {
       const body: Body = {
       el,
       turn: el.querySelector<HTMLElement>(".thing-turn") ?? el,
+      card: el.querySelector<HTMLElement>(".thing-body") ?? el,
+      turnTimer: 0,
       action: el.dataset.action ?? "none",
       x: 0,
       y: 0,
@@ -224,6 +229,8 @@ export function Table({ children }: { children: ReactNode }) {
     let pending: Pending | null = null;
     let swallowClick = false;
     let messy = false;
+    // the mat itself scorched (lib/torch)
+    let scorched = false;
 
     function measure() {
       matW = mat!.offsetWidth;
@@ -321,8 +328,10 @@ export function Table({ children }: { children: ReactNode }) {
       if (body.el.classList.contains("is-live") !== on) body.el.classList.toggle("is-live", on);
     }
 
+    // (A flat translate: at rest a thing is printed into the mat with the
+    // rest, and only gets a layer of its own while it's live.)
     function write(body: Body) {
-      const css = `translate3d(${body.x.toFixed(2)}px, ${body.y.toFixed(2)}px, 0)`;
+      const css = `translate(${body.x.toFixed(2)}px, ${body.y.toFixed(2)}px)`;
       if (css !== body.written) {
         body.written = css;
         body.el.style.transform = css;
@@ -344,16 +353,18 @@ export function Table({ children }: { children: ReactNode }) {
     }
 
     function checkMess() {
-      const now = bodies.some(
-        (body) =>
-          Math.abs(body.x) > 0.5 ||
-          Math.abs(body.y) > 0.5 ||
-          Math.abs(body.a) > 0.002 ||
-          body.el.classList.contains("is-turned") ||
-          (body.stubOf !== undefined && body.joinedTo === null) ||
-          body.wear !== null ||
-          body.gone,
-      );
+      const now =
+        scorched ||
+        bodies.some(
+          (body) =>
+            Math.abs(body.x) > 0.5 ||
+            Math.abs(body.y) > 0.5 ||
+            Math.abs(body.a) > 0.002 ||
+            body.el.classList.contains("is-turned") ||
+            (body.stubOf !== undefined && body.joinedTo === null) ||
+            body.wear !== null ||
+            body.gone,
+        );
       if (now === messy) return;
       messy = now;
       window.dispatchEvent(new CustomEvent(MESS_EVENT, { detail: messy }));
@@ -710,21 +721,42 @@ export function Table({ children }: { children: ReactNode }) {
       wake();
     }
 
+    // Turns a thing over, or back. Lying on the mat it's flat, its other side
+    // not drawn at all; for the turn it's posed in 3D on the side it's on (with
+    // no transition, so nothing moves), and then turned, and once it's over it
+    // lies flat again.
+    function flip(body: Body, turned: boolean) {
+      const el = body.el;
+      if (el.classList.contains("is-turned") === turned) return;
+      if (!still && !el.classList.contains("is-turning")) {
+        body.card.style.transition = "none";
+        el.classList.add("is-turning");
+        void getComputedStyle(body.card).transform;
+        body.card.style.transition = "";
+      } else if (!still) {
+        // turned back mid-turn: it's lifted again
+        for (const animation of body.card.getAnimations()) {
+          if (animation instanceof CSSAnimation && animation.animationName === "turn-lift") animation.currentTime = 0;
+        }
+      }
+      el.classList.toggle("is-turned", turned);
+      if (still) return;
+      window.clearTimeout(body.turnTimer);
+      // (should the turn's end never come, a hidden tab say)
+      body.turnTimer = window.setTimeout(() => laid(body), 1500);
+    }
+
+    function laid(body: Body) {
+      window.clearTimeout(body.turnTimer);
+      if (!body.el.classList.contains("is-turning")) return;
+      body.el.classList.remove("is-turning");
+      body.wear?.refresh();
+    }
+
     // What a click on a thing does: turn it over, punch it, open it.
     function act(body: Body, clientX?: number, clientY?: number) {
       if (body.action === "flip") {
-        const turned = !body.el.classList.contains("is-turned");
-        body.el.classList.toggle("is-turned", turned);
-        if (!still) {
-          body.el.classList.remove("is-turning");
-          // restart the lift that goes with the turn
-          void body.el.offsetWidth;
-          body.el.classList.add("is-turning");
-          window.setTimeout(() => {
-            body.el.classList.remove("is-turning");
-            body.wear?.refresh();
-          }, 760);
-        }
+        flip(body, !body.el.classList.contains("is-turned"));
         raise(body);
         unlockSound();
         turnOver();
@@ -839,11 +871,7 @@ export function Table({ children }: { children: ReactNode }) {
             (body.stubOf !== undefined && !body.joinedTo),
         )
         .sort((p, q) => Math.hypot(q.x, q.y) - Math.hypot(p.x, p.y));
-      for (const body of bodies) {
-        if (body.el.classList.contains("is-turned")) {
-          body.el.classList.remove("is-turned");
-        }
-      }
+      for (const body of bodies) flip(body, false);
       for (const body of out) {
         if (body.joinedTo) continue;
         if (still) {
@@ -1074,6 +1102,8 @@ export function Table({ children }: { children: ReactNode }) {
         ...body,
         el,
         turn: el.querySelector<HTMLElement>(".thing-turn") ?? el,
+        card: el.querySelector<HTMLElement>(".thing-body") ?? el,
+        turnTimer: 0,
         joint: undefined,
         stubOf: undefined,
         joinedTo: null,
@@ -1354,6 +1384,16 @@ export function Table({ children }: { children: ReactNode }) {
     };
 
     const onTidy = () => tidy();
+    const onTurned = (event: TransitionEvent) => {
+      if (event.propertyName !== "transform" || !(event.target instanceof HTMLElement)) return;
+      const el = event.target.closest<HTMLElement>(".thing");
+      const body = el ? byEl.get(el) : undefined;
+      if (body?.card === event.target) laid(body);
+    };
+    const onScorch = (event: Event) => {
+      scorched = (event as CustomEvent<boolean>).detail;
+      checkMess();
+    };
     const onResize = () => {
       measure();
       for (const body of bodies) write(body);
@@ -1403,9 +1443,11 @@ export function Table({ children }: { children: ReactNode }) {
     window.addEventListener("pointercancel", onPointerCancel);
     mat.addEventListener("click", onClickCapture, { capture: true });
     mat.addEventListener("click", onClick);
+    mat.addEventListener("transitionend", onTurned);
     mat.addEventListener("keydown", onKey);
     document.addEventListener("touchmove", onTouchMove, { passive: false });
     window.addEventListener(TIDY_EVENT, onTidy);
+    window.addEventListener(SCORCH_EVENT, onScorch);
     window.addEventListener("pointermove", onGuide, { passive: true });
     document.addEventListener("mouseout", onLeave);
     const unmountCuts = mountCuts(mat, surface);
@@ -1434,9 +1476,11 @@ export function Table({ children }: { children: ReactNode }) {
       window.removeEventListener("pointercancel", onPointerCancel);
       mat.removeEventListener("click", onClickCapture, { capture: true });
       mat.removeEventListener("click", onClick);
+      mat.removeEventListener("transitionend", onTurned);
       mat.removeEventListener("keydown", onKey);
       document.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener(TIDY_EVENT, onTidy);
+      window.removeEventListener(SCORCH_EVENT, onScorch);
       window.removeEventListener("pointermove", onGuide);
       document.removeEventListener("mouseout", onLeave);
     };

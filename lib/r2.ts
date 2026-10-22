@@ -146,15 +146,21 @@ export async function getR2Object(key: string, range?: string) {
   return client.send(command);
 }
 
-export async function getR2PresignedDownloadUrl(
-  key: string,
-  expiresIn: number = 24 * 60 * 60,
-) {
+// A presigned link lasts a week at most. Signing every link from the start of
+// a five-day window gives each object the same link for those five days, so a
+// browser keeps what it fetched (objects are stored immutable) instead of
+// downloading it again from a new address on every visit. Any link handed out
+// still has two days or more to run.
+const DOWNLOAD_LINK_WINDOW_MS = 5 * 24 * 60 * 60 * 1000;
+const DOWNLOAD_LINK_EXPIRES_IN = 7 * 24 * 60 * 60;
+
+export async function getR2PresignedDownloadUrl(key: string, now: number = Date.now()) {
   const client = getR2Client();
   const bucket = getR2BucketName();
   const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+  const signingDate = new Date(now - (now % DOWNLOAD_LINK_WINDOW_MS));
 
-  return getSignedUrl(client, command, { expiresIn });
+  return getSignedUrl(client, command, { expiresIn: DOWNLOAD_LINK_EXPIRES_IN, signingDate });
 }
 
 export async function deleteR2Object(key: string) {

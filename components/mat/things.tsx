@@ -11,6 +11,7 @@ import {
 } from "@/content/portfolio";
 import { Thing } from "@/components/mat/thing";
 import { bare, code128, initials, lastAmount, pad, periodParts, stampWord, statusMark } from "@/lib/mat";
+import { imageSet } from "@/lib/media-image";
 
 // The things that lie on the mat. Each is plain HTML in reading order; the
 // table (components/mat/table) only lets a hand move, throw and turn them.
@@ -79,9 +80,16 @@ export function BusinessCard({ profile }: { profile: PortfolioContent["profile"]
 
 // ---- prints ----------------------------------------------------------------
 
+// How wide a print's picture is on the page, at most (app/mat.css: the window
+// is the print, 116 mm at most, less 6 mm of border; a millimetre is 4.4 px or
+// less in a narrow window, a 300th of it in a wide one, and 5.4 px at most),
+// and a quarter wider again, since a picture wider than the window is cropped
+// to it.
+const PRINT_SIZES = "(max-width: 549px) calc((100vw - 2.5rem) * 1.25), (max-width: 1099px) 605px, (max-width: 1619px) 46vw, 743px";
+
 // A photograph or a short film of the work, printed with a border. Clicking
-// one opens it large (components/print-viewer); the prints of one project
-// share a gallery.
+// one opens it large (components/print-viewer), from the upload itself
+// (data-full); the prints of one project share a gallery.
 export function Print({
   image,
   label,
@@ -122,7 +130,16 @@ export function Print({
               style={style}
             />
           ) : (
-            <img data-print-media="" alt={alt} draggable={false} loading="lazy" decoding="async" src={image.src} style={style} />
+            <img
+              data-print-media=""
+              alt={alt}
+              draggable={false}
+              loading="lazy"
+              decoding="async"
+              {...imageSet(image.src, PRINT_SIZES)}
+              data-full={image.src}
+              style={style}
+            />
           )}
         </div>
         {video ? <figcaption className="ip-caption">{label}</figcaption> : null}

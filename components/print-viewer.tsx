@@ -1,6 +1,7 @@
 "use client";
 
 import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { imageAt, showUpload } from "@/lib/media-image";
 
 // The photos clipped to a card open here, large: the print grows out of the
 // card into the middle of the window, and shrinks back onto it when closed.
@@ -31,7 +32,27 @@ function mediaKind(media: Media): MediaKind {
 
 // Prints load videos with a `#t=` fragment to show a frame; the viewer plays from the start.
 function mediaSrc(media: Media) {
-  return (media.currentSrc || media.src).split("#")[0] ?? "";
+  return (media.dataset.full || media.currentSrc || media.src).split("#")[0] ?? "";
+}
+
+// A print on the mat shows a copy of its picture sized for the mat (the full
+// one is in data-full). Once that copy is in, the viewer can show it at once,
+// while the full picture loads.
+function loadedCopy(media: Media) {
+  if (!(media instanceof HTMLImageElement) || !media.complete || !media.naturalWidth) return "";
+  return media.currentSrc === new URL(mediaSrc(media), document.baseURI).href ? "" : media.currentSrc;
+}
+
+// ...and the full picture takes over once it's in and decoded.
+function sharpen(target: HTMLImageElement, copy: string, src: string) {
+  const full = new Image();
+  full.src = src;
+  full
+    .decode()
+    .then(() => {
+      if (target.getAttribute("src") === copy) target.setAttribute("src", src);
+    })
+    .catch(() => {});
 }
 
 function mediaAlt(media: Media) {
@@ -106,11 +127,23 @@ export function PrintViewer() {
         actions.current.step(1);
       }
     };
+    // A sized copy of a picture that won't load gives way to the upload
+    // (lib/media-image). Errors don't bubble, so they're caught on the way
+    // down; any from before this ran are found by looking.
+    const onError = (event: Event) => {
+      if (event.target instanceof HTMLImageElement) showUpload(event.target);
+    };
     document.addEventListener("click", onClick);
+    document.addEventListener("error", onError, { capture: true });
     window.addEventListener("keydown", onKey, { capture: true });
+    for (const img of Array.from(document.images)) {
+      // (a lazy picture not asked for yet has no currentSrc)
+      if (img.complete && img.currentSrc && !img.naturalWidth) showUpload(img);
+    }
     return () => {
       window.clearTimeout(zoomTimer.current);
       document.removeEventListener("click", onClick);
+      document.removeEventListener("error", onError, { capture: true });
       window.removeEventListener("keydown", onKey, { capture: true });
     };
   }, []);
@@ -175,7 +208,12 @@ export function PrintViewer() {
       front.classList.remove("is-hidden");
       if (target) {
         const src = mediaSrc(media);
-        if (target.getAttribute("src") !== src) target.setAttribute("src", src);
+        const copy = loadedCopy(media);
+        if (target.getAttribute("src") !== src) {
+          // grown from the print, it's the print's own picture to start with
+          target.setAttribute("src", copy || src);
+          if (copy && target instanceof HTMLImageElement) sharpen(target, copy, src);
+        }
         if (target instanceof HTMLVideoElement) playVideo(target);
       }
     }
@@ -226,21 +264,25 @@ export function PrintViewer() {
     slotVideo(back)?.pause();
     const target = fillSlot(back, source);
     if (!target) return;
+    // the print's own picture, if it's in, while the full one loads
+    const ready = target.getAttribute("src") === src && isReady(target);
+    const first = ready ? src : loadedCopy(source) || src;
     const reveal = () => {
       // A later selection may have repointed this slot while it loaded.
-      if (back.dataset.kind !== kind || target.getAttribute("src") !== src) return;
+      if (back.dataset.kind !== kind || target.getAttribute("src") !== first) return;
       back.classList.remove("is-hidden");
       front.classList.add("is-hidden");
       slotVideo(front)?.pause();
       if (target instanceof HTMLVideoElement) playVideo(target);
+      else if (first !== src) sharpen(target, first, src);
     };
-    if (target.getAttribute("src") === src && isReady(target)) {
+    if (target.getAttribute("src") === first && isReady(target)) {
       reveal();
       return;
     }
     target.addEventListener(kind === "video" ? "loadeddata" : "load", reveal, { once: true });
     target.addEventListener("error", reveal, { once: true });
-    target.setAttribute("src", src);
+    target.setAttribute("src", first);
   }
 
   function setSource(next: number) {
@@ -417,7 +459,7 @@ export function PrintViewer() {
                     style={thumbnailStyle(image)}
                   />
                 ) : (
-                  <img src={image.src} alt="" draggable={false} style={thumbnailStyle(image)} />
+                  <img {...imageAt(image.src, 128)} alt="" draggable={false} style={thumbnailStyle(image)} />
                 )}
               </button>
             ))}
