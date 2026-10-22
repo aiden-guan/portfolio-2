@@ -30,6 +30,10 @@ export type Surface = {
 
 // A thing burnt away: where it was, for its ash.
 export const ASH_EVENT = "aiden-mat-ash";
+// Whether the mat itself is scorched anywhere (lib/torch): a mess Tidy clears.
+export const SCORCH_EVENT = "aiden-mat-scorched";
+// Tidy (components/mat/table) squaring everything up again.
+export const TIDY_EVENT = "aiden-mat-tidy";
 
 type Hole = {
   x: number;

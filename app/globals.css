@@ -181,6 +181,11 @@ button {
   backdrop-filter: blur(5px);
 }
 
+/* shut, the viewer's blurs aren't kept running behind the page */
+.print-viewer:not(.is-active, .is-closing) :is(.print-viewer-scrim, .print-viewer-controls) {
+  visibility: hidden;
+}
+
 .print-viewer.is-active .print-viewer-scrim {
   opacity: 1;
   pointer-events: auto;

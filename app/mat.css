@@ -1235,42 +1235,67 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
 .thing-turn {
   position: relative;
   transform-origin: var(--ox, 50%) var(--oy, 50%);
-  perspective: calc(var(--W) * var(--u) * 4);
   perspective-origin: var(--ox, 50%) var(--oy, 50%);
 }
 
 .thing-body {
   position: relative;
   transform-origin: var(--ox, 50%) var(--oy, 50%);
-  transform-style: preserve-3d;
-  transition: transform 720ms var(--ease-turn);
 }
 
-.thing.is-turned .thing-body {
-  transform: rotateY(180deg);
+.thing-face {
+  position: relative;
+  overflow: hidden;
+}
+
+.thing-back {
+  position: absolute;
+  inset: 0;
+}
+
+/* Lying on the mat, a thing is flat: only the side that's up is drawn, and
+   it's printed into the mat with everything else rather than kept apart as
+   a card in space. Only while it's being turned over (the table adds
+   .is-turning, already posed on the side it's on) are its two sides back to
+   back in 3D, so that the turn is the real thing. */
+.thing:not(.is-turning) .thing-back,
+.thing.is-turned:not(.is-turning) .thing-front {
+  visibility: hidden;
+}
+
+/* face up, turned over about the point it turns on */
+.thing.is-turned:not(.is-turning) .thing-back {
+  visibility: visible;
+  transform: translateX(calc(var(--ox, 50%) * 2 - 100%));
+}
+
+.thing.is-turning .thing-turn {
+  perspective: calc(var(--W) * var(--u) * 4);
 }
 
 .thing.is-turning .thing-body {
+  transform-style: preserve-3d;
+  transition: transform 720ms var(--ease-turn);
   animation: turn-lift 720ms var(--ease-out);
+}
+
+.thing.is-turning.is-turned .thing-body {
+  transform: rotateY(180deg);
+}
+
+.thing.is-turning .thing-face {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.thing.is-turning .thing-back {
+  transform: rotateY(180deg);
 }
 
 @keyframes turn-lift {
   45% {
     scale: 1.05;
   }
-}
-
-.thing-face {
-  position: relative;
-  overflow: hidden;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-}
-
-.thing-back {
-  position: absolute;
-  inset: 0;
-  transform: rotateY(180deg);
 }
 
 .thing:focus-visible .thing-turn {

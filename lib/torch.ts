@@ -1,5 +1,5 @@
 import { crackle, type Burner, ignite, unlockSound } from "@/lib/riffle";
-import { ASH_EVENT, type Surface } from "@/lib/wear";
+import { ASH_EVENT, SCORCH_EVENT, type Surface, TIDY_EVENT } from "@/lib/wear";
 
 // The torch. With it in hand (the masthead's Torch, or T), pressing anywhere
 // on the mat lights it: a jet of blue flame from the nozzle that lands where
@@ -39,8 +39,8 @@ type Lit = {
 type Pending = { id: number; x: number; y: number; timer: number };
 
 // a scorch on the mat: where, how big, how much heat it took, how hot it
-// still is, and when it was last heated
-type Scorch = { x: number; y: number; r: number; dose: number; hot: number; at: number };
+// still is, when it was last heated, and when Tidy began wiping it away
+type Scorch = { x: number; y: number; r: number; dose: number; hot: number; at: number; clear: number };
 
 const Kind = { Lick: 0, Smoke: 1, Spark: 2, Ash: 3 } as const;
 type Kind = (typeof Kind)[keyof typeof Kind];
@@ -74,6 +74,12 @@ const MAX_SCORCHES = 240;
 // about this long (s)
 const SCORCH_REST = 3.5;
 const SCORCH_HEAL = 22;
+// once they've cooled they change slowly, and are drawn again this often (ms)
+const SCORCH_IDLE = 200;
+// how long Tidy takes to wipe them away (ms)
+const SCORCH_CLEAR = 700;
+
+const smooth = (t: number) => t * t * (3 - 2 * t);
 
 // colour ramps, hottest first: paper burning, the jet's blue, and the
 // mat's plastic catching
@@ -118,6 +124,8 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   let lit: Lit | null = null;
   let pending: Pending | null = null;
   let raf = 0;
+  // while only cooled scorches are left, the frames come on a timer instead
+  let timer = 0;
   let last = 0;
   let mm = 4;
   const particles: Particle[] = [];
@@ -135,6 +143,11 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   let scorchRatio = 1;
   let scorchTop = 0;
   let scorchLive = false;
+  // when the scorches were last drawn, whether they must be again, and
+  // whether there are any (that Tidy isn't already wiping away)
+  let scorchAt = 0;
+  let scorchDirty = true;
+  let scorched = false;
 
   function measure() {
     // the torch is drawn 166 mm wide, which says how big a millimetre is
@@ -155,6 +168,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     fireLive = true;
   }
 
+  // Says whether it had to move (and so needs drawing again).
   function placeScorch(box: DOMRect) {
     const view = -box.top;
     const tall = window.innerHeight;
@@ -163,7 +177,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     const r = Math.min(2, window.devicePixelRatio || 1);
     const resized = !scorchLive || w !== scorchW || h !== scorchH || r !== scorchRatio;
     const away = view < scorchTop + 8 || view + tall > scorchTop + scorchH - 8;
-    if (!resized && !away) return;
+    if (!resized && !away) return false;
     if (resized) {
       scorchW = w;
       scorchH = h;
@@ -177,6 +191,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     }
     scorchTop = Math.round(view - tall * 0.3);
     scorchCanvas!.style.transform = `translate3d(0, ${scorchTop}px, 0)`;
+    return true;
   }
 
   function letGo() {
@@ -195,10 +210,12 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   }
 
   function wake() {
-    if (!raf) {
-      last = performance.now();
-      raf = requestAnimationFrame(frame);
-    }
+    if (raf) return;
+    // (on the scorches' timer, the time since the last frame still counts)
+    if (timer) window.clearTimeout(timer);
+    else last = performance.now();
+    timer = 0;
+    raf = requestAnimationFrame(frame);
   }
 
   function emit(p: Omit<Particle, "age" | "seed" | "spin"> & { spin?: number }) {
@@ -356,7 +373,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
       });
       scorches.splice(weakest, 1);
     }
-    scorches.push({ x, y, r: mm * (3.8 + Math.random() * 1.6), dose: 0.22 + dt * 2.4, hot: 1, at: now });
+    scorches.push({ x, y, r: mm * (3.8 + Math.random() * 1.6), dose: 0.22 + dt * 2.4, hot: 1, at: now, clear: 0 });
   }
 
   // ---- drawing
@@ -508,23 +525,36 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     fx!.globalAlpha = 1;
   }
 
-  function drawScorches(box: DOMRect, now: number, dt: number) {
-    placeScorch(box);
+  // The scorches heal, and are drawn again whenever they've changed enough to
+  // see: every frame while one's hot or being wiped away, and a few times a
+  // second while they slowly fade.
+  function drawScorches(box: DOMRect, now: number, elapsed: number) {
+    let changed = placeScorch(box) || scorchDirty;
+    for (let i = scorches.length - 1; i >= 0; i--) {
+      const s = scorches[i]!;
+      if (s.hot > 0) {
+        s.hot = Math.max(0, s.hot - elapsed / 0.9);
+        changed = true;
+      }
+      // the mat heals: a scorch fades a while after the flame's left it
+      if ((now - s.at) / 1000 > SCORCH_REST) s.dose -= (elapsed / SCORCH_HEAL) * 1.6;
+      if (s.clear) changed = true;
+      if (s.dose <= 0.005 || (s.clear && now - s.clear >= SCORCH_CLEAR)) {
+        scorches.splice(i, 1);
+        changed = true;
+      }
+    }
+    if (!changed && now - scorchAt < SCORCH_IDLE) return;
+    scorchDirty = false;
+    scorchAt = now;
     sx!.setTransform(1, 0, 0, 1, 0, 0);
     sx!.clearRect(0, 0, scorchCanvas!.width, scorchCanvas!.height);
     sx!.setTransform(scorchRatio, 0, 0, scorchRatio, 0, -scorchTop * scorchRatio);
     const dark = html.dataset.theme === "dark";
-    for (let i = scorches.length - 1; i >= 0; i--) {
-      const s = scorches[i]!;
-      s.hot = Math.max(0, s.hot - dt / 0.9);
-      // the mat heals: a scorch fades a while after the flame's left it
-      if ((now - s.at) / 1000 > SCORCH_REST) s.dose -= (dt / SCORCH_HEAL) * 1.6;
-      if (s.dose <= 0.005) {
-        scorches.splice(i, 1);
-        continue;
-      }
+    const fade = (s: Scorch) => (s.clear ? 1 - smooth(Math.min(1, (now - s.clear) / SCORCH_CLEAR)) : 1);
+    for (const s of scorches) {
       if (s.y + s.r < scorchTop || s.y - s.r > scorchTop + scorchH) continue;
-      const a = Math.min(1, s.dose);
+      const a = Math.min(1, s.dose) * fade(s);
       const g = sx!.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
       g.addColorStop(0, `rgb(12 7 4 / ${(dark ? 0.8 : 0.66) * a})`);
       g.addColorStop(0.5, `rgb(26 14 6 / ${(dark ? 0.6 : 0.46) * a})`);
@@ -539,7 +569,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
       if (s.hot <= 0.01) continue;
       const r = s.r * 0.55;
       const g = sx!.createRadialGradient(s.x, s.y, 0, s.x, s.y, r);
-      g.addColorStop(0, `rgb(255 120 40 / ${0.42 * s.hot * Math.min(1, s.dose * 1.5)})`);
+      g.addColorStop(0, `rgb(255 120 40 / ${0.42 * s.hot * Math.min(1, s.dose * 1.5) * fade(s)})`);
       g.addColorStop(1, "rgb(255 80 20 / 0)");
       sx!.fillStyle = g;
       sx!.fillRect(s.x - r, s.y - r, r * 2, r * 2);
@@ -547,9 +577,20 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     sx!.globalCompositeOperation = "source-over";
   }
 
+  // Whether the mat's scorched anywhere: a mess, like anything out of place.
+  function signal() {
+    const now = scorches.some((s) => !s.clear);
+    if (now === scorched) return;
+    scorched = now;
+    window.dispatchEvent(new CustomEvent(SCORCH_EVENT, { detail: now }));
+  }
+
   function frame(now: number) {
     raf = 0;
-    const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
+    timer = 0;
+    // the scorches heal by the clock; everything that moves, a frame at a time
+    const elapsed = Math.min(1, Math.max(0.001, (now - last) / 1000));
+    const dt = Math.min(0.05, elapsed);
     last = now;
     const box = mat.getBoundingClientRect();
     if (lit) burn(lit, dt, box, now);
@@ -614,9 +655,11 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     } else if (fireLive) {
       letGo();
     }
-    if (scorches.length) drawScorches(box, now, dt);
+    if (scorches.length) drawScorches(box, now, elapsed);
     else if (scorchLive) letGo();
-    if (lit || particles.length || scorches.length || embers.length) raf = requestAnimationFrame(frame);
+    signal();
+    if (lit || particles.length || embers.length || scorches.some((s) => s.hot > 0 || s.clear)) raf = requestAnimationFrame(frame);
+    else if (scorches.length) timer = window.setTimeout(() => frame(performance.now()), SCORCH_IDLE);
     else letGo();
   }
 
@@ -754,6 +797,22 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   // Something's alight: keep drawing while it smoulders.
   const onWear = () => wake();
 
+  // Scrolled while the scorches are only looked in on now and then: keep
+  // their canvas over the window.
+  const onScroll = () => {
+    if (scorches.length) wake();
+  };
+
+  // Tidy wipes the mat clean.
+  const onTidy = () => {
+    if (!scorches.length) return;
+    const now = performance.now();
+    if (still) scorches.length = 0;
+    for (const s of scorches) if (!s.clear) s.clear = now;
+    scorchDirty = true;
+    wake();
+  };
+
   const onBlur = () => out();
 
   measure();
@@ -764,11 +823,14 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   window.addEventListener("blur", onBlur);
   window.addEventListener(ASH_EVENT, onAsh);
   window.addEventListener("resize", onWear);
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener(TIDY_EVENT, onTidy);
   document.addEventListener("touchmove", onTouchMove, { passive: false });
   mat.addEventListener("contextmenu", onContextMenu);
 
   return () => {
     cancelAnimationFrame(raf);
+    window.clearTimeout(timer);
     out();
     if (pending) window.clearTimeout(pending.timer);
     scorches.length = 0;
@@ -781,6 +843,8 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     window.removeEventListener("blur", onBlur);
     window.removeEventListener(ASH_EVENT, onAsh);
     window.removeEventListener("resize", onWear);
+    window.removeEventListener("scroll", onScroll);
+    window.removeEventListener(TIDY_EVENT, onTidy);
     document.removeEventListener("touchmove", onTouchMove);
     mat.removeEventListener("contextmenu", onContextMenu);
   };
