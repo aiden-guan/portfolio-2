@@ -64,12 +64,15 @@ export async function GET(
       // Keep the bucket private and send media bytes directly from R2 to the
       // browser instead of streaming large, uncacheable Range responses through
       // a Vercel Function. A 307 preserves the media request's Range header.
+      // The link stays the same for days (lib/r2), so what it leads to stays
+      // cached, and the redirect itself can be kept for half a day by the CDN
+      // and then the browser, with a day or more still left on the link.
       const url = await getR2PresignedDownloadUrl(pathname);
       return new Response(null, {
         status: 307,
         headers: {
           Location: url,
-          "Cache-Control": "no-store",
+          "Cache-Control": "public, max-age=43200, s-maxage=43200",
           "Referrer-Policy": "no-referrer",
         },
       });

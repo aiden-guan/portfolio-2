@@ -10,6 +10,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Recents on a clothesline**: a band right under the card, with the latest photos pegged on a cord strung between two screw eyes in the mat, each a print with a line about it and a date written on its border; a click opens it large. The cord and photos are weighed and swing (`lib/clothesline.ts`): a hand passing over the line brushes it, and a photo can be tugged, or pulled right off its pegs. The knife cuts the cord wherever it's drawn across it, and the torch burns through it: the cut ends drop and hang off their screw eyes, the pegs slide down and off the frayed ends, and the photos flutter down onto the mat. Tidy strings the line again and pegs everything back up. The line is only worked on while something on it moves and while it's on screen.
 - **Recents in the editor**: a Recents tab in `/admin` to add photos (newest go to the front of the line), crop them, and write what each one is and when. Up to 12.
 
+### Changed
+- **Smoother everywhere, the knife and torch above all**: things on the mat lie flat in the page while they're at rest, instead of each being kept as a card in 3D space with its own GPU layer and two shadow blurs redrawn every frame (71 layers at rest, 84 with the knife out, down to 5). A thing is only posed in 3D for the moment it's turned over, and only gets a layer of its own while it moves; the turn, hover, drag and cut look the same frame for frame. The print viewer's blurs are no longer kept running behind the page while it's shut, and the torch's scorches on the mat are only redrawn while they're hot, a few times a second after that.
+- **Photos load faster**: prints on the mat load a copy sized to how they're shown (Next's image optimizer, `lib/media-image.ts`) instead of the full upload (or the upload itself, should a copy fail to load), and the viewer shows that copy at once and the full photo as soon as it's in. Media links now stay the same for five days instead of changing on every request, so a browser keeps what it has already downloaded.
+
+### Fixed
+- **Tidy puts burns right**: Tidy wipes the scorches off the mat as well as mending the paper, and the Tidy button stays up while anything on the mat is scorched.
+
 ## [1.6.0] — 2026-10-21
 
 ### Summary
