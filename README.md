@@ -235,6 +235,7 @@ The repository integrates a full-featured content management suite under `app/ad
 | `R2_PUBLIC_URL` | Optional | Custom domain or public R2 URL for direct CDN asset serving. |
 | `R2_MAX_STORAGE_GB` | Optional | Hard safety threshold in GB before uploads are blocked (defaults to `5`). |
 | `R2_MAX_FILES` | Optional | Maximum number of objects allowed before blocking uploads (defaults to `1000`). |
+| `GITHUB_TOKEN` | Optional | A GitHub token for the projects folder's hourly read of public repos (a fine-grained token with no permissions is enough). Without it GitHub allows 60 requests an hour per server address, which a shared address can run out of; the folder then shows its built-in list. |
 | `BLOB_READ_WRITE_TOKEN` | Optional | Legacy access token for Vercel Blob migration fallback. |
 
 ---

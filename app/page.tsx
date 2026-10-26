@@ -1,4 +1,5 @@
 import { SoundToggle } from "@/components/sound-toggle";
+import { ProjectsFolder } from "@/components/mat/folder";
 import { Mat } from "@/components/mat/mat";
 import { MatNavigation } from "@/components/mat/navigation";
 import { Table, TidyButton } from "@/components/mat/table";
@@ -6,12 +7,13 @@ import { ToolSwitch } from "@/components/mat/tools";
 import { PrintViewer } from "@/components/print-viewer";
 import { PageCurl, SceneCaption, SceneryBackdrop } from "@/components/scenery";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { getGitHubProjects } from "@/lib/github-projects";
 import { getPortfolioContent } from "@/lib/portfolio-content";
 
 export const revalidate = 3600;
 
 export default async function Home() {
-  const content = await getPortfolioContent();
+  const [content, github] = await Promise.all([getPortfolioContent(), getGitHubProjects()]);
   const { navigation, profile } = content;
 
   return (
@@ -41,6 +43,7 @@ export default async function Home() {
           <Mat content={content} />
         </Table>
       </main>
+      <ProjectsFolder projects={github.projects} live={github.live} checkedAt={github.checkedAt} />
       <PrintViewer />
     </>
   );

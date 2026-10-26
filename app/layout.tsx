@@ -7,6 +7,7 @@ import "./globals.css";
 import "./scenery.css";
 import "./mat.css";
 import "./recents.css";
+import "./folder.css";
 
 const siteUrl = getSiteUrl();
 
