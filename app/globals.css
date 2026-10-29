@@ -301,7 +301,7 @@ button {
   background: color-mix(in srgb, var(--paper) 72%, transparent);
   color: var(--ink);
   cursor: pointer;
-  font-size: 1.15rem;
+  font-size: 0.625rem;
   transition:
     color 160ms var(--ease),
     border-color 160ms var(--ease),

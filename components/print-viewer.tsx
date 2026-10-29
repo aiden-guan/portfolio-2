@@ -435,7 +435,7 @@ export function PrintViewer() {
           disabled={images.length < 2}
           onClick={() => move(-1)}
         >
-          <span aria-hidden="true">←</span>
+          <span>Prev</span>
         </button>
         <div className="print-viewer-selection">
           <div className="print-viewer-caption" aria-live="polite">
@@ -475,7 +475,7 @@ export function PrintViewer() {
           disabled={images.length < 2}
           onClick={() => move(1)}
         >
-          <span aria-hidden="true">→</span>
+          <span>Next</span>
         </button>
       </div>
     </div>

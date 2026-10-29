@@ -214,25 +214,6 @@ export const defaultPortfolio: PortfolioContent = {
       ],
     },
     {
-      name: "HarmonyLabs",
-      status: "In progress",
-      summary: "Facial Harmony Vision Model",
-      detail:
-        "Research backed web-app that measures facial geometry that compares those measurements with research-backed attractiveness, aesthetic-harmony, and proportional references. Stronger evidence receives greater influence.",
-      stack: ["Convex", "MediaPipe", "TypeScript"],
-      links: [
-        {
-          label: "live",
-          href: "https://useharmonylabs.vercel.app/",
-        },
-        {
-          label: "source",
-          href: "https://github.com/aiden-guan/HarmonyLabs",
-        },
-      ],
-      images: [],
-    },
-    {
       name: "BarkOff",
       status: "1st place",
       summary: "A live one-on-one bark battle.",
@@ -251,6 +232,38 @@ export const defaultPortfolio: PortfolioContent = {
           kind: "video",
         },
       ],
+    },
+    {
+      name: "Continuity",
+      status: "1st place",
+      summary: "Email memory that survives an agent handoff.",
+      detail:
+        "Every claim keeps the message it came from. A fresh agent reads one briefing: what still holds, who owes what, and who has to act. 1st on the primitive.dev track at YC Make Something Agents Want.",
+      stack: ["TypeScript", "Primitive"],
+      links: [
+        {
+          label: "source",
+          href: "https://github.com/aiden-guan/continuity",
+        },
+      ],
+      images: [],
+      artifact: "postcard",
+    },
+    {
+      name: "CourtVision",
+      status: "Live",
+      summary: "From court footage to a clearer game.",
+      detail:
+        "A local basketball video studio for player tracking, court calibration, and game telemetry. Turn a recording into a view you can explore.",
+      stack: ["Python", "Computer vision"],
+      links: [
+        {
+          label: "source",
+          href: "https://github.com/aiden-guan/courtvision",
+        },
+      ],
+      images: [],
+      artifact: "drawing",
     },
   ],
   timeline: [
@@ -291,6 +304,24 @@ export const defaultPortfolio: PortfolioContent = {
   ],
   recents: [],
 };
+
+const CONTINUITY = defaultPortfolio.projects.find((project) => project.name === "Continuity")!;
+const COURTVISION = defaultPortfolio.projects.find((project) => project.name === "CourtVision")!;
+
+// The mat always shows these two after BarkOff, and never Harmony Labs,
+// even when stored content still has the old list.
+export function presentProjects(projects: Project[]) {
+  const named = (project: Project, name: string) => project.name.trim().toLowerCase() === name;
+  const insert = [
+    projects.find((project) => named(project, "continuity")) ?? CONTINUITY,
+    projects.find((project) => named(project, "courtvision")) ?? COURTVISION,
+  ];
+  const kept = projects.filter((project) => !/harmony\s*labs/i.test(project.name)
+    && !named(project, "continuity") && !named(project, "courtvision"));
+  const bark = kept.findIndex((project) => /bark\s*off/i.test(project.name));
+  const at = bark === -1 ? kept.length : bark + 1;
+  return [...kept.slice(0, at), ...insert, ...kept.slice(at)];
+}
 
 export const {
   profile,

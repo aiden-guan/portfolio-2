@@ -167,7 +167,7 @@ function ProjectLinks({ project, className }: { project: Project; className: str
     <span className={className}>
       {links.map((link) => (
         <a key={link.href} href={link.href} target="_blank" rel="noreferrer">
-          {link.label} <span aria-hidden="true">↗</span>
+          {link.label}
         </a>
       ))}
     </span>
@@ -555,6 +555,205 @@ export function Ticket({ project, index }: ProjectThingProps) {
         </div>
       </Thing>
     </div>
+  );
+}
+
+// Continuity is a routing slip: a thread of cited mail, the way the mat
+// already keeps paper. The line down the left is the state that survives
+// the handoff.
+export function ContinuitySlip({ project, index }: ProjectThingProps) {
+  const rows: { n: string; fact: string; mark: string; state: string }[] = [
+    { n: "01", fact: "Terms", mark: "held", state: "hold" },
+    { n: "02", fact: "Delivery", mark: "replaced", state: "replace" },
+    { n: "03", fact: "Quote", mark: "stale", state: "stale" },
+    { n: "04", fact: "Next actor", mark: "open", state: "next" },
+  ];
+  return (
+    <Thing
+      kind="postcard"
+      label={`${project.name}, routing slip`}
+      w={148}
+      back={
+        <div className="th-back">
+          <span className="th-back-kicker">The thread remembers</span>
+          <ThreadGraph />
+          <span className="th-back-foot">Agent A hands off. Agent B does not start over.</span>
+        </div>
+      }
+    >
+      <div className="th">
+        <header className="th-top">
+          <span>Routing slip</span>
+          <span>W·{pad(index + 1)}</span>
+        </header>
+        <h3 className="th-name">{project.name}</h3>
+        {project.summary ? <p className="th-summary">{project.summary}</p> : null}
+        <ol className="th-thread">
+          {rows.map((row) => (
+            <li key={row.n} data-state={row.state}>
+              <span>{row.n}</span>
+              <span>{row.fact}</span>
+              <em>{row.mark}</em>
+            </li>
+          ))}
+        </ol>
+        <footer className="th-foot">
+          <span className="th-handoff">
+            Agent handoff
+          </span>
+          <ProjectLinks project={project} className="th-links" />
+        </footer>
+        <Stamp word="1st" />
+      </div>
+    </Thing>
+  );
+}
+
+function ThreadGraph() {
+  const nodes = [
+    [18, 28],
+    [46, 18],
+    [74, 34],
+    [58, 58],
+    [28, 64],
+  ];
+  return (
+    <svg className="th-graph" viewBox="0 0 96 84" aria-hidden="true" focusable="false">
+      <path d="M18 28 L46 18 L74 34 L58 58 L28 64 Z" />
+      <path d="M46 18 L58 58" />
+      {nodes.map(([x, y], i) => (
+        <g key={x}>
+          <circle cx={x} cy={y} r={i === 3 ? 4.2 : 2.6} />
+          {i === 1 ? <circle cx={x} cy={y} r="6.2" /> : null}
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+// CourtVision is a measured plan of the floor the camera is reading,
+// with the homography ticks and a scorebug the way a drawing has a title block.
+export function CourtSheet({ project, index, owner }: ProjectThingProps) {
+  const stack = stackLine(project);
+  return (
+    <Thing
+      kind="drawing"
+      label={`${project.name}, court drawing`}
+      w={176}
+      back={
+        <div className="dw-back">
+          <Stamp word="Live" small />
+        </div>
+      }
+    >
+      <div className="dw cv">
+        <CourtPlan />
+        <div className="dw-side">
+          <div className="dw-text">
+            <h3 className="dw-name">{project.name}</h3>
+            {project.summary ? <p className="dw-summary">{project.summary}</p> : null}
+            {project.detail ? <p className="dw-detail">{project.detail}</p> : null}
+          </div>
+          <dl className="dw-block">
+            <div className="dw-cell dw-cell-wide">
+              <dt>Project</dt>
+              <dd>{project.name}</dd>
+            </div>
+            <div className="dw-cell">
+              <dt>Sheet</dt>
+              <dd>W·{pad(index + 1)}</dd>
+            </div>
+            <div className="dw-cell">
+              <dt>Status</dt>
+              <dd>{project.status}</dd>
+            </div>
+            {stack.length ? (
+              <div className="dw-cell dw-cell-wide">
+                <dt>Built with</dt>
+                <dd>{stack.join(" · ")}</dd>
+              </div>
+            ) : null}
+            <div className="dw-cell">
+              <dt>Drawn</dt>
+              <dd>{initials(owner)}</dd>
+            </div>
+            <div className="dw-cell">
+              <dt>Scale</dt>
+              <dd>1 : 1</dd>
+            </div>
+            {projectLinks(project).length ? (
+              <div className="dw-cell dw-cell-wide">
+                <dt>Links</dt>
+                <dd>
+                  <ProjectLinks project={project} className="dw-links" />
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+        </div>
+      </div>
+    </Thing>
+  );
+}
+
+function CourtPlan() {
+  return (
+    <svg className="dw-figure cv-plan" viewBox="0 0 120 150" aria-hidden="true" focusable="false">
+      <g className="dw-construct">
+        <path d="M14 12H106V138H14Z" />
+        <path d="M38 12H82V58H38Z" />
+        <path d="M60 12V58" />
+        <circle cx="60" cy="58" r="14" />
+        <path d="M46 58H74" />
+        <path d="M22 12C22 52 38 78 60 78C82 78 98 52 98 12" />
+        <circle cx="60" cy="22" r="2.2" />
+        <path d="M52 16H68" />
+      </g>
+      <g className="dw-line">
+        <path d="M18 16H102V134H18Z" />
+        <path d="M42 16H78V54H42Z" />
+        <path d="M60 16V54" />
+        <path d="M46 54A14 14 0 0 0 74 54" />
+        <path d="M26 16C26 48 40 72 60 72C80 72 94 48 94 16" />
+        <circle cx="60" cy="24" r="1.5" />
+      </g>
+      <g className="cv-shots">
+        {[
+          [60, 30],
+          [52, 44],
+          [70, 48],
+          [36, 62],
+          [84, 40],
+          [60, 66],
+          [28, 28],
+        ].map(([x, y], i) => (
+          <circle key={`${x}-${y}`} cx={x} cy={y} r={i === 0 ? 1.7 : 1.15} />
+        ))}
+      </g>
+      <g className="dw-dims">
+        <path d="M8 16V134M5 16h6M5 134h6" />
+        <text x="3" y="78">
+          94
+        </text>
+        <path d="M18 144H102M18 141v6M102 141v6" />
+        <text x="60" y="149" textAnchor="middle">
+          50 ft
+        </text>
+        <path d="M108 16 L116 28 L108 40" />
+        <text x="112" y="48">
+          cam
+        </text>
+      </g>
+      <g className="cv-bug">
+        <rect x="16" y="118" width="36" height="12" />
+        <text x="22" y="126.5">
+          24
+        </text>
+        <text x="40" y="126.5">
+          22
+        </text>
+      </g>
+    </svg>
   );
 }
 

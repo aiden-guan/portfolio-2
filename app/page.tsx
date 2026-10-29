@@ -5,7 +5,7 @@ import { MatNavigation } from "@/components/mat/navigation";
 import { Table, TidyButton } from "@/components/mat/table";
 import { ToolSwitch } from "@/components/mat/tools";
 import { PrintViewer } from "@/components/print-viewer";
-import { PageCurl, SceneCaption, SceneryBackdrop } from "@/components/scenery";
+import { SceneCaption, SceneryBackdrop } from "@/components/scenery";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getGitHubProjects } from "@/lib/github-projects";
 import { getPortfolioContent } from "@/lib/portfolio-content";
@@ -22,7 +22,6 @@ export default async function Home() {
         Skip to content
       </a>
       <SceneryBackdrop />
-      <PageCurl />
       <header className="masthead">
         <a className="masthead-name" href="#index">
           {profile.mark ? <span className="masthead-mark">{profile.mark}</span> : null}

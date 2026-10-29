@@ -13,9 +13,6 @@ export function ExternalLink({ children, className = "", ...props }: ExternalLin
       rel={props.href?.startsWith("mailto:") ? undefined : "noreferrer"}
     >
       <span>{children}</span>
-      <span className="external-arrow" aria-hidden="true">
-        ↗
-      </span>
     </a>
   );
 }

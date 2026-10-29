@@ -26,7 +26,7 @@
 
 This repository powers **[aidenguan.com](https://aidenguan.com)**, the personal index of Aiden Guan (studying Business Administration and Data Science at UC Berkeley).
 
-The portfolio is a designer's cutting mat with the work laid out on it, knolled square to the grid. The name is printed into the mat; a business card lies across it. Every project is printed as the thing its own idea suggests: a sneaker-reselling business is a till receipt (its revenue on the TOTAL line), an approval gatekeeper is a stamped carbon form, an email client is a postcard, a facial-geometry model is a measured drawing with a title block, and a hackathon win is a ticket with a stub to tear off. Roles are punch-clock time cards; notes are an index card; contact is an envelope.
+The portfolio is a designer's cutting mat with the work laid out on it, knolled square to the grid. The name is printed into the mat; a business card lies across it. Every project is printed as the thing its own idea suggests: a sneaker-reselling business is a till receipt (its revenue on the TOTAL line), an approval gatekeeper is a stamped carbon form, an email client is a postcard, a hackathon win is a ticket with a stub to tear off, Continuity is an agent routing slip, and CourtVision is a basketball scouting diagram with a drawing title block. Roles are punch-clock time cards; notes are an index card; contact is an envelope.
 
 Everything on the mat can be picked up. The point you hold stays under the pointer and the sheet swings about it the way paper does, slides to a stop when thrown, and turns over on a click. Tickets punch, time cards clock in at the current Berkeley time, the envelope is postmarked before it opens an email, and **Tidy** squares everything back up. Wherever a thing was taken from, crop marks stay printed on the mat, and a thing set down near them is pulled square onto them.
 
@@ -41,7 +41,7 @@ Behind the mat is a private, authenticated in-browser CMS. Content edits and pro
 | The Mat | Scenery Versions |
 | :--- | :--- |
 | ![PigeonBox's postcard turned over to its riso-printed picture side, its instant film thrown across it](assets/readme/mat-preview.jpg) | ![The receipt and prints lying over the Chongqing night-rain scene](assets/readme/scenery-preview.jpg) |
-| **Things With Weight**: Each project is printed as its own object (receipt, stamped form, postcard, measured drawing, ticket) with its photos and films beside it. Grab anything by any point and it swings about your hand; throw it and it slides; click to turn it over; tear the ticket's stub, punch it, clock in on a time card; drop it near its crop marks and it seats; Tidy knolls it all back. Cut the mat and it heals; cut the paper and it comes apart; burn it with the torch. Films play while they're in view; a print opens full size. | **Peel to Another World**: The curled page corner peels the mat away to four animated dot-"ascii" scenes, and the same places lie on the mat as living postcards: click one and the mat becomes that place. The paper stays paper, lying on the scene, and the printed name is redrawn in the scene's own dots. |
+| **Things With Weight**: Each project is printed as its own object (receipt, stamped form, postcard, measured drawing, ticket) with its photos and films beside it. Grab anything by any point and it swings about your hand; throw it and it slides; click to turn it over; tear the ticket's stub, punch it, clock in on a time card; drop it near its crop marks and it seats; Tidy knolls it all back. Cut the mat and it heals; cut the paper and it comes apart; burn it with the torch. Films play while they're in view; a print opens full size. | **Postcards to Another World**: Four animated dot-"ascii" scenes live on the postcards in What I’m Exploring: click one and the mat becomes that place; click it again to come home. The paper stays paper, lying on the scene, and the printed name is redrawn in the scene's own dots. |
 
 | Private In-Browser Headless CMS | Zero-Flicker Theme Engine |
 | :--- | :--- |
@@ -49,6 +49,21 @@ Behind the mat is a private, authenticated in-browser CMS. Content edits and pro
 | **Zero-Redeploy Publishing**: Dedicated `/admin` route protected by cryptographic session tokens. Allows full editing of profile copy, social links, section titles, project details (including what each project is printed as on the mat), the recent photos pegged on the clothesline, and asset uploads directly to Cloudflare R2 with pre-signed size validation and hard storage blockers. | **Edge Social Generation**: Dynamically generates high-resolution Open Graph image cards via `@vercel/og` with automatic sitemap generation and canonical metadata routing. |
 
 ---
+
+## Arcade
+
+Scrolling past the final envelope fractures the print into a CRT monitor. Domain-warped pixel erosion grows from the viewport edges, shifts over time, and bends around the pointer. The final card splits into horizontal tears and displaced fragments before the monitor expands.
+
+- **Fly:** WASD or arrow keys; hold Shift for precise movement. Drag relative to the point you press, with no jump or release drift. Twin auto-fire and homing missiles; collect the three-line pickup for temporary spread fire.
+- **Dash:** Space or the Dash button. A short, bounded invulnerable burst that stops cleanly and rebases a held drag at its new position.
+- **Pulse:** X, right click, or the Pulse button. Clears bullets, destroys drones, and damages the boss. Recharges through damage and close dodges.
+- **Fight:** two full health bars, slower volleys, large outlined projectiles, drones, pickups, and a saved local best score. Defeating the first form clears the arena and restores shields and pulse charge. Pink sparkles add rounded pixel cat ears and cheek blush to the portrait, with a synthesized meow, before round two begins. The second form fires heart patterns and a clearly warned beam. Only its defeat ends the fight.
+- **Pause/exit:** P or the pause control; switching tabs pauses automatically. Escape restores the portfolio. Sound follows the portfolio’s Sound setting.
+- **Reduced motion:** explicit arcade entry replaces the scroll takeover and edge effects; scatter, shake, dash trails, and impact accents are omitted.
+
+The start and result screens use only the title, score, controls, and action button. `components/break/` contains the scroll controller, edge renderer, game, and swept collision helpers. `app/break.css` styles the monitor; `app/projects.css` styles the project cards. Background scenery pauses during play. Flight runs at 120 simulation steps per second with interpolated rendering; the contour background integrates its scrolling speed continuously through a dash.
+
+`npm run test:arcade` exercises projectile tunneling, flight speed, project ordering, pause/cleanup, portrait failure, shield loss/replay, both boss forms through victory, transformation pause and recovery, ear geometry, projectile size and speed, meow/mute cleanup, dash speed/cooldown, pulse charge, score persistence, release stops, precision flight, drag anchoring, multi-touch, dash/drag handoff, and 20/30/60/144 fps consistency using an in-memory canvas and a deterministic clock.
 
 ## System Architecture
 
@@ -254,7 +269,7 @@ portfolio-2/
 │   ├── mat.css              # The mat and everything on it: stocks, inks, stamps, prints, rulers
 │   ├── opengraph-image.tsx  # Dynamic 1200x630 OpenGraph card generation via @vercel/og
 │   ├── page.tsx             # Masthead and the mat, built from the live content
-│   ├── scenery.css          # Page curl, page turn, and the scenery versions
+│   ├── scenery.css          # Scenery versions and legacy page-turn styles
 │   ├── robots.ts            # Dynamic robots.txt generation
 │   └── sitemap.ts           # Dynamic sitemap.xml generation
 ├── assets/
@@ -275,7 +290,7 @@ portfolio-2/
 │   │   ├── places.tsx       # Living postcards of the scenery versions, which travel there
 │   │   └── wordmark.tsx     # The name printed into the mat, fitted to it
 │   ├── print-viewer.tsx     # Full-size viewer for the prints and films on the mat
-│   └── scenery.tsx          # Page curl, page turn, scenery backdrops, dot-printed name
+│   └── scenery.tsx          # Scenery backdrops and dot-printed name
 ├── content/
 │   └── portfolio.ts         # Schema definitions, type guards, and fallback content
 ├── lib/

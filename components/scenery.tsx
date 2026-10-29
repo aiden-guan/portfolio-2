@@ -94,7 +94,7 @@ function animate(fps: number, draw: (t: number) => void) {
     draw(t);
   };
   const run = () => {
-    if (document.hidden) {
+    if (document.hidden || document.documentElement.dataset.break === "live") {
       cancelAnimationFrame(raf);
       raf = 0;
     } else if (!raf) {
@@ -104,9 +104,11 @@ function animate(fps: number, draw: (t: number) => void) {
   };
   run();
   document.addEventListener("visibilitychange", run);
+  window.addEventListener("aiden-arcade-change", run);
   return () => {
     cancelAnimationFrame(raf);
     document.removeEventListener("visibilitychange", run);
+    window.removeEventListener("aiden-arcade-change", run);
   };
 }
 
@@ -863,7 +865,7 @@ export function PageCurl() {
         <span className="page-curl-flap" aria-hidden="true" />
         <span className="page-curl-label" aria-hidden="true">
           {hint ? "Drag to peel" : SCENE_INFO[next].name}
-          <span>{hint ? "↘" : "→"}</span>
+
         </span>
       </button>
       <div className="page-fold" aria-hidden="true" />

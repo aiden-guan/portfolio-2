@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:arcade": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/test-arcade.mjs",
     "blobs": "node --env-file=.env.local scripts/manage-blobs.mjs",
     "r2": "node --env-file=.env.local scripts/manage-r2.mjs",
     "test:r2": "node --env-file=.env.local scripts/test-r2.mjs",

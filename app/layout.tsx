@@ -8,6 +8,8 @@ import "./scenery.css";
 import "./mat.css";
 import "./recents.css";
 import "./folder.css";
+import "./break.css";
+import "./projects.css";
 
 const siteUrl = getSiteUrl();
 

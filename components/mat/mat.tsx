@@ -1,10 +1,13 @@
 import type { CSSProperties, ReactNode } from "react";
+import { BreakRun } from "@/components/break/break-run";
 import { Places } from "@/components/mat/places";
 import { Recents } from "@/components/mat/recents";
 import { Wordmark } from "@/components/mat/wordmark";
 import {
   ApprovalForm,
   BusinessCard,
+  ContinuitySlip,
+  CourtSheet,
   Drawing,
   Envelope,
   NotesCard,
@@ -14,7 +17,7 @@ import {
   Ticket,
   TimeCard,
 } from "@/components/mat/things";
-import type { PortfolioContent, Project } from "@/content/portfolio";
+import { presentProjects, type PortfolioContent, type Project } from "@/content/portfolio";
 import { projectKind } from "@/lib/mat";
 
 // The portfolio laid out on a cutting mat: the name printed across the top,
@@ -29,6 +32,8 @@ const MAIN = {
   drawing: Drawing,
   ticket: Ticket,
 };
+
+const FEATURED: Record<string, typeof ContinuitySlip | undefined> = { continuity: ContinuitySlip, courtvision: CourtSheet };
 
 // How wide the main thing of each kind is, in millimetres of mat, so the
 // prints beside it can take what's left of the row.
@@ -52,8 +57,10 @@ function SectionHead({ id, label, title, count }: { id: string; label: string; t
 }
 
 function ProjectRow({ project, index, owner }: { project: Project; index: number; owner: string }) {
-  const kind = projectKind(project, index);
-  const Main = MAIN[kind];
+  const name = project.name.toLowerCase().replace(/\s+/g, "");
+  const Featured = FEATURED[name as keyof typeof FEATURED];
+  const kind = Featured ? (name === "courtvision" ? "drawing" : "postcard") : projectKind(project, index);
+  const Main = Featured ?? MAIN[kind];
   const images = project.images.slice(0, 6);
   const layered = Math.min(images.length, 3) - 1;
   // what's left of the row for the prints, after the main thing and a gap;
@@ -117,7 +124,8 @@ function Band({ id, children, className }: { id: string; children: ReactNode; cl
 }
 
 export function Mat({ content }: { content: PortfolioContent }) {
-  const { about, interests, profile, projects, recents, sections, timeline } = content;
+  const { about, interests, profile, recents, sections, timeline } = content;
+  const projects = presentProjects(content.projects);
   const paragraphs = about.paragraphs.filter((paragraph) => paragraph.length > 0);
   const notes = interests.filter((interest) => interest.length > 0);
   const year = new Date().getFullYear();
@@ -188,18 +196,21 @@ export function Mat({ content }: { content: PortfolioContent }) {
         </div>
       </Band>
 
-      <section className="mat-end" aria-label="Write to me">
+      <BreakRun
+        name={profile.name}
+        footer={
+          <footer className="mat-foot">
+            <Angles />
+            <span>Self-healing cutting mat</span>
+            <span>{profile.mark}</span>
+            <span>
+              © {year} {profile.name}
+            </span>
+          </footer>
+        }
+      >
         <Envelope profile={profile} />
-      </section>
-
-      <footer className="mat-foot">
-        <Angles />
-        <span>Self-healing cutting mat</span>
-        <span>{profile.mark}</span>
-        <span>
-          © {year} {profile.name}
-        </span>
-      </footer>
+      </BreakRun>
     </>
   );
 }

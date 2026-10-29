@@ -122,7 +122,7 @@ html[data-holding] {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 1.5rem;
-  padding: 0 max(1.5rem, env(safe-area-inset-right)) 0 5.25rem;
+  padding: 0 max(1.5rem, env(safe-area-inset-right)) 0 max(1.5rem, env(safe-area-inset-left));
   background: var(--mat);
   color: var(--mat-ink);
   font-family: var(--font-mono), var(--mono);
@@ -962,7 +962,7 @@ html[data-scene] .tool-switch {
 .mat-hint > span::before {
   margin-right: 0.7em;
   color: var(--accent);
-  content: "→";
+  content: none;
 }
 
 .hint-touch {
@@ -3174,7 +3174,7 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
 
   .masthead {
     grid-template-columns: minmax(0, 1fr) auto;
-    padding: 0 1rem 0 4rem;
+    padding: 0 1rem;
   }
 
   .file-nav,
