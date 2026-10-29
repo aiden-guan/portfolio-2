@@ -695,6 +695,10 @@ html[data-break="live"] .masthead {
   .crt-ability kbd {
     display: none;
   }
+  .crt-ability:disabled [data-pulse-key] {
+    display: block;
+    color: #b5c8ae;
+  }
 
   .crt-pause-button {
     min-width: 25px;

@@ -3,7 +3,12 @@ export type Volley = {
   kind: "fan" | "aim" | "lanes" | "heart" | "petals";
   shots: VolleyShot[];
 };
-export const OVERDRIVE_SECONDS = 6.5;
+export const OVERDRIVE_SECONDS = 5.5;
+export const PULSE_COOLDOWN = 22;
+export const pulseRadius = (width: number, height: number) =>
+  Math.max(120, Math.min(175, Math.min(width, height) * 0.31));
+export const pulseWaveRadius = (age: number, radius: number) =>
+  radius * (1 - (1 - Math.min(1, age / 0.42)) ** 3);
 export const WARNING_SECONDS = 0.85;
 export type BossForm = 1 | 2 | 3;
 export type EnemyKind = "scout" | "palantir" | "anduril";
@@ -36,8 +41,8 @@ export function steerSeeker(
     Math.sin(desired - heading),
     Math.cos(desired - heading),
   );
-  const angle = heading + Math.max(-dt * 0.78, Math.min(dt * 0.78, delta));
-  return { vx: Math.cos(angle) * 134, vy: Math.sin(angle) * 134 };
+  const angle = heading + Math.max(-dt * 1.05, Math.min(dt * 1.05, delta));
+  return { vx: Math.cos(angle) * 162, vy: Math.sin(angle) * 162 };
 }
 export function evilDetails(cols: number, rows: number) {
   const marks: { col: number; row: number; ink: number }[] = [];
@@ -88,19 +93,26 @@ export function planVolley(
       vy: Math.sin(angle) * speed,
     });
   if (kind === "fan") {
-    for (let i = 0; i < 7; i++)
+    for (let i = 0; i < 9; i++)
       radial(
-        Math.PI * 0.2 + (i / 6) * Math.PI * 0.6 + Math.sin(turn * 1.7) * 0.09,
+        Math.PI * 0.2 + (i / 8) * Math.PI * 0.6 + Math.sin(turn * 1.7) * 0.09,
       );
   } else if (kind === "aim") {
     const aim = Math.atan2(Math.max(80, targetY - y), targetX - x);
-    for (let i = -2; i <= 2; i++) radial(aim + i * 0.27);
+    for (let i = -3; i <= 3; i++) radial(aim + i * 0.19);
   } else if (kind === "lanes") {
     const columns = Math.max(6, Math.min(11, Math.floor(width / 100)));
-    const gap = Math.max(62, (width / columns) * 0.7);
+    const gap = Math.max(40, (width / columns) * 0.52);
+    const safeX = Math.max(
+      width * 0.12,
+      Math.min(
+        width * 0.88,
+        targetX + (turn % 2 ? -1 : 1) * Math.min(90, width * 0.14),
+      ),
+    );
     for (let i = 0; i <= columns; i++) {
       const sx = width * (0.08 + (i / columns) * 0.84);
-      if (Math.abs(sx - targetX) > gap)
+      if (Math.abs(sx - safeX) > gap)
         shots.push({ x: sx, y: y - 25, vx: 0, vy: speed * 0.88 });
     }
   } else if (kind === "heart") {
@@ -123,13 +135,14 @@ export function planVolley(
       });
     }
   } else {
-    const gap = Math.atan2(targetY - y, targetX - x);
+    const gap =
+      Math.atan2(targetY - y, targetX - x) + (turn % 2 ? -0.42 : 0.42);
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * Math.PI * 2;
       const distance = Math.abs(
         Math.atan2(Math.sin(a - gap), Math.cos(a - gap)),
       );
-      if (distance > 0.36) radial(a);
+      if (distance > 0.29) radial(a);
     }
   }
   return { kind, shots };

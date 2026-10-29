@@ -21,6 +21,9 @@ import {
   formatTime,
   OVERDRIVE_SECONDS,
   WARNING_SECONDS,
+  PULSE_COOLDOWN,
+  pulseRadius,
+  pulseWaveRadius,
   type Volley,
   type BossForm,
   type EnemyKind,
@@ -95,6 +98,7 @@ type Spark = {
 type Drone = {
   kind: EnemyKind;
   flash: number;
+  stunned: number;
   targetX?: number;
   targetY?: number;
   x: number;
@@ -110,7 +114,7 @@ type Pickup = {
   x: number;
   y: number;
   age: number;
-  kind: "spread" | "shield" | "pulse";
+  kind: "spread" | "shield" | "charge";
   alive: boolean;
 };
 type Ring = {
@@ -309,6 +313,13 @@ export function mountArcade(
     hurtFlash = 0;
   let echoHp: number = MAX_HP,
     upgradeFlash = 0;
+  let emp: {
+    x: number;
+    y: number;
+    age: number;
+    hits: Set<Drone>;
+    bossHit: boolean;
+  } | null = null;
   const focusRay = { active: false, x: 0, y: 0 };
   let kick = 0,
     impact = 0,
@@ -380,6 +391,7 @@ export function mountArcade(
   function phaseTo(next: ArcadePhase) {
     if (phase === next) return;
     phase = next;
+    if (next === "lose" || next === "dying" || next === "win") emp = null;
     hudNodes.clear();
     if (next === "win" || next === "lose") {
       best = Math.max(best, score);
@@ -430,6 +442,12 @@ export function mountArcade(
       dashMeter.style.transform = `scaleX(${1 - clamp(player.dashCooldown / DASH_COOLDOWN, 0, 1)})`;
     const energyMeter = host.querySelector<HTMLElement>("[data-energy]");
     if (energyMeter) energyMeter.style.transform = `scaleX(${player.energy})`;
+    text(
+      "[data-pulse-key]",
+      player.energy >= 0.999
+        ? "X"
+        : `${Math.ceil((1 - player.energy) * PULSE_COOLDOWN)}s`,
+    );
     const dashButton =
       host.querySelector<HTMLButtonElement>("[data-dash-button]");
     if (dashButton) dashButton.disabled = player.dashCooldown > 0;
@@ -470,6 +488,10 @@ export function mountArcade(
         drone.origin *= sx;
         if (drone.targetX !== undefined) drone.targetX *= sx;
         if (drone.targetY !== undefined) drone.targetY *= sy;
+      }
+      if (emp) {
+        emp.x *= sx;
+        emp.y *= sy;
       }
       for (const items of [pickups, rings, trails, sparks])
         for (const item of items) {
@@ -563,7 +585,7 @@ export function mountArcade(
     if (player.charge < 100) return;
     player.charge = 0;
     player.overdrive = OVERDRIVE_SECONDS;
-    player.invincible = Math.max(player.invincible, 0.9);
+    player.invincible = Math.max(player.invincible, 0.3);
     stats.overdrives++;
     upgradeFlash = 1.1;
     ring(player.x, player.y, "#f3d99d", 350, 0.65);
@@ -616,7 +638,7 @@ export function mountArcade(
       age: 0,
       friendly,
       kind,
-      hp: kind === "seeker" ? 0.85 : undefined,
+      hp: kind === "seeker" ? 1.3 : undefined,
       trail: kind === "seeker" ? [] : undefined,
       grazed: false,
       damage: !friendly
@@ -625,21 +647,20 @@ export function mountArcade(
           ? ENCOUNTER.missileDamage
           : ENCOUNTER.boltDamage,
     };
-    if (friendly) data.damage *= power * (player.overdrive > 0 ? 1.3 : 1);
+    if (friendly) data.damage *= power * (player.overdrive > 0 ? 1.15 : 1);
     const old = shots.find((s) => s.life <= 0);
     if (old) Object.assign(old, data);
     else if (shots.length < 360) shots.push(data);
   }
-  function clearBullets(reward = false) {
+  function clearBullets() {
     for (const shot of shots)
       if (shot.life > 0 && !shot.friendly) {
         if (shot.kind === "seeker") {
-          destroySeeker(shot, reward);
+          destroySeeker(shot, false);
           continue;
         }
         shot.life = 0;
         spark(shot.x, shot.y, "#b9e2ce", 2, 0.5);
-        if (reward) points(10);
       }
     beams.length = 0;
   }
@@ -659,26 +680,33 @@ export function mountArcade(
   function drop(x: number, y: number, kind: Pickup["kind"]) {
     if (pickups.length < 9) pickups.push({ x, y, kind, age: 0, alive: true });
   }
-  function destroyDrone(drone: Drone) {
+  function destroyDrone(drone: Drone, reward = true) {
     drone.hp = 0;
-    points(100);
+    if (reward) points(100);
     if (drone.kind !== "scout") {
-      points(drone.kind === "anduril" ? 160 : 100);
+      if (reward) points(drone.kind === "anduril" ? 160 : 100);
       spark(drone.x, drone.y, "#ffd7a3", 30, 1.2);
       spark(drone.x, drone.y, "#bca499", 14, 0.6);
       ring(drone.x, drone.y, "#ffd5a5", 280, 0.6);
       sound.note(62, 0.24, 0.035);
     }
     stats.drones++;
-    chain(2);
-    charge(9);
+    if (reward) {
+      chain(2);
+      charge(9);
+    }
     spark(drone.x, drone.y, "#e7ab87", 20);
     ring(drone.x, drone.y, "#e9aa85", 110, 0.4);
-    drop(
-      drone.x,
-      drone.y,
-      droneCount++ % 2 === 0 ? "spread" : player.lives < 3 ? "shield" : "pulse",
-    );
+    if (reward)
+      drop(
+        drone.x,
+        drone.y,
+        droneCount++ % 2 === 0
+          ? "spread"
+          : player.lives < 2
+            ? "shield"
+            : "charge",
+      );
     sound.note(145, 0.1, 0.025);
   }
   function beginSecondForm() {
@@ -700,9 +728,9 @@ export function mountArcade(
     slowTime = 0;
     clearBullets();
     shots.length = drones.length = pickups.length = beams.length = 0;
-    player.lives = 3;
-    player.energy = 1;
-    player.invincible = 2;
+    emp = null;
+    player.lives = Math.min(3, player.lives + 1);
+    player.invincible = 1.3;
     const blush = new Map(
       createBlush(cols, rows).map((p) => [p.row * cols + p.col, p.ink]),
     );
@@ -746,10 +774,10 @@ export function mountArcade(
     focusRay.active = false;
     slowTime = 0;
     shots.length = drones.length = pickups.length = beams.length = 0;
-    player.lives = 3;
-    player.energy = 1;
-    player.weapon = 3;
-    player.invincible = 2;
+    emp = null;
+    player.lives = Math.min(3, player.lives + 1);
+    player.weapon = Math.max(2, player.weapon);
+    player.invincible = 1.3;
     const details = new Map(
       evilDetails(cols, rows).map((p) => [p.row * cols + p.col, p.ink]),
     );
@@ -771,7 +799,6 @@ export function mountArcade(
     if (phase !== "fight") return;
     hp = Math.max(0, hp - amount);
     points(amount * 20);
-    player.energy = Math.min(1, player.energy + amount * 0.012);
     charge(amount * 0.2);
     impact = reduced ? 0 : 0.16;
     impactX = x;
@@ -818,7 +845,7 @@ export function mountArcade(
       return;
     player.lives--;
     stats.hits++;
-    player.invincible = 2.1;
+    player.invincible = 1.3;
     hurtFlash = 0.55;
     player.weapon = Math.max(1, player.weapon - 1);
     combo = 1;
@@ -857,16 +884,9 @@ export function mountArcade(
   function pulse() {
     if (phase !== "fight" || paused || player.energy < 0.999) return false;
     player.energy = 0;
-    player.invincible = Math.max(player.invincible, 0.65);
-    clearBullets(true);
-    volley = null;
-    attackTimer = Math.max(attackTimer, 1.25);
-    ring(player.x, player.y, "#b7f0d9", 980, 0.85);
-    ring(player.x, player.y, "#e9edc9", 650, 0.6);
-    kick = reduced ? 0 : 3;
-    for (const drone of drones) if (drone.hp > 0) destroyDrone(drone);
-    const b = place();
-    damageBoss(ENCOUNTER.pulseDamage, b.cx, b.cy);
+    player.invincible = Math.max(player.invincible, 0.18);
+    emp = { x: player.x, y: player.y, age: 0, hits: new Set(), bossHit: false };
+    kick = reduced ? 0 : 1.5;
     sound.note(54, 0.45, 0.05);
     sound.note(220, 0.3, 0.02);
     canvas.focus({ preventScroll: true });
@@ -884,6 +904,7 @@ export function mountArcade(
     canvas.focus({ preventScroll: true });
   }
   function reset() {
+    emp = null;
     hp = MAX_HP;
     echoHp = MAX_HP;
     Object.assign(stats, createRunStats());
@@ -961,6 +982,7 @@ export function mountArcade(
   }
   function continueStage() {
     if (phase !== "lose" || form === 1) return false;
+    emp = null;
     stats.continues++;
     score = Math.floor(score * 0.6);
     hp = echoHp = maxHp();
@@ -996,7 +1018,7 @@ export function mountArcade(
       energy: 1,
       charge: 0,
       overdrive: 0,
-      weapon: form === 3 ? 3 : 2,
+      weapon: 2,
       spread: 0,
       invincible: 3,
       dashTime: 0,
@@ -1064,9 +1086,8 @@ export function mountArcade(
     const next = hp > (maxHp() * 2) / 3 ? 1 : hp > maxHp() / 3 ? 2 : 3;
     if (next !== stage) {
       stage = next;
-      clearBullets();
       volley = null;
-      attackTimer = 1.7;
+      attackTimer = 1.1;
       laserTimer = 4;
       ring(
         b.cx,
@@ -1075,17 +1096,18 @@ export function mountArcade(
         150,
         0.8,
       );
-      drop(
-        b.cx,
-        Math.min(h * 0.6, b.cy + b.height * 0.65),
-        player.lives < 3 ? "shield" : "pulse",
-      );
+      if (stage === 2)
+        drop(
+          b.cx,
+          Math.min(h * 0.6, b.cy + b.height * 0.65),
+          player.lives < 2 ? "shield" : "charge",
+        );
     }
     attackTimer -= dt;
     droneTimer -= dt;
     if (!volley && attackTimer <= WARNING_SECONDS) {
       const speed = clamp(
-        h * 0.16,
+        h * 0.22,
         ENCOUNTER.enemyMinSpeed,
         ENCOUNTER.enemyMaxSpeed,
       );
@@ -1106,7 +1128,7 @@ export function mountArcade(
         fire(shot.x, shot.y, shot.vx, shot.vy, false);
       volley = null;
       volleyTurn++;
-      attackTimer = form === 3 ? 3.1 : form === 2 ? 2.85 : 2.45;
+      attackTimer = form === 3 ? 2.25 : form === 2 ? 2.2 : 1.95;
     }
     if (
       (form === 2 ||
@@ -1127,7 +1149,7 @@ export function mountArcade(
     }
     const alive = drones.filter((d) => d.hp > 0).length;
     if (droneTimer <= 0 && alive < (form === 3 ? 4 : 2)) {
-      droneTimer = form === 3 ? 8 : form === 2 ? 12 : 13;
+      droneTimer = form === 3 ? 6.5 : form === 2 ? 10 : 11;
       const kind: EnemyKind =
         form === 3 ? (summonWave++ % 2 ? "anduril" : "palantir") : "scout";
       for (const side of [-1, 1]) {
@@ -1138,11 +1160,12 @@ export function mountArcade(
         drones.push({
           kind,
           flash: 0,
+          stunned: 0,
           x: side < 0 ? w * edge : w * (1 - edge),
           y: -40,
           origin: side < 0 ? w * edge : w * (1 - edge),
           age: 0,
-          hp: kind === "anduril" ? 4.8 : kind === "palantir" ? 3.4 : 1.8,
+          hp: kind === "anduril" ? 10 : kind === "palantir" ? 7 : 2.8,
           shotAt: kind === "palantir" ? 3 : 3.6,
           side,
           seed: Math.random() * 10,
@@ -1273,9 +1296,7 @@ export function mountArcade(
         droneTimer = form === 3 ? 1.2 : 8;
         laserTimer = 7;
         firstPickup = false;
-        player.lives = 3;
-        player.energy = 1;
-        player.invincible = 1.5;
+        player.invincible = 1.3;
         phaseTo("fight");
       }
     }
@@ -1311,7 +1332,7 @@ export function mountArcade(
       }
       if (motion.dashEnded) rebasePointer();
       if (phase === "fight") {
-        player.energy = Math.min(1, player.energy + dt * 0.04);
+        player.energy = Math.min(1, player.energy + dt / PULSE_COOLDOWN);
         shotTimer -= dt;
         missileTimer -= dt;
         if (shotTimer <= 0) {
@@ -1412,6 +1433,8 @@ export function mountArcade(
     } else focusTimer = 0;
     for (const drone of drones) {
       if (drone.hp <= 0) continue;
+      drone.stunned = Math.max(0, drone.stunned - dt);
+      if (drone.stunned > 0) continue;
       drone.age += enemyDt;
       drone.flash = Math.max(0, drone.flash - dt);
       if (drone.kind === "scout") {
@@ -1455,10 +1478,10 @@ export function mountArcade(
         if (drone.shotAt <= 0) {
           drone.shotAt =
             drone.kind === "palantir"
-              ? 5.4
+              ? 4.2
               : drone.kind === "anduril"
-                ? 4.6
-                : 3.8;
+                ? 3.3
+                : 3.2;
           drone.flash = 0.18;
           const aim = Math.atan2(
             (drone.targetY ?? player.y) - drone.y,
@@ -1467,10 +1490,10 @@ export function mountArcade(
           if (drone.kind === "palantir") {
             for (const side of [-1, 1])
               fire(
-                drone.x + side * 21,
-                drone.y + 13,
-                Math.cos(aim + side * 0.15) * 134,
-                Math.sin(aim + side * 0.15) * 134,
+                drone.x + side * 32 * clamp(w / 650, 0.68, 1),
+                drone.y + 31 * clamp(w / 650, 0.68, 1),
+                Math.cos(aim + side * 0.15) * 162,
+                Math.sin(aim + side * 0.15) * 162,
                 false,
                 "seeker",
               );
@@ -1479,10 +1502,10 @@ export function mountArcade(
             for (const side of [-1, 1])
               for (const spread of [-0.1, 0.1])
                 fire(
-                  drone.x + side * 23,
-                  drone.y + 25,
-                  Math.cos(aim + spread) * 100,
-                  Math.sin(aim + spread) * 100,
+                  drone.x + side * 31 * clamp(w / 650, 0.68, 1),
+                  drone.y + 38 * clamp(w / 650, 0.68, 1),
+                  Math.cos(aim + spread) * 138,
+                  Math.sin(aim + spread) * 138,
                   false,
                 );
             sound.note(65, 0.18, 0.03);
@@ -1491,8 +1514,8 @@ export function mountArcade(
               fire(
                 drone.x,
                 drone.y,
-                Math.cos(aim + i * 0.24) * 95,
-                Math.sin(aim + i * 0.24) * 95,
+                Math.cos(aim + i * 0.24) * 120,
+                Math.sin(aim + i * 0.24) * 120,
                 false,
               );
           drone.targetX = drone.targetY = undefined;
@@ -1526,6 +1549,43 @@ export function mountArcade(
       )
         hurt();
     }
+    if (emp && phase === "fight") {
+      emp.age += dt;
+      const radius = pulseWaveRadius(emp.age, pulseRadius(w, h));
+      for (const shot of shots) {
+        if (
+          shot.life <= 0 ||
+          shot.friendly ||
+          Math.hypot(shot.x - emp.x, shot.y - emp.y) > radius
+        )
+          continue;
+        if (shot.kind === "seeker") destroySeeker(shot, false);
+        else {
+          shot.life = 0;
+          spark(shot.x, shot.y, "#b9e2ee", 3, 0.4);
+        }
+      }
+      for (const drone of drones) {
+        if (
+          drone.hp <= 0 ||
+          emp.hits.has(drone) ||
+          Math.hypot(drone.x - emp.x, drone.y - emp.y) > radius
+        )
+          continue;
+        emp.hits.add(drone);
+        drone.hp -= ENCOUNTER.pulseDamage;
+        drone.stunned = 0.75;
+        spark(drone.x, drone.y, "#b9e2ee", 10, 0.6);
+        if (drone.hp <= 0) destroyDrone(drone, false);
+      }
+      const dx = Math.max(0, Math.abs(emp.x - b.cx) - b.width * 0.32);
+      const dy = Math.max(0, Math.abs(emp.y - b.cy) - b.height * 0.38);
+      if (!emp.bossHit && Math.hypot(dx, dy) < radius) {
+        emp.bossHit = true;
+        damageBoss(ENCOUNTER.pulseDamage, emp.x, emp.y);
+      }
+      if (emp && emp.age >= 0.58) emp = null;
+    }
     const incoming = shots.filter((s) => s.kind === "seeker" && s.life > 0);
     for (const shot of shots) {
       if (shot.life <= 0) continue;
@@ -1545,7 +1605,7 @@ export function mountArcade(
           spark(shot.x, shot.y, "#a7bea1", 1, 0.15);
       }
       if (shot.kind === "seeker") {
-        if (shot.age < 1.25)
+        if (shot.age < 1.6)
           Object.assign(
             shot,
             steerSeeker(
@@ -1595,7 +1655,6 @@ export function mountArcade(
           chain();
           points(30);
           charge(8);
-          player.energy = Math.min(1, player.energy + 0.1);
           slowTime = 0.45;
           ring(shot.x, shot.y, "#f2dfa9", 120, 0.28);
           spark(shot.x, shot.y, "#f3dfa7", 7, 0.4);
@@ -1623,7 +1682,6 @@ export function mountArcade(
           chain();
           charge(3.5);
           points(15);
-          player.energy = Math.min(1, player.energy + 0.045);
           spark(player.x, player.y, "#b6e2d0", 3, 0.3);
         }
       } else {
@@ -1649,7 +1707,8 @@ export function mountArcade(
               shot.y,
               d.x,
               d.y,
-              d.kind === "anduril" ? 28 : d.kind === "palantir" ? 25 : 17,
+              (d.kind === "anduril" ? 34 : d.kind === "palantir" ? 32 : 17) *
+                (d.kind === "scout" ? 1 : clamp(w / 650, 0.68, 1)),
             ),
         );
         if (drone) {
@@ -1695,7 +1754,7 @@ export function mountArcade(
           upgradeFlash = 1;
         } else if (pickup.kind === "shield")
           player.lives = Math.min(3, player.lives + 1);
-        else player.energy = Math.min(1, player.energy + 0.65);
+        else charge(22);
         charge(12);
         chain();
         ring(player.x, player.y, "#c8e5b0", 130, 0.4);
@@ -2148,7 +2207,7 @@ export function mountArcade(
     for (const drone of drones)
       if (drone.hp > 0) {
         if (drone.kind !== "scout") {
-          vfx.enemy(drone, reduced);
+          vfx.enemy(drone, reduced, clamp(w / 650, 0.68, 1));
           if (drone.targetX !== undefined && phase === "fight") {
             ctx.strokeStyle = "#f5a48166";
             ctx.lineWidth = 1;
@@ -2322,6 +2381,7 @@ export function mountArcade(
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
+    if (emp) vfx.pulse(emp.x, emp.y, emp.age, pulseRadius(w, h), reduced);
     for (const r of rings) {
       ctx.globalAlpha = (1 - r.age / r.life) * 0.8;
       ctx.strokeStyle = r.ink;

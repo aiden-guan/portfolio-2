@@ -529,13 +529,13 @@ export function BreakRun({
                             type="button"
                             className="crt-ability"
                             data-pulse-button=""
-                            aria-label="Pulse. X."
+                            aria-label="Local EMP. X. 22 second cooldown."
                             onClick={() => game.current?.pulse()}
                           >
                             <span className="crt-ability-fill" data-energy="" />
 
                             <span>
-                              Pulse <kbd>X</kbd>
+                              Pulse <kbd data-pulse-key="">X</kbd>
                             </span>
                           </button>
                         </div>

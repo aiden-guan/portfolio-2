@@ -120,15 +120,8 @@ function engine({
       rotate() {
         [jetX, jetY] = lastTranslate;
       },
-      fillText(value) {
-        if (value === "PALANTIR" || value === "ANDURIL") {
-          enemiesSeen.add(value);
-          enemyPositions.push({
-            kind: value,
-            x: lastTranslate[0],
-            y: lastTranslate[1],
-          });
-        }
+      createLinearGradient() {
+        return { addColorStop() {} };
       },
       createRadialGradient() {
         return { addColorStop() {} };
@@ -214,6 +207,7 @@ function engine({
   const vfxModule = {};
   const sandbox = createContext({
     exports: {},
+    Path2D: class {},
     require(id) {
       return id.endsWith("/encounter")
         ? encounter
@@ -308,7 +302,21 @@ function engine({
       "})(exports)",
     sandbox,
   );
-  Object.assign(vfxModule, sandbox.exports);
+  const makeVfx = sandbox.exports.createVfx;
+  vfxModule.createVfx = (...args) => {
+    const renderer = makeVfx(...args);
+    const drawEnemy = renderer.enemy;
+    renderer.enemy = (enemy, ...rest) => {
+      enemiesSeen.add(enemy.kind.toUpperCase());
+      enemyPositions.push({
+        kind: enemy.kind.toUpperCase(),
+        x: enemy.x,
+        y: enemy.y,
+      });
+      return drawEnemy(enemy, ...rest);
+    };
+    return renderer;
+  };
   sandbox.exports = {};
   const source = readFileSync(
     new URL("../components/break/arcade.ts", import.meta.url),
@@ -391,6 +399,78 @@ function engine({
   };
 }
 
+// Pilot from rendered projectile positions, with finite speed and a modest look-ahead.
+// This exercises a dodging player rather than a stationary pulse spammer.
+function campaignPilot(e, width = 1200, height = 650) {
+  let old = [],
+    tick = 0;
+  e.event("pointerup", { pointerId: 1 });
+  return () => {
+    const ship = e.position;
+    const threats = e.enemyShots.map((s) => {
+      const prior = old.reduce(
+        (best, p) =>
+          Math.hypot(s.x - p.x, s.y - p.y) <
+          Math.hypot(s.x - best.x, s.y - best.y)
+            ? p
+            : best,
+        { x: Infinity, y: Infinity },
+      );
+      const close = Math.hypot(s.x - prior.x, s.y - prior.y) < 5;
+      return {
+        ...s,
+        vx: close ? (s.x - prior.x) * 60 : 0,
+        vy: close ? (s.y - prior.y) * 60 : 140,
+      };
+    });
+    old = e.enemyShots.map((s) => ({ ...s }));
+    const idealX = e.subject.x + Math.sin((tick / 60) * 0.7) * 12,
+      idealY = height - 105;
+    let target = { x: idealX, y: idealY },
+      best = Infinity;
+    for (let dx = -130; dx <= 130; dx += 26)
+      for (const dy of [-52, 0, 52]) {
+        const x = Math.max(45, Math.min(width - 45, ship.x + dx)),
+          y = Math.max(height * 0.62, Math.min(height - 85, idealY + dy));
+        let cost =
+          Math.abs(x - idealX) * 0.2 +
+          Math.abs(y - idealY) * 0.13 +
+          Math.hypot(x - ship.x, y - ship.y) * 0.012;
+        for (const shot of threats)
+          for (const time of [0.12, 0.3, 0.55, 0.85]) {
+            const dist = Math.hypot(x - ship.x, y - ship.y),
+              progress = dist ? Math.min(1, (time * 300) / dist) : 1;
+            const px = ship.x + (x - ship.x) * progress,
+              py = ship.y + (y - ship.y) * progress;
+            const distance = Math.hypot(
+              shot.x + shot.vx * time - px,
+              shot.y + shot.vy * time - py,
+            );
+            cost += Math.exp((-distance * distance) / (2 * 16 * 16)) * 130;
+          }
+        if (cost < best) {
+          best = cost;
+          target = { x, y };
+        }
+      }
+    const near = threats.filter(
+      (s) => Math.hypot(s.x - ship.x, s.y - ship.y) < 75,
+    );
+    if (near.length >= 3) e.game.pulse();
+    for (const [key, pressed] of [
+      ["a", target.x < ship.x - 7],
+      ["d", target.x > ship.x + 7],
+      ["w", target.y < ship.y - 7],
+      ["s", target.y > ship.y + 7],
+    ])
+      e.event(pressed ? "keydown" : "keyup", { key });
+    if (near.some((s) => Math.hypot(s.x - ship.x, s.y - ship.y) < 25))
+      e.game.dash();
+    e.tick(1 / 60);
+    tick++;
+  };
+}
+
 test("flight waits for launch, bounds movement, pauses, resumes and releases every listener", () => {
   const e = engine();
   assert.equal(e.phases.at(-1), "ready");
@@ -470,30 +550,27 @@ test("all three boss forms have safe transformations, a final checkpoint, and a 
   const e = engine({ width: 1200, height: 650, audible: true });
   e.game.start();
   e.tick(1.6);
-  // Track the visible portrait from below, the way a pilot lines up a shot.
-  e.event("pointerdown", {
-    pointerId: 1,
-    clientX: e.position.x,
-    clientY: e.position.y,
-    pointerType: "mouse",
-  });
-  const track = () => {
-    e.event("pointermove", {
-      pointerId: 1,
-      clientX: e.subject.x,
-      clientY: 590,
-      pointerType: "mouse",
-    });
-    e.tick(1 / 60);
-  };
-  for (let i = 0; i < 3600 && e.phases.at(-1) === "fight"; i++) track();
-  assert.equal(e.phases.at(-1), "transform");
+  let track = campaignPilot(e);
+  for (let i = 0; i < 6000 && e.phases.at(-1) === "fight"; i++) {
+    if (Number.parseInt(e.labels.get("[data-health]").textContent) <= 8)
+      e.game.pulse();
+    track();
+  }
+  assert.equal(
+    e.phases.at(-1),
+    "transform",
+    `HP ${e.labels.get("[data-health]").textContent}, ship ${JSON.stringify(e.position)}, subject ${JSON.stringify(e.subject)}`,
+  );
+  const carriedEnergy = parseFloat(
+    e.labels.get("[data-energy]").style.transform.slice(7),
+  );
+  const carriedHull = e.labels.get("[data-hull]").textContent;
+  assert.ok(carriedEnergy < 1, `The EMP is still cooling down: ${carriedEnergy}`);
   const firstDuration = e.elapsed - 1.2;
   assert.ok(e.elapsed > 20, `First form ended at ${e.elapsed}s`);
   assert.equal(e.host.dataset.form, "cat");
   assert.equal(e.labels.get("[data-stage]").textContent, "II");
-  assert.equal(e.labels.get("[data-hull]").textContent, "◆ ◆ ◆");
-  assert.equal(e.labels.get("[data-energy]").style.transform, "scaleX(1)");
+  assert.ok(e.labels.get("[data-hull]").textContent.includes("◆"));
   assert.equal(e.enemyShots.length, 0, "The transition clears the arena");
   assert.equal(e.audio.nodes.filter((n) => n.kind === "filter").length, 0);
   e.game.togglePause();
@@ -502,6 +579,16 @@ test("all three boss forms have safe transformations, a final checkpoint, and a 
   e.game.togglePause();
   e.tick(encounter.ENCOUNTER.transformSeconds + 0.1);
   assert.equal(e.phases.at(-1), "fight");
+  assert.ok(
+    parseFloat(e.labels.get("[data-energy]").style.transform.slice(7)) <
+      carriedEnergy + 0.02,
+    "A transformation cannot refund EMP charge",
+  );
+  assert.equal(
+    e.labels.get("[data-hull]").textContent,
+    carriedHull,
+    "The transition end cannot add a second heal",
+  );
   assert.equal(e.labels.get("[data-health]").textContent, "100%");
   assert.equal(
     e.audio.nodes.filter((n) => n.kind === "filter").length,
@@ -515,15 +602,15 @@ test("all three boss forms have safe transformations, a final checkpoint, and a 
     clientY: e.position.y,
     pointerType: "mouse",
   });
+  track = campaignPilot(e);
   const secondStart = e.elapsed;
   for (let i = 0; i < 4200 && e.phases.at(-1) === "fight"; i++) {
     track();
-    if (i % 180 === 0) e.game.pulse();
   }
   assert.equal(e.phases.at(-1), "transform");
   assert.equal(e.host.dataset.form, "evil");
   assert.equal(e.labels.get("[data-stage]").textContent, "III");
-  assert.equal(e.labels.get("[data-hull]").textContent, "◆ ◆ ◆");
+  assert.ok(e.labels.get("[data-hull]").textContent.includes("◆"));
   assert.equal(e.enemyShots.length, 0);
   assert.ok(e.elapsed - secondStart > 20);
   const secondDuration = e.elapsed - secondStart;
@@ -554,7 +641,7 @@ test("all three boss forms have safe transformations, a final checkpoint, and a 
   e.tick(1.4);
   assert.equal(e.host.dataset.form, "evil");
   assert.equal(e.labels.get("[data-health]").textContent, "100%");
-  assert.equal(e.host.dataset.weapon, "3");
+  assert.equal(e.host.dataset.weapon, "2");
   e.tick(2.2);
   e.resize(375, 812);
   e.tick(0.1);
@@ -574,16 +661,9 @@ test("all three boss forms have safe transformations, a final checkpoint, and a 
     clientY: e.position.y,
     pointerType: "mouse",
   });
+  track = campaignPilot(e);
   const thirdStart = e.elapsed;
-  for (let i = 0; i < 6000 && e.phases.at(-1) === "fight"; i++) {
-    e.event("pointermove", {
-      pointerId: 1,
-      clientX: e.subject.x + Math.sin((i / 60) * 1.4) * 65,
-      clientY: 568,
-    });
-    e.tick(1 / 60);
-    if (i % 180 === 0) e.game.pulse();
-  }
+  for (let i = 0; i < 9000 && e.phases.at(-1) === "fight"; i++) track();
   assert.equal(
     e.phases.at(-1),
     "dying",
@@ -615,19 +695,19 @@ test("all three boss forms have safe transformations, a final checkpoint, and a 
   e.game.stop();
 });
 
-test("enemy volleys stay widely spaced, visibly large, and slow enough to follow", () => {
+test("denser enemy volleys keep readable bullet size and a bounded travel speed", () => {
   const e = engine();
   e.game.start();
   e.tick(3.5);
   const first = e.enemyShots.map((s) => ({ ...s }));
-  assert.equal(first.length, 7);
+  assert.equal(first.length, 9);
   assert.ok(first.every((s) => s.radius >= 6 && s.ink === "#ffc28e"));
   e.tick(0.3);
-  assert.equal(e.enemyShots.length, 7);
+  assert.equal(e.enemyShots.length, 9);
   for (let i = 0; i < first.length; i++) {
     const next = e.enemyShots[i];
     const speed = Math.hypot(next.x - first[i].x, next.y - first[i].y) / 0.3;
-    assert.ok(speed > 100 && speed < 110, `Volley moved at ${speed}px/s`);
+    assert.ok(speed > 140 && speed < 145, `Volley moved at ${speed}px/s`);
   }
   e.game.stop();
 });
@@ -654,7 +734,7 @@ test("attack plans vary by form, leave escape lanes, and commit to the warned pa
       volley.shots.every((s) => Object.values(s).every(Number.isFinite)),
     );
   }
-  assert.ok(human[2].shots.every((s) => Math.abs(s.x - 615) > 62));
+  assert.ok(human[2].shots.every((s) => Math.abs(s.x - 705) > 56));
   const original = JSON.stringify(human[1]);
   combat.planVolley(1, 1, 600, 210, 1000, 565, 1200, 104);
   assert.equal(JSON.stringify(human[1]), original);
@@ -663,13 +743,13 @@ test("attack plans vary by form, leave escape lanes, and commit to the warned pa
     original,
   );
   const narrow = combat.planVolley(1, 2, 160, 180, 160, 500, 320, 82);
-  assert.ok(narrow.shots.every((s) => Math.abs(s.x - 160) > 62));
+  assert.ok(narrow.shots.every((s) => Math.abs(s.x - 204.8) > 40));
 });
 
 test("collecting a weapon pickup upgrades the ship and replay resets it", () => {
   const e = engine();
   e.game.start();
-  e.tick(8);
+  e.tick(6.8);
   assert.equal(e.host.dataset.weapon, "2");
   assert.equal(e.labels.get("[data-weapon]").textContent, "MK.II");
   e.game.reset();
@@ -735,22 +815,17 @@ test("second-stage retry restores the cat form without replaying its transformat
   assert.equal(e.game.continueStage(), false);
   e.game.start();
   e.tick(1.6);
+  const track = campaignPilot(e);
+  for (let i = 0; i < 6000 && e.phases.at(-1) === "fight"; i++) track();
+  assert.equal(e.phases.at(-1), "transform");
+  e.tick(3.5);
+  for (const key of ["w", "a", "s", "d"]) e.event("keyup", { key });
   e.event("pointerdown", {
     pointerId: 1,
     clientX: e.position.x,
     clientY: e.position.y,
     pointerType: "mouse",
   });
-  for (let i = 0; i < 3600 && e.phases.at(-1) === "fight"; i++) {
-    e.event("pointermove", {
-      pointerId: 1,
-      clientX: e.subject.x,
-      clientY: 568,
-    });
-    e.tick(1 / 60);
-  }
-  assert.equal(e.phases.at(-1), "transform");
-  e.tick(3.5);
   for (let i = 0; i < 600 && e.phases.at(-1) === "fight"; i++) {
     e.event("pointermove", {
       pointerId: 1,
@@ -803,11 +878,11 @@ test("missile steering has a bounded turn rate and remains consistent across fra
         1000,
         1 / fps,
       );
-    assert.ok(Math.abs(Math.hypot(velocity.vx, velocity.vy) - 134) < 1e-8);
+    assert.ok(Math.abs(Math.hypot(velocity.vx, velocity.vy) - 162) < 1e-8);
     angles.push(Math.atan2(velocity.vy, velocity.vx));
   }
   assert.ok(Math.max(...angles) - Math.min(...angles) < 1e-8);
-  assert.ok(Math.abs(angles[0] - 0.78) < 1e-8);
+  assert.ok(Math.abs(angles[0] - 1.05) < 1e-8);
   const idleTarget = combat.steerSeeker(0, 134, 12, 10, 12, 10, 1 / 60);
   assert.ok(Number.isFinite(idleTarget.vx) && Number.isFinite(idleTarget.vy));
 });
@@ -842,7 +917,7 @@ test("evil attacks alternate between space, aim, and escape lanes rather than sp
   for (const wave of waves)
     for (const shot of wave.shots)
       assert.ok(Math.hypot(shot.vx, shot.vy) <= 105);
-  assert.ok(waves[2].shots.every((s) => Math.abs(s.x - 600) > 62));
+  assert.ok(waves[2].shots.every((s) => Math.abs(s.x - 690) > 56));
 });
 
 test("earned overdrive pauses with the encounter and full retry clears it", () => {
@@ -862,7 +937,6 @@ test("earned overdrive pauses with the encounter and full retry clears it", () =
       clientY: 568,
     });
     e.tick(1 / 60);
-    if (i % 180 === 0) e.game.pulse();
   }
   assert.equal(e.host.dataset.overdrive, "on");
   assert.equal(e.labels.get("[data-weapon]").textContent, "OVERDRIVE");
@@ -991,22 +1065,75 @@ test("dash adds a controllable burst of speed and respects cooldown and pause", 
   assert.equal(e.cleaned, true);
 });
 
-test("pulse damages the boss, spends charge and resets cleanly for replay", () => {
+test("pulse is local, has a fixed cooldown, and resets cleanly for replay", () => {
   const e = engine();
   assert.equal(e.game.pulse(), false);
   e.game.start();
   e.tick(1.3);
-  const before = Number.parseInt(e.labels.get("[data-health]").textContent);
+  const before = Number(e.labels.get("[data-score]").textContent);
   assert.equal(e.game.pulse(), true);
   assert.equal(e.game.pulse(), false);
-  e.tick(0.1);
-  assert.ok(
-    Number.parseInt(e.labels.get("[data-health]").textContent) < before,
+  assert.equal(
+    Number(e.labels.get("[data-score]").textContent),
+    before,
+    "A distant EMP cannot damage the boss",
   );
-  assert.ok(Number(e.labels.get("[data-score]").textContent) > 0);
+  assert.equal(e.labels.get("[data-pulse-key]").textContent, "22s");
+  e.tick(0.6);
+  assert.equal(e.game.pulse(), false);
+  assert.ok(
+    parseFloat(e.labels.get("[data-energy]").style.transform.slice(7)) < 0.04,
+    "Shooting does not refund pulse charge",
+  );
   e.game.reset();
   e.tick(1.3);
   assert.equal(e.game.pulse(), true);
+  e.game.stop();
+});
+
+test("the EMP clears a local pocket while distant fire stays active", () => {
+  const e = engine();
+  e.game.start();
+  e.tick(3.5);
+  const before = e.enemyShots.length,
+    ship = e.position;
+  assert.equal(before, 9);
+  assert.equal(e.game.pulse(), true);
+  e.tick(0.57);
+  assert.ok(
+    e.enemyShots.length > 0 && e.enemyShots.length < before,
+    `${e.enemyShots.length} shots survived`,
+  );
+  const radius = combat.pulseRadius(900, 650);
+  assert.ok(
+    e.enemyShots.every(
+      (s) => Math.hypot(s.x - ship.x, s.y - ship.y) > radius - 5,
+    ),
+  );
+  assert.equal(e.game.pulse(), false);
+  const charge = e.labels.get("[data-energy]").style.transform;
+  e.game.togglePause();
+  e.tick(30);
+  assert.equal(e.labels.get("[data-energy]").style.transform, charge);
+  e.game.togglePause();
+  e.tick(0.1);
+  assert.equal(e.game.pulse(), false);
+  e.game.stop();
+});
+
+test("standing still and spamming pulse cannot clear the opening form", () => {
+  const e = engine();
+  e.game.start();
+  e.tick(1.3);
+  let uses = 0;
+  for (let i = 0; i < 2400 && e.phases.at(-1) === "fight"; i++) {
+    if (e.game.pulse()) uses++;
+    e.tick(1 / 60);
+  }
+  assert.equal(e.phases.at(-1), "lose");
+  assert.equal(e.host.dataset.form, "human");
+  assert.ok(uses <= 2);
+  assert.ok(e.elapsed < 40);
   e.game.stop();
 });
 
