@@ -84,6 +84,10 @@ function engine({
     sumY = 0,
     pixelCount = 0;
   let enemyShots = [];
+  let enemyPositions = [],
+    observedResize;
+  const enemiesSeen = new Set();
+  let missilesSeen = false;
   const context = new Proxy(
     {
       getImageData() {
@@ -99,6 +103,7 @@ function engine({
       setTransform() {
         sumX = sumY = pixelCount = 0;
         enemyShots = [];
+        enemyPositions = [];
       },
       arc(x, y, radius) {
         if (radius === encounter.ENCOUNTER.enemyRadius)
@@ -115,11 +120,26 @@ function engine({
       rotate() {
         [jetX, jetY] = lastTranslate;
       },
+      fillText(value) {
+        if (value === "PALANTIR" || value === "ANDURIL") {
+          enemiesSeen.add(value);
+          enemyPositions.push({
+            kind: value,
+            x: lastTranslate[0],
+            y: lastTranslate[1],
+          });
+        }
+      },
       createRadialGradient() {
         return { addColorStop() {} };
       },
     },
     {
+      set(target, key, value) {
+        if (key === "fillStyle" && value === "#edb6a0") missilesSeen = true;
+        target[key] = value;
+        return true;
+      },
       get(target, key) {
         return key in target ? target[key] : () => {};
       },
@@ -191,6 +211,7 @@ function engine({
   };
   const phases = [],
     pauses = [];
+  const vfxModule = {};
   const sandbox = createContext({
     exports: {},
     require(id) {
@@ -198,7 +219,9 @@ function engine({
         ? encounter
         : id.endsWith("/combat")
           ? combat
-          : physics;
+          : id.endsWith("/vfx")
+            ? vfxModule
+            : physics;
     },
     Math: Object.assign(Object.create(Math), {
       random: (() => {
@@ -251,6 +274,9 @@ function engine({
     },
     HTMLElement: class {},
     ResizeObserver: class {
+      constructor(callback) {
+        observedResize = callback;
+      }
       observe() {}
       disconnect() {
         disconnected = true;
@@ -267,6 +293,23 @@ function engine({
       }
     },
   });
+  const vfxSource = readFileSync(
+    new URL("../components/break/vfx.ts", import.meta.url),
+    "utf8",
+  );
+  runInContext(
+    "(function(exports) {" +
+      ts.transpileModule(vfxSource, {
+        compilerOptions: {
+          module: ts.ModuleKind.CommonJS,
+          target: ts.ScriptTarget.ES2022,
+        },
+      }).outputText +
+      "})(exports)",
+    sandbox,
+  );
+  Object.assign(vfxModule, sandbox.exports);
+  sandbox.exports = {};
   const source = readFileSync(
     new URL("../components/break/arcade.ts", import.meta.url),
     "utf8",
@@ -288,6 +331,18 @@ function engine({
   );
   return {
     game,
+    enemiesSeen,
+    get missilesSeen() {
+      return missilesSeen;
+    },
+    get enemyPositions() {
+      return enemyPositions;
+    },
+    resize(newWidth, newHeight) {
+      width = newWidth;
+      height = newHeight;
+      observedResize();
+    },
     phases,
     pauses,
     labels,
@@ -411,7 +466,7 @@ test("boss contact depletes shields once per recovery window and replay restores
   e.game.stop();
 });
 
-test("both boss forms take sustained fire, with a safe, pausable transformation and clean replay", (t) => {
+test("all three boss forms have safe transformations, a final checkpoint, and a clean campaign replay", (t) => {
   const e = engine({ width: 1200, height: 650, audible: true });
   e.game.start();
   e.tick(1.6);
@@ -465,18 +520,85 @@ test("both boss forms take sustained fire, with a safe, pausable transformation 
     track();
     if (i % 180 === 0) e.game.pulse();
   }
+  assert.equal(e.phases.at(-1), "transform");
+  assert.equal(e.host.dataset.form, "evil");
+  assert.equal(e.labels.get("[data-stage]").textContent, "III");
+  assert.equal(e.labels.get("[data-hull]").textContent, "◆ ◆ ◆");
+  assert.equal(e.enemyShots.length, 0);
+  assert.ok(e.elapsed - secondStart > 20);
+  const secondDuration = e.elapsed - secondStart;
+  e.game.togglePause();
+  e.tick(4);
+  assert.equal(e.phases.at(-1), "transform");
+  e.game.togglePause();
+  e.tick(encounter.ENCOUNTER.evilTransformSeconds + 0.1);
+  assert.equal(e.phases.at(-1), "fight");
+  assert.equal(e.labels.get("[data-health]").textContent, "100%");
+  // A direct collision loses this stage; retry must preserve the evil portrait.
+  e.event("pointerdown", {
+    pointerId: 1,
+    clientX: e.position.x,
+    clientY: e.position.y,
+    pointerType: "mouse",
+  });
+  for (let i = 0; i < 600 && e.phases.at(-1) === "fight"; i++) {
+    e.event("pointermove", {
+      pointerId: 1,
+      clientX: e.subject.x,
+      clientY: e.subject.y,
+    });
+    e.tick(1 / 60);
+  }
+  assert.equal(e.phases.at(-1), "lose");
+  assert.equal(e.game.continueStage(), true);
+  e.tick(1.4);
+  assert.equal(e.host.dataset.form, "evil");
+  assert.equal(e.labels.get("[data-health]").textContent, "100%");
+  assert.equal(e.host.dataset.weapon, "3");
+  e.tick(2.2);
+  e.resize(375, 812);
+  e.tick(0.1);
+  const left = e.enemyPositions.filter((p) => p.x < 187.5),
+    right = e.enemyPositions.filter((p) => p.x > 187.5);
+  assert.ok(
+    left.length && right.length,
+    "Resizing keeps the squad spread across the arena",
+  );
+  assert.ok(e.enemyPositions.every((p) => p.x >= 40 && p.x <= 335));
+  e.resize(1200, 650);
+  e.tick(0.1);
+  e.game.toggleFocus();
+  e.event("pointerdown", {
+    pointerId: 1,
+    clientX: e.position.x,
+    clientY: e.position.y,
+    pointerType: "mouse",
+  });
+  const thirdStart = e.elapsed;
+  for (let i = 0; i < 6000 && e.phases.at(-1) === "fight"; i++) {
+    e.event("pointermove", {
+      pointerId: 1,
+      clientX: e.subject.x + Math.sin((i / 60) * 1.4) * 65,
+      clientY: 568,
+    });
+    e.tick(1 / 60);
+    if (i % 180 === 0) e.game.pulse();
+  }
   assert.equal(
     e.phases.at(-1),
     "dying",
-    `Ended at ${e.elapsed}s, health ${e.labels.get("[data-health]").textContent}`,
+    `Final form ended as ${e.phases.at(-1)}, HP ${e.labels.get("[data-health]").textContent}`,
   );
-  assert.ok(e.elapsed - secondStart > 20);
+  assert.ok(e.enemiesSeen.has("PALANTIR"));
+  assert.ok(e.enemiesSeen.has("ANDURIL"));
+  assert.equal(e.missilesSeen, true);
   t.diagnostic(
-    `Round one: ${firstDuration.toFixed(1)}s; round two: ${(e.elapsed - secondStart).toFixed(1)}s`,
+    `Round one: ${firstDuration.toFixed(1)}s; round two: ${secondDuration.toFixed(1)}s; round three: ${(e.elapsed - thirdStart).toFixed(1)}s`,
   );
   e.tick(1.7);
   assert.equal(e.phases.at(-1), "win");
-  assert.equal(e.labels.get("[data-stage]").textContent, "II");
+  assert.equal(e.labels.get("[data-stage]").textContent, "III");
+  assert.equal(e.labels.get("[data-run-rank]").textContent, "B");
   assert.ok(Number(e.labels.get("[data-score]").textContent) >= 4600);
   assert.ok(Number(e.stored.get("guan-arcade-best")) > 0);
   assert.equal(e.labels.get("[data-health]").textContent, "0%");
@@ -484,7 +606,7 @@ test("both boss forms take sustained fire, with a safe, pausable transformation 
   assert.equal(e.host.dataset.form, "human");
   assert.equal(e.labels.get("[data-stage]").textContent, "I");
   assert.equal(e.labels.get("[data-health]").textContent, "100%");
-  assert.equal(e.phases.filter((p) => p === "transform").length, 1);
+  assert.equal(e.phases.filter((p) => p === "transform").length, 2);
   assert.equal(
     e.audio.nodes.filter((n) => n.kind === "filter").length,
     3,
@@ -667,6 +789,62 @@ test("run ranks reward clean clears, cap continued runs, and format elapsed time
   assert.equal(combat.createRunStats().hits, 0);
 });
 
+test("missile steering has a bounded turn rate and remains consistent across frame rates", () => {
+  const angles = [];
+  for (const fps of [20, 30, 60, 144]) {
+    let velocity = { vx: 134, vy: 0 };
+    for (let i = 0; i < fps; i++)
+      velocity = combat.steerSeeker(
+        velocity.vx,
+        velocity.vy,
+        0,
+        0,
+        0,
+        1000,
+        1 / fps,
+      );
+    assert.ok(Math.abs(Math.hypot(velocity.vx, velocity.vy) - 134) < 1e-8);
+    angles.push(Math.atan2(velocity.vy, velocity.vx));
+  }
+  assert.ok(Math.max(...angles) - Math.min(...angles) < 1e-8);
+  assert.ok(Math.abs(angles[0] - 0.78) < 1e-8);
+  const idleTarget = combat.steerSeeker(0, 134, 12, 10, 12, 10, 1 / 60);
+  assert.ok(Number.isFinite(idleTarget.vx) && Number.isFinite(idleTarget.vy));
+});
+
+test("the evil portrait keeps symmetrical bright eyes and a scar on its own pixel grid", () => {
+  const marks = combat.evilDetails(62, 70);
+  assert.ok(marks.some((p) => p.ink === 8));
+  assert.ok(marks.some((p) => p.row > 50));
+  for (const pixel of marks)
+    assert.ok(
+      pixel.col >= 0 &&
+        pixel.col < 62 &&
+        pixel.row >= 0 &&
+        pixel.row < 70 &&
+        pixel.ink >= 6 &&
+        pixel.ink < combat.EVIL_INKS.length,
+    );
+  const eyes = marks.filter((p) => p.row < 45);
+  const positions = new Map(eyes.map((p) => [`${p.col},${p.row}`, p.ink]));
+  for (const pixel of eyes)
+    assert.equal(positions.get(`${61 - pixel.col},${pixel.row}`), pixel.ink);
+});
+
+test("evil attacks alternate between space, aim, and escape lanes rather than speeding up", () => {
+  const waves = Array.from({ length: 4 }, (_, i) =>
+    combat.planVolley(3, i, 600, 210, 600, 565, 1200, 104),
+  );
+  assert.deepEqual(
+    waves.map((v) => v.kind),
+    ["petals", "aim", "lanes", "fan"],
+  );
+  for (const wave of waves)
+    for (const shot of wave.shots)
+      assert.ok(Math.hypot(shot.vx, shot.vy) <= 105);
+  assert.ok(waves[2].shots.every((s) => Math.abs(s.x - 600) > 62));
+});
+
 test("earned overdrive pauses with the encounter and full retry clears it", () => {
   const e = engine({ width: 1200 });
   e.game.start();
@@ -721,6 +899,9 @@ test("the soundtrack changes with the boss form, respects mute, and resets its p
   sound.resetMusic();
   sound.music(0.01, 2, false);
   assert.deepEqual(pitches().slice(-2), [130.81, 523.25]);
+  sound.resetMusic();
+  sound.music(0.01, 3, false);
+  assert.deepEqual(pitches().slice(-2), [55, 164.81]);
   sound.stop();
   assert.equal(e.cleaned, true);
 });

@@ -1,6 +1,8 @@
 // One place to tune readability and encounter length without changing flight feel.
 export const ENCOUNTER = {
   hp: 240,
+  evilHp: 300,
+  evilTransformSeconds: 4.3,
   transformSeconds: 3.4,
   boltDamage: 0.45,
   missileDamage: 1.25,

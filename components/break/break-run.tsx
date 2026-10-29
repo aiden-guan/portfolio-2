@@ -9,6 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { ArcadeHandle, ArcadePhase } from "@/components/break/arcade";
+import type { BossForm } from "@/components/break/combat";
 import { mountCorruption } from "@/components/break/corrupt";
 import { breakSignal } from "@/components/break/signal";
 import { SoundToggle } from "@/components/sound-toggle";
@@ -55,6 +56,7 @@ export function BreakRun({
   const [live, setLive] = useState(false);
   const [phase, setPhase] = useState<ArcadePhase>("loading");
   const [paused, setPaused] = useState(false);
+  const [form, setForm] = useState<BossForm>(1);
 
   useEffect(() => {
     if (!ready || !corruption.current) return;
@@ -70,7 +72,7 @@ export function BreakRun({
     import("@/components/break/arcade")
       .then(({ mountArcade }) => {
         if (cancelled) return;
-        game.current = mountArcade(host, setPhase, setPaused, reduced);
+        game.current = mountArcade(host, setPhase, setPaused, reduced, setForm);
       })
       .catch(() => {
         if (!cancelled) setPhase("error");
@@ -589,10 +591,10 @@ export function BreakRun({
                             <button
                               className="crt-launch crt-checkpoint"
                               onClick={() => game.current?.continueStage()}
-                              aria-label="Restart stage two"
-                              title="Restart stage II with a 40% score penalty; highest possible rank B."
+                              aria-label={`Restart stage ${form === 3 ? "three" : "two"}`}
+                              title={`Restart stage ${form === 3 ? "III" : "II"} with a 40% score penalty; highest possible rank B.`}
                             >
-                              Stage II
+                              Stage {form === 3 ? "III" : "II"}
                             </button>
                           )}
                           <button
@@ -625,7 +627,9 @@ export function BreakRun({
                   ? paused
                     ? "Game paused"
                     : phase === "transform"
-                      ? "Second stage: catboy"
+                      ? form === 3
+                        ? "Third stage: evil Guan"
+                        : "Second stage: catboy"
                       : phase === "fight"
                         ? "Boss fight started"
                         : phase === "win"

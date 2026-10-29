@@ -978,3 +978,42 @@ html[data-break="live"] .masthead {
     min-width: 24px;
   }
 }
+
+.crt-glass[data-form="evil"] {
+  border-color: #44232b;
+  background: #160e14;
+}
+.crt-glass[data-form="evil"] .crt-boss-label {
+  color: #eab5a1;
+}
+.crt-glass[data-form="evil"] .crt-boss-label > span {
+  color: #ff8e70;
+}
+.crt-glass[data-form="evil"] .crt-health {
+  border-color: #c76a5959;
+}
+.crt-glass[data-form="evil"] .crt-health > span {
+  background: #ed927b;
+}
+.crt-glass[data-form="evil"] .crt-vignette {
+  background: radial-gradient(
+    ellipse at 50% 43%,
+    transparent 36%,
+    #280c1580 100%
+  );
+}
+.crt-glass[data-form="evil"] .crt-checkpoint {
+  display: inline-flex;
+  color: #26151a;
+  background: #eaa18a;
+  border-color: #eaa18a;
+}
+.crt-glass[data-form="evil"] .crt-checkpoint + .crt-launch {
+  background: transparent;
+  color: #d0afa5;
+  border-color: #b7827055;
+}
+.crt:has(.crt-glass[data-form="evil"]) .crt-led {
+  background: #e77b60;
+  box-shadow: 0 0 6px #ed876075;
+}
