@@ -5,6 +5,7 @@ import { createContext, runInContext } from "node:vm";
 import ts from "typescript";
 import * as physics from "../components/break/physics.ts";
 import * as encounter from "../components/break/encounter.ts";
+import * as combat from "../components/break/combat.ts";
 const {
   segmentHitsCircle,
   unitVector,
@@ -193,7 +194,11 @@ function engine({
   const sandbox = createContext({
     exports: {},
     require(id) {
-      return id.endsWith("/encounter") ? encounter : physics;
+      return id.endsWith("/encounter")
+        ? encounter
+        : id.endsWith("/combat")
+          ? combat
+          : physics;
     },
     Math: Object.assign(Object.create(Math), {
       random: (() => {
@@ -503,6 +508,221 @@ test("enemy volleys stay widely spaced, visibly large, and slow enough to follow
     assert.ok(speed > 100 && speed < 110, `Volley moved at ${speed}px/s`);
   }
   e.game.stop();
+});
+
+test("attack plans vary by form, leave escape lanes, and commit to the warned paths", () => {
+  const args = [600, 210, 615, 565, 1200, 104];
+  const human = Array.from({ length: 4 }, (_, i) =>
+    combat.planVolley(1, i, ...args),
+  );
+  const cat = Array.from({ length: 5 }, (_, i) =>
+    combat.planVolley(2, i, ...args),
+  );
+  assert.deepEqual(
+    human.map((v) => v.kind),
+    ["fan", "aim", "lanes", "fan"],
+  );
+  assert.deepEqual(
+    cat.map((v) => v.kind),
+    ["heart", "petals", "lanes", "heart", "aim"],
+  );
+  for (const volley of [...human, ...cat]) {
+    assert.ok(volley.shots.length >= 4 && volley.shots.length <= 16);
+    assert.ok(
+      volley.shots.every((s) => Object.values(s).every(Number.isFinite)),
+    );
+  }
+  assert.ok(human[2].shots.every((s) => Math.abs(s.x - 615) > 62));
+  const original = JSON.stringify(human[1]);
+  combat.planVolley(1, 1, 600, 210, 1000, 565, 1200, 104);
+  assert.equal(JSON.stringify(human[1]), original);
+  assert.notEqual(
+    JSON.stringify(combat.planVolley(1, 1, 600, 210, 1000, 565, 1200, 104)),
+    original,
+  );
+  const narrow = combat.planVolley(1, 2, 160, 180, 160, 500, 320, 82);
+  assert.ok(narrow.shots.every((s) => Math.abs(s.x - 160) > 62));
+});
+
+test("collecting a weapon pickup upgrades the ship and replay resets it", () => {
+  const e = engine();
+  e.game.start();
+  e.tick(8);
+  assert.equal(e.host.dataset.weapon, "2");
+  assert.equal(e.labels.get("[data-weapon]").textContent, "MK.II");
+  e.game.reset();
+  e.tick(0.1);
+  assert.equal(e.host.dataset.weapon, "1");
+  assert.equal(e.host.dataset.overdrive, "off");
+  e.game.stop();
+});
+
+test("focused beam adds aimed damage and can be toggled without moving the ship", () => {
+  const normal = engine(),
+    focused = engine();
+  normal.game.start();
+  focused.game.start();
+  normal.tick(1.3);
+  focused.tick(1.3);
+  const position = focused.position;
+  focused.game.toggleFocus();
+  normal.tick(3);
+  focused.tick(3);
+  assert.deepEqual(focused.position, position);
+  assert.ok(
+    Number.parseInt(focused.labels.get("[data-health]").textContent) <
+      Number.parseInt(normal.labels.get("[data-health]").textContent),
+  );
+  focused.game.toggleFocus();
+  normal.game.stop();
+  focused.game.stop();
+});
+
+test("a dash absorbs an incoming shot, earns charge, and protects the ship", () => {
+  const e = engine();
+  e.game.start();
+  e.tick(3.5);
+  e.event("pointerdown", {
+    pointerId: 1,
+    clientX: e.position.x,
+    clientY: e.position.y,
+    pointerType: "mouse",
+  });
+  for (let i = 0; i < 70; i++) {
+    const shot = e.enemyShots[3];
+    e.event("pointermove", {
+      pointerId: 1,
+      clientX: shot.x,
+      clientY: shot.y + 65,
+    });
+    e.tick(1 / 120);
+    if (Math.hypot(e.position.x - shot.x, e.position.y - shot.y) < 80) break;
+  }
+  const hull = e.labels.get("[data-hull]").textContent;
+  const before = Number(e.labels.get("[data-run-grazes]").textContent);
+  assert.equal(e.game.dash(), true);
+  e.tick(0.2);
+  assert.ok(Number(e.labels.get("[data-run-grazes]").textContent) > before);
+  assert.equal(e.labels.get("[data-hull]").textContent, hull);
+  assert.ok(e.enemyShots.length < 7);
+  e.game.stop();
+});
+
+test("second-stage retry restores the cat form without replaying its transformation", () => {
+  const e = engine({ width: 1200 });
+  assert.equal(e.game.continueStage(), false);
+  e.game.start();
+  e.tick(1.6);
+  e.event("pointerdown", {
+    pointerId: 1,
+    clientX: e.position.x,
+    clientY: e.position.y,
+    pointerType: "mouse",
+  });
+  for (let i = 0; i < 3600 && e.phases.at(-1) === "fight"; i++) {
+    e.event("pointermove", {
+      pointerId: 1,
+      clientX: e.subject.x,
+      clientY: 568,
+    });
+    e.tick(1 / 60);
+  }
+  assert.equal(e.phases.at(-1), "transform");
+  e.tick(3.5);
+  for (let i = 0; i < 600 && e.phases.at(-1) === "fight"; i++) {
+    e.event("pointermove", {
+      pointerId: 1,
+      clientX: e.subject.x,
+      clientY: e.subject.y,
+    });
+    e.tick(1 / 60);
+  }
+  assert.equal(e.phases.at(-1), "lose");
+  assert.equal(e.game.continueStage(), true);
+  assert.equal(e.game.continueStage(), false);
+  e.tick(0.05);
+  assert.equal(e.host.dataset.form, "cat");
+  assert.equal(e.host.dataset.weapon, "2");
+  assert.equal(e.labels.get("[data-health]").textContent, "100%");
+  assert.equal(e.labels.get("[data-hull]").textContent, "◆ ◆ ◆");
+  e.tick(1.3);
+  assert.equal(e.phases.at(-1), "fight");
+  assert.equal(e.phases.filter((p) => p === "transform").length, 1);
+  e.game.reset();
+  e.tick(0.1);
+  assert.equal(e.host.dataset.form, "human");
+  e.game.stop();
+});
+
+test("run ranks reward clean clears, cap continued runs, and format elapsed time", () => {
+  const stats = combat.createRunStats();
+  assert.equal(combat.runRank(stats, true), "S");
+  stats.hits = 2;
+  assert.equal(combat.runRank(stats, true), "A");
+  stats.continues = 1;
+  assert.equal(combat.runRank(stats, true), "B");
+  assert.equal(combat.runRank(stats, false), "");
+  assert.equal(combat.formatTime(74.8), "01:14");
+  assert.equal(combat.formatTime(-1), "00:00");
+  assert.equal(combat.createRunStats().hits, 0);
+});
+
+test("earned overdrive pauses with the encounter and full retry clears it", () => {
+  const e = engine({ width: 1200 });
+  e.game.start();
+  e.tick(1.6);
+  e.event("pointerdown", {
+    pointerId: 1,
+    clientX: e.position.x,
+    clientY: e.position.y,
+    pointerType: "mouse",
+  });
+  for (let i = 0; i < 4200 && e.host.dataset.overdrive !== "on"; i++) {
+    e.event("pointermove", {
+      pointerId: 1,
+      clientX: e.subject.x,
+      clientY: 568,
+    });
+    e.tick(1 / 60);
+    if (i % 180 === 0) e.game.pulse();
+  }
+  assert.equal(e.host.dataset.overdrive, "on");
+  assert.equal(e.labels.get("[data-weapon]").textContent, "OVERDRIVE");
+  e.game.togglePause();
+  const meter = e.labels.get("[data-overdrive]").style.transform;
+  const timer = e.labels.get("[data-time]").textContent;
+  e.tick(5);
+  assert.equal(e.labels.get("[data-overdrive]").style.transform, meter);
+  assert.equal(e.labels.get("[data-time]").textContent, timer);
+  e.game.reset();
+  e.tick(0.1);
+  assert.equal(e.host.dataset.overdrive, "off");
+  assert.equal(e.labels.get("[data-overdrive]").style.transform, "scaleX(0)");
+  e.game.stop();
+});
+
+test("the soundtrack changes with the boss form, respects mute, and resets its phrase", () => {
+  const e = engine();
+  e.game.stop();
+  const sound = e.createSound();
+  sound.unlock();
+  e.setSound(true);
+  sound.music(0.01, 1, false);
+  const pitches = () =>
+    e.audio.nodes
+      .filter((n) => n.kind === "oscillator")
+      .map((n) => n.frequency.events[0][1]);
+  assert.deepEqual(pitches(), [82.41, 329.63]);
+  e.setSound(false);
+  const before = e.audio.nodes.length;
+  sound.music(1, 2, true);
+  assert.equal(e.audio.nodes.length, before);
+  e.setSound(true);
+  sound.resetMusic();
+  sound.music(0.01, 2, false);
+  assert.deepEqual(pitches().slice(-2), [130.81, 523.25]);
+  sound.stop();
+  assert.equal(e.cleaned, true);
 });
 
 test("meow unlocks from a muted start, mutes immediately, and releases its audio nodes", () => {

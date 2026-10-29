@@ -14,6 +14,15 @@ import {
   createCatEars,
   createBlush,
 } from "@/components/break/encounter";
+import {
+  planVolley,
+  createRunStats,
+  runRank,
+  formatTime,
+  OVERDRIVE_SECONDS,
+  WARNING_SECONDS,
+  type Volley,
+} from "@/components/break/combat";
 
 export type ArcadePhase =
   | "loading"
@@ -32,11 +41,14 @@ export type ArcadeHandle = {
   togglePause: () => void;
   dash: () => boolean;
   pulse: () => boolean;
+  continueStage: () => boolean;
+  toggleFocus: () => void;
 };
 type Pixel = {
   ear?: boolean;
   blush?: number;
   reveal?: number;
+  repair?: number;
   col: number;
   row: number;
   ink: number;
@@ -72,6 +84,8 @@ type Spark = {
   size: number;
 };
 type Drone = {
+  targetX?: number;
+  targetY?: number;
   x: number;
   y: number;
   origin: number;
@@ -224,6 +238,9 @@ export function mountArcade(
     beams: Beam[] = [],
     trails: Trail[] = [];
   const keys = new Set<string>();
+  const pixelMap = new Map<number, Pixel>();
+  const stats = createRunStats();
+  const hudNodes = new Map<string, HTMLElement>();
   let pointerScaleX = 1,
     pointerScaleY = 1;
   let cols = 62,
@@ -261,6 +278,14 @@ export function mountArcade(
     laserTimer = 7,
     droneCount = 0,
     firstPickup = false;
+  let volley: Volley | null = null,
+    volleyTurn = 0,
+    focusTimer = 0,
+    slowTime = 0,
+    hurtFlash = 0;
+  let echoHp: number = MAX_HP,
+    upgradeFlash = 0;
+  const focusRay = { active: false, x: 0, y: 0 };
   let kick = 0,
     impact = 0,
     impactX = 0,
@@ -280,6 +305,7 @@ export function mountArcade(
     targetY: number;
   };
   let pointer: Drag | null = null;
+  let focusLatch = false;
   const previousPosition = { x: 0, y: 0 };
   const lastRendered = { x: 0, y: 0 };
   const player = {
@@ -288,6 +314,9 @@ export function mountArcade(
     invincible: 0,
     energy: 1,
     spread: 0,
+    weapon: 1,
+    charge: 0,
+    overdrive: 0,
   };
   function flightInput() {
     return {
@@ -297,7 +326,7 @@ export function mountArcade(
       y:
         Number(keys.has("arrowdown") || keys.has("s")) -
         Number(keys.has("arrowup") || keys.has("w")),
-      focused: keys.has("shift"),
+      focused: keys.has("shift") || focusLatch,
       target: pointer ? { x: pointer.targetX, y: pointer.targetY } : undefined,
     };
   }
@@ -314,12 +343,17 @@ export function mountArcade(
   } catch {}
 
   function text(selector: string, value: string) {
-    const el = host.querySelector<HTMLElement>(selector);
+    let el = hudNodes.get(selector);
+    if (!el) {
+      el = host.querySelector<HTMLElement>(selector) ?? undefined;
+      if (el) hudNodes.set(selector, el);
+    }
     if (el && el.textContent !== value) el.textContent = value;
   }
   function phaseTo(next: ArcadePhase) {
     if (phase === next) return;
     phase = next;
+    hudNodes.clear();
     if (next === "win" || next === "lose") {
       best = Math.max(best, score);
       try {
@@ -335,7 +369,24 @@ export function mountArcade(
     text("[data-result-score]", String(score).padStart(6, "0"));
     text("[data-best]", String(best).padStart(6, "0"));
     text("[data-stage]", form === 1 ? "I" : "II");
+    text("[data-time]", formatTime(stats.seconds));
+    text("[data-run-time]", formatTime(stats.seconds));
+    text("[data-run-grazes]", String(stats.grazes + stats.parries));
+    text("[data-run-rank]", runRank(stats, phase === "win"));
+    text(
+      "[data-weapon]",
+      player.overdrive > 0
+        ? "OVERDRIVE"
+        : `MK.${["I", "II", "III"][player.weapon - 1]}`,
+    );
     host.dataset.form = form === 1 ? "human" : "cat";
+    host.dataset.overdrive = player.overdrive > 0 ? "on" : "off";
+    host.dataset.weapon = String(player.weapon);
+    const echo = host.querySelector<HTMLElement>("[data-signal-echo]");
+    if (echo) echo.style.transform = `scaleX(${clamp(echoHp / MAX_HP, 0, 1)})`;
+    const charge = host.querySelector<HTMLElement>("[data-overdrive]");
+    if (charge)
+      charge.style.transform = `scaleX(${player.overdrive > 0 ? player.overdrive / OVERDRIVE_SECONDS : player.charge / 100})`;
     text("[data-combo]", combo > 1 ? `×${combo}` : "");
     const hull = host.querySelector<HTMLElement>("[data-hull]");
     if (hull) {
@@ -360,6 +411,9 @@ export function mountArcade(
     );
     if (pulseButton)
       pulseButton.disabled = phase !== "fight" || player.energy < 0.999;
+    host
+      .querySelector<HTMLElement>("[data-focus-button]")
+      ?.setAttribute("aria-pressed", String(focusLatch));
   }
   function resize() {
     const rect = host.getBoundingClientRect(),
@@ -422,6 +476,29 @@ export function mountArcade(
       }
     return b;
   }
+  function indexPixels() {
+    pixelMap.clear();
+    for (const p of pixels) pixelMap.set(p.row * cols + p.col, p);
+  }
+  function chain(count = 1) {
+    grazeCount += count;
+    combo = Math.min(4, 1 + Math.floor(grazeCount / 3));
+    comboTime = 6;
+  }
+  function charge(amount: number) {
+    if (phase !== "fight" || player.overdrive > 0) return;
+    player.charge = Math.min(100, player.charge + amount);
+    if (player.charge < 100) return;
+    player.charge = 0;
+    player.overdrive = OVERDRIVE_SECONDS;
+    player.invincible = Math.max(player.invincible, 0.9);
+    stats.overdrives++;
+    upgradeFlash = 1.1;
+    ring(player.x, player.y, "#f3d99d", 350, 0.65);
+    sound.note(440, 0.18, 0.024);
+    sound.note(660, 0.2, 0.02, 0.12);
+    sound.note(880, 0.3, 0.018, 0.24);
+  }
   function spark(x: number, y: number, ink: string, count: number, force = 1) {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2,
@@ -454,6 +531,7 @@ export function mountArcade(
     vy: number,
     friendly: boolean,
     kind: Shot["kind"] = friendly ? "bolt" : "orb",
+    power = 1,
   ) {
     const data: Shot = {
       x,
@@ -473,6 +551,7 @@ export function mountArcade(
           ? ENCOUNTER.missileDamage
           : ENCOUNTER.boltDamage,
     };
+    if (friendly) data.damage *= power * (player.overdrive > 0 ? 1.3 : 1);
     const old = shots.find((s) => s.life <= 0);
     if (old) Object.assign(old, data);
     else if (shots.length < 360) shots.push(data);
@@ -492,6 +571,9 @@ export function mountArcade(
   function destroyDrone(drone: Drone) {
     drone.hp = 0;
     points(100);
+    stats.drones++;
+    chain(2);
+    charge(9);
     spark(drone.x, drone.y, "#e7ab87", 20);
     ring(drone.x, drone.y, "#e9aa85", 110, 0.4);
     drop(
@@ -513,6 +595,10 @@ export function mountArcade(
     hp = 0;
     stage = 1;
     phaseShift = 0;
+    volley = null;
+    volleyTurn = 0;
+    focusRay.active = false;
+    slowTime = 0;
     clearBullets();
     shots.length = drones.length = pickups.length = beams.length = 0;
     player.lives = 3;
@@ -527,6 +613,7 @@ export function mountArcade(
       p.alive = true;
       p.loose = false;
       p.vx = p.vy = 0;
+      p.repair = undefined;
     }
     for (const p of createCatEars(cols, rows))
       pixels.push({
@@ -540,6 +627,7 @@ export function mountArcade(
         vx: 0,
         vy: 0,
       });
+    indexPixels();
     ring(b.cx, b.cy, "#efb0d2", 180, 1.2);
     sound.note(1108, 0.22, 0.012);
     sound.note(1397, 0.3, 0.01, 0.16);
@@ -550,6 +638,7 @@ export function mountArcade(
     hp = Math.max(0, hp - amount);
     points(amount * 20);
     player.energy = Math.min(1, player.energy + amount * 0.012);
+    charge(amount * 0.2);
     impact = reduced ? 0 : 0.16;
     impactX = x;
     impactY = y;
@@ -569,6 +658,7 @@ export function mountArcade(
     const b = box();
     for (const p of pixels) {
       p.loose = true;
+      p.repair = undefined;
       const direction = unitVector(p.x - b.cx, p.y - b.cy);
       p.vx = direction.x * (70 + Math.random() * 270);
       p.vy = direction.y * (80 + Math.random() * 180);
@@ -583,7 +673,10 @@ export function mountArcade(
     if (phase !== "fight" || player.invincible > 0 || player.dashTime > 0)
       return;
     player.lives--;
-    player.invincible = 1.7;
+    stats.hits++;
+    player.invincible = 2.1;
+    hurtFlash = 0.55;
+    player.weapon = Math.max(1, player.weapon - 1);
     combo = 1;
     comboTime = 0;
     grazeCount = 0;
@@ -622,6 +715,8 @@ export function mountArcade(
     player.energy = 0;
     player.invincible = Math.max(player.invincible, 0.65);
     clearBullets(true);
+    volley = null;
+    attackTimer = Math.max(attackTimer, 1.25);
     ring(player.x, player.y, "#b7f0d9", 980, 0.85);
     ring(player.x, player.y, "#e9edc9", 650, 0.6);
     kick = reduced ? 0 : 3;
@@ -637,6 +732,7 @@ export function mountArcade(
   function start() {
     if (phase !== "ready") return;
     sound.unlock();
+    sound.resetMusic();
     sound.note(330, 0.08, 0.025);
     sound.note(660, 0.14, 0.02, 0.1);
     intro = 0;
@@ -645,6 +741,12 @@ export function mountArcade(
   }
   function reset() {
     hp = MAX_HP;
+    echoHp = MAX_HP;
+    Object.assign(stats, createRunStats());
+    volley = null;
+    volleyTurn = focusTimer = slowTime = hurtFlash = upgradeFlash = 0;
+    focusRay.active = false;
+    focusLatch = false;
     form = 1;
     formTime = transformTime = 0;
     meowed = false;
@@ -670,6 +772,9 @@ export function mountArcade(
       aimY: -1,
       energy: 1,
       spread: 0,
+      weapon: 1,
+      charge: 0,
+      overdrive: 0,
     });
     shots.length =
       sparks.length =
@@ -696,7 +801,9 @@ export function mountArcade(
       p.alive = true;
       p.loose = false;
       p.vx = p.vy = 0;
+      p.repair = undefined;
     }
+    indexPixels();
     if (paused) {
       paused = false;
       onPause(false);
@@ -704,6 +811,77 @@ export function mountArcade(
     phaseTo("ready");
     hud();
     start();
+  }
+  function continueStage() {
+    if (phase !== "lose" || form !== 2) return false;
+    stats.continues++;
+    score = Math.floor(score * 0.6);
+    hp = echoHp = MAX_HP;
+    stage = 1;
+    formTime = intro = endTime = focusTimer = slowTime = hurtFlash = 0;
+    attackTimer = 2;
+    droneTimer = 8;
+    laserTimer = 7;
+    volleyTurn = 0;
+    shotTimer = 0;
+    missileTimer = 1;
+    droneCount = 0;
+    upgradeFlash = 0;
+    sound.resetMusic();
+    volley = null;
+    firstPickup = false;
+    focusRay.active = false;
+    shots.length =
+      sparks.length =
+      drones.length =
+      pickups.length =
+      beams.length =
+      trails.length =
+      rings.length =
+        0;
+    Object.assign(player, {
+      x: w / 2,
+      y: h * 0.8,
+      vx: 0,
+      vy: 0,
+      lives: 3,
+      energy: 1,
+      charge: 0,
+      overdrive: 0,
+      weapon: 2,
+      spread: 0,
+      invincible: 3,
+      dashTime: 0,
+      dashCooldown: 0,
+      bank: 0,
+      focused: false,
+    });
+    for (const p of pixels) {
+      p.alive = true;
+      p.loose = false;
+      p.repair = undefined;
+      p.vx = p.vy = 0;
+    }
+    keys.clear();
+    focusLatch = false;
+    pointer = null;
+    accumulator = 0;
+    previousPosition.x = lastRendered.x = player.x;
+    previousPosition.y = lastRendered.y = player.y;
+    combo = 1;
+    comboTime = grazeCount = 0;
+    phaseTo("intro");
+    canvas.focus({ preventScroll: true });
+    return true;
+  }
+  function toggleFocus() {
+    if (
+      paused ||
+      (phase !== "fight" && phase !== "intro" && phase !== "transform")
+    )
+      return;
+    focusLatch = !focusLatch;
+    canvas.focus({ preventScroll: true });
   }
   function togglePause() {
     if (phase !== "fight" && phase !== "intro" && phase !== "transform") return;
@@ -736,6 +914,7 @@ export function mountArcade(
     if (next !== stage) {
       stage = next;
       clearBullets();
+      volley = null;
       attackTimer = 1.7;
       laserTimer = 4;
       ring(b.cx, b.cy, form === 2 ? "#e6add2" : "#9fc6c7", 150, 0.8);
@@ -747,62 +926,46 @@ export function mountArcade(
     }
     attackTimer -= dt;
     droneTimer -= dt;
-    const speed = clamp(
-      h * 0.16,
-      ENCOUNTER.enemyMinSpeed,
-      ENCOUNTER.enemyMaxSpeed,
-    );
-    if (attackTimer <= 0) {
-      if (form === 2 && stage !== 3) {
-        attackTimer = 2.6;
-        // Unnormalized heart velocities preserve a readable heart silhouette as it opens.
-        for (let i = 0; i < 16; i++) {
-          const a = (i / 16) * Math.PI * 2;
-          const x = 16 * Math.sin(a) ** 3,
-            y = -(
-              13 * Math.cos(a) -
-              5 * Math.cos(2 * a) -
-              2 * Math.cos(3 * a) -
-              Math.cos(4 * a)
-            );
-          fire(
-            b.cx,
-            b.cy + b.height * 0.1,
-            (x / 20) * speed,
-            (y / 20) * speed + 12,
-            false,
-          );
-        }
-      } else {
-        attackTimer = form === 2 ? 2 : 1.65;
-        const count = 7,
-          offset = Math.sin(formTime * 0.45) * 0.15;
-        for (let i = 0; i < count; i++) {
-          const a = Math.PI * 0.2 + (i / (count - 1)) * Math.PI * 0.6 + offset;
-          fire(
-            b.cx,
-            b.cy + b.height * 0.23,
-            Math.cos(a) * speed,
-            Math.sin(a) * speed,
-            false,
-          );
-        }
-      }
+    if (!volley && attackTimer <= WARNING_SECONDS) {
+      const speed = clamp(
+        h * 0.16,
+        ENCOUNTER.enemyMinSpeed,
+        ENCOUNTER.enemyMaxSpeed,
+      );
+      volley = planVolley(
+        form,
+        volleyTurn,
+        b.cx,
+        b.cy + b.height * 0.23,
+        player.x,
+        player.y,
+        w,
+        speed,
+      );
+      sound.note(form === 2 ? 523 : 196, 0.1, 0.007);
+    }
+    if (attackTimer <= 0 && volley) {
+      for (const shot of volley.shots)
+        fire(shot.x, shot.y, shot.vx, shot.vy, false);
+      volley = null;
+      volleyTurn++;
+      attackTimer = form === 2 ? 2.85 : 2.45;
     }
     if (form === 2 && stage === 3) {
       laserTimer -= dt;
       if (laserTimer <= 0) {
-        laserTimer = 7;
+        laserTimer = 8;
         beams.push({
           x: b.cx,
           y: b.cy,
           target: clamp(player.x, 35, w - 35),
           age: 0,
         });
+        sound.note(130, 0.25, 0.015);
       }
     }
     if (droneTimer <= 0 && drones.filter((d) => d.hp > 0).length < 2) {
-      droneTimer = form === 2 ? 11 : 13;
+      droneTimer = form === 2 ? 12 : 13;
       for (const side of [-1, 1])
         drones.push({
           x: side < 0 ? w * 0.1 : w * 0.9,
@@ -820,6 +983,54 @@ export function mountArcade(
       drop(w / 2, h * 0.56, "spread");
     }
   }
+  function focusTarget(b: ReturnType<typeof box>) {
+    const drone = drones.find(
+      (d) => d.hp > 0 && d.y < player.y - 35 && Math.abs(d.x - player.x) < 21,
+    );
+    if (drone) return { y: drone.y, drone, pixel: undefined };
+    const center = Math.floor((player.x - b.x) / b.cell);
+    for (let row = rows - 1; row >= -Math.ceil(rows * 0.25); row--) {
+      for (
+        let col = Math.max(0, center - 1);
+        col <= Math.min(cols - 1, center + 1);
+        col++
+      ) {
+        const pixel = pixelMap.get(row * cols + col);
+        if (pixel?.alive && !pixel.loose && pixel.y < player.y - 30)
+          return { y: pixel.y, pixel, drone: undefined };
+      }
+    }
+    return { y: -15, drone: undefined, pixel: undefined };
+  }
+  function portraitHit(shot: Shot, b: ReturnType<typeof box>) {
+    const radius = b.cell * (shot.kind === "missile" ? 1.9 : 0.85);
+    const left = Math.max(
+      0,
+      Math.floor((Math.min(shot.px, shot.x) - radius - b.x) / b.cell),
+    );
+    const right = Math.min(
+      cols - 1,
+      Math.ceil((Math.max(shot.px, shot.x) + radius - b.x) / b.cell),
+    );
+    const top = Math.max(
+      -Math.ceil(rows * 0.25),
+      Math.floor((Math.min(shot.py, shot.y) - radius - b.y) / b.cell),
+    );
+    const bottom = Math.min(
+      rows - 1,
+      Math.ceil((Math.max(shot.py, shot.y) + radius - b.y) / b.cell),
+    );
+    for (let row = bottom; row >= top; row--)
+      for (let col = left; col <= right; col++) {
+        const p = pixelMap.get(row * cols + col);
+        if (
+          p?.alive &&
+          !p.loose &&
+          segmentHitsCircle(shot.px, shot.py, shot.x, shot.y, p.x, p.y, radius)
+        )
+          return p;
+      }
+  }
   function update(dt: number) {
     if (paused) return;
     time += dt;
@@ -836,6 +1047,15 @@ export function mountArcade(
     }
     const active =
       phase === "fight" || phase === "intro" || phase === "transform";
+    if (active) {
+      stats.seconds += dt;
+      if (phase !== "transform") sound.music(dt, form, player.overdrive > 0);
+    }
+    echoHp += (hp - echoHp) * (1 - Math.exp(-dt * (hp > echoHp ? 12 : 3)));
+    slowTime = Math.max(0, slowTime - dt);
+    hurtFlash = Math.max(0, hurtFlash - dt);
+    upgradeFlash = Math.max(0, upgradeFlash - dt);
+    const enemyDt = dt * (slowTime > 0 ? 0.38 : 1);
     if (phase === "fight") formTime += dt;
     if (phase === "transform") {
       transformTime += dt;
@@ -869,6 +1089,8 @@ export function mountArcade(
     phaseShift = Math.max(0, phaseShift - dt);
     player.invincible = Math.max(0, player.invincible - dt);
     if (phase !== "transform") player.spread = Math.max(0, player.spread - dt);
+    if (phase === "fight")
+      player.overdrive = Math.max(0, player.overdrive - dt);
     comboTime = Math.max(0, comboTime - dt);
     if (comboTime === 0) {
       combo = 1;
@@ -915,9 +1137,28 @@ export function mountArcade(
               -ENCOUNTER.boltSpeed,
               true,
             );
-          if (player.spread > 0)
+          if (player.spread > 0 || player.weapon >= 2 || player.overdrive > 0)
             for (const side of [-1, 1])
-              fire(player.x + side * 13, player.y - 10, side * 90, -560, true);
+              fire(
+                player.x + side * 13,
+                player.y - 10,
+                side * 90,
+                -560,
+                true,
+                "bolt",
+                0.55,
+              );
+          if (player.weapon >= 3 || player.overdrive > 0)
+            for (const side of [-1, 1])
+              fire(
+                player.x + side * 35,
+                player.y + 2,
+                aim * 0.6,
+                -ENCOUNTER.boltSpeed,
+                true,
+                "bolt",
+                0.5,
+              );
           sound.note(910, 0.022, 0.006);
         }
         if (missileTimer <= 0) {
@@ -940,10 +1181,27 @@ export function mountArcade(
       player.x += (w / 2 - player.x) * dt * 2;
     }
     const b = place();
-    if (phase === "fight") advanceBoss(dt, b);
+    if (phase === "fight") advanceBoss(enemyDt, b);
+    focusRay.active =
+      phase === "fight" && player.focused && player.dashTime <= 0;
+    if (focusRay.active) {
+      const target = focusTarget(b);
+      focusRay.x = player.x;
+      focusRay.y = target.y;
+      focusTimer -= dt;
+      if (focusTimer <= 0) {
+        focusTimer = 0.12;
+        const damage = player.overdrive > 0 ? 0.22 : 0.14;
+        if (target.drone) {
+          target.drone.hp -= damage;
+          spark(player.x, target.y, "#c3f1df", 1, 0.25);
+          if (target.drone.hp <= 0) destroyDrone(target.drone);
+        } else if (target.pixel) damageBoss(damage, player.x, target.y);
+      }
+    } else focusTimer = 0;
     for (const drone of drones) {
       if (drone.hp <= 0) continue;
-      drone.age += dt;
+      drone.age += enemyDt;
       drone.x = clamp(
         drone.origin -
           drone.side * Math.sin(drone.age * 0.65) * w * 0.22 +
@@ -957,10 +1215,17 @@ export function mountArcade(
         continue;
       }
       if (phase === "fight") {
-        drone.shotAt -= dt;
+        drone.shotAt -= enemyDt;
+        if (drone.shotAt < 0.75 && drone.targetX === undefined) {
+          drone.targetX = player.x;
+          drone.targetY = player.y;
+        }
         if (drone.shotAt <= 0) {
           drone.shotAt = 3.8;
-          const aim = Math.atan2(player.y - drone.y, player.x - drone.x);
+          const aim = Math.atan2(
+            (drone.targetY ?? player.y) - drone.y,
+            (drone.targetX ?? player.x) - drone.x,
+          );
           for (let i = -1; i <= 1; i++)
             fire(
               drone.x,
@@ -969,6 +1234,7 @@ export function mountArcade(
               Math.sin(aim + i * 0.24) * 95,
               false,
             );
+          drone.targetX = drone.targetY = undefined;
         }
         if (Math.hypot(player.x - drone.x, player.y - drone.y) < 24) hurt();
       }
@@ -982,7 +1248,7 @@ export function mountArcade(
     )
       hurt();
     for (const beam of beams) {
-      beam.age += dt;
+      beam.age += enemyDt;
       if (
         phase === "fight" &&
         beam.age > ENCOUNTER.beamWarning &&
@@ -1016,8 +1282,9 @@ export function mountArcade(
         if (!reduced && Math.random() < dt * 35)
           spark(shot.x, shot.y, "#a7bea1", 1, 0.15);
       }
-      shot.x += shot.vx * dt;
-      shot.y += shot.vy * dt;
+      const shotDt = shot.friendly ? dt : enemyDt;
+      shot.x += shot.vx * shotDt;
+      shot.y += shot.vy * shotDt;
       shot.life -= dt;
       if (shot.x < -30 || shot.x > w + 30 || shot.y < -30 || shot.y > h + 30) {
         shot.life = 0;
@@ -1026,6 +1293,30 @@ export function mountArcade(
       if (phase !== "fight") continue;
       if (!shot.friendly) {
         const near = Math.hypot(shot.x - player.x, shot.y - player.y);
+        if (
+          player.dashTime > 0 &&
+          segmentHitsCircle(
+            shot.px,
+            shot.py,
+            shot.x,
+            shot.y,
+            player.x,
+            player.y,
+            34,
+          )
+        ) {
+          shot.life = 0;
+          stats.parries++;
+          chain();
+          points(30);
+          charge(8);
+          player.energy = Math.min(1, player.energy + 0.1);
+          slowTime = 0.45;
+          ring(shot.x, shot.y, "#f2dfa9", 120, 0.28);
+          spark(shot.x, shot.y, "#f3dfa7", 7, 0.4);
+          sound.note(990, 0.09, 0.014);
+          continue;
+        }
         if (
           segmentHitsCircle(
             shot.px,
@@ -1043,9 +1334,9 @@ export function mountArcade(
           }
         } else if (near < 31 && !shot.grazed && player.invincible <= 0) {
           shot.grazed = true;
-          grazeCount++;
-          combo = Math.min(4, 1 + Math.floor(grazeCount / 3));
-          comboTime = 4;
+          stats.grazes++;
+          chain();
+          charge(3.5);
           points(15);
           player.energy = Math.min(1, player.energy + 0.045);
           spark(player.x, player.y, "#b6e2d0", 3, 0.3);
@@ -1070,23 +1361,11 @@ export function mountArcade(
           shot.py < b.y - (form === 2 ? b.height * 0.26 : 10)
         )
           continue;
-        const hit = pixels.find(
-          (p) =>
-            p.alive &&
-            !p.loose &&
-            segmentHitsCircle(
-              shot.px,
-              shot.py,
-              shot.x,
-              shot.y,
-              p.x,
-              p.y,
-              b.cell * (shot.kind === "missile" ? 1.9 : 0.85),
-            ),
-        );
+        const hit = portraitHit(shot, b);
         if (hit) {
           shot.life = 0;
           hit.loose = true;
+          hit.repair = 0.5 + Math.random() * 0.4;
           hit.vx = (Math.random() - 0.5) * 130;
           hit.vy = 80;
           damageBoss(shot.damage, hit.x, hit.y);
@@ -1105,23 +1384,38 @@ export function mountArcade(
       if (distance < 26 && phase === "fight") {
         pickup.alive = false;
         points(50);
-        if (pickup.kind === "spread") player.spread = 9;
-        else if (pickup.kind === "shield")
+        if (pickup.kind === "spread") {
+          player.spread = 9;
+          player.weapon = Math.min(3, player.weapon + 1);
+          upgradeFlash = 1;
+        } else if (pickup.kind === "shield")
           player.lives = Math.min(3, player.lives + 1);
         else player.energy = Math.min(1, player.energy + 0.65);
+        charge(12);
+        chain();
         ring(player.x, player.y, "#c8e5b0", 130, 0.4);
         sound.note(660, 0.08, 0.018);
         sound.note(990, 0.1, 0.018, 0.07);
       }
       if (pickup.age > 13 || pickup.y > h + 20) pickup.alive = false;
     }
-    for (const p of pixels)
+    for (const p of pixels) {
+      if (p.repair !== undefined && phase === "fight") {
+        p.repair -= dt;
+        if (p.repair <= 0) {
+          p.repair = undefined;
+          p.loose = false;
+          p.alive = true;
+          p.vx = p.vy = 0;
+        }
+      }
       if (p.loose && p.alive) {
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         p.vy += 100 * dt;
         if (p.y > h + 30 || p.x < -40 || p.x > w + 40) p.alive = false;
       }
+    }
     for (const s of sparks)
       if (s.life > 0) {
         s.life -= dt;
@@ -1196,6 +1490,14 @@ export function mountArcade(
         ctx.fillRect(-30, 2, 4, 10);
         ctx.fillRect(26, 2, 4, 10);
       }
+      if (player.weapon >= 3 || player.overdrive > 0) {
+        for (const side of [-1, 1]) {
+          ctx.fillStyle = player.overdrive > 0 ? "#f3dba1" : "#a4dac8";
+          ctx.fillRect(side * 35 - 3, -5, 6, 15);
+          ctx.fillStyle = "#eaf1cf";
+          ctx.fillRect(side * 35 - 1, -8, 2, 10);
+        }
+      }
       ctx.strokeStyle = "#b8ecd4aa";
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -1203,6 +1505,122 @@ export function mountArcade(
       ctx.stroke();
     }
     ctx.restore();
+  }
+  function drawCombat(b: ReturnType<typeof box>) {
+    if (volley && phase === "fight") {
+      const progress = clamp(1 - attackTimer / WARNING_SECONDS, 0, 1);
+      ctx.strokeStyle = form === 2 ? "#f4a7d5" : "#ebba90";
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.15 + progress * 0.5;
+      for (const shot of volley.shots) {
+        const v = unitVector(shot.vx, shot.vy);
+        ctx.beginPath();
+        ctx.moveTo(shot.x + v.x * 13, shot.y + v.y * 13);
+        ctx.lineTo(
+          shot.x + v.x * (35 + progress * 40),
+          shot.y + v.y * (35 + progress * 40),
+        );
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(shot.x, shot.y, 13 - progress * 7, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (focusRay.active) {
+      const gold = player.overdrive > 0;
+      ctx.strokeStyle = gold ? "#f8dca21c" : "#aff1d91c";
+      ctx.lineWidth = gold ? 18 : 12;
+      ctx.beginPath();
+      ctx.moveTo(focusRay.x, player.y - 25);
+      ctx.lineTo(focusRay.x, focusRay.y);
+      ctx.stroke();
+      ctx.strokeStyle = gold ? "#f2dba3" : "#aee6cf";
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.strokeStyle = "#f3f5d9";
+      ctx.lineWidth = 0.7;
+      ctx.stroke();
+      if (focusRay.y > 0)
+        sparkle(
+          focusRay.x,
+          focusRay.y,
+          reduced ? 4 : 4 + Math.sin(time * 22) * 2,
+          0.8,
+        );
+    }
+    if (phase === "fight" && (player.charge > 0 || player.overdrive > 0)) {
+      const amount =
+        player.overdrive > 0
+          ? player.overdrive / OVERDRIVE_SECONDS
+          : player.charge / 100;
+      ctx.strokeStyle = player.overdrive > 0 ? "#f4dca3" : "#a4d8c87d";
+      ctx.lineWidth = player.overdrive > 0 ? 2 : 1;
+      ctx.beginPath();
+      ctx.arc(
+        player.x,
+        player.y,
+        39,
+        -Math.PI / 2,
+        -Math.PI / 2 + amount * Math.PI * 2,
+      );
+      ctx.stroke();
+      if (player.overdrive > 0) {
+        for (let i = 0; i < 4; i++) {
+          const a = time * (reduced ? 0 : 0.6) + (i * Math.PI) / 2;
+          sparkle(
+            player.x + Math.cos(a) * 43,
+            player.y + Math.sin(a) * 43,
+            3,
+            0.65,
+          );
+        }
+      }
+    }
+    if (upgradeFlash > 0 && phase === "fight") {
+      ctx.globalAlpha = Math.min(1, upgradeFlash * 2);
+      ctx.fillStyle = player.overdrive > 0 ? "#f3dba3" : "#bbe9d3";
+      ctx.font = "9px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        player.overdrive > 0
+          ? "OVERDRIVE"
+          : `MK.${["I", "II", "III"][player.weapon - 1]}`,
+        player.x,
+        player.y + 62 - (1 - Math.min(1, upgradeFlash)) * 9,
+      );
+      ctx.globalAlpha = 1;
+    }
+    if (hurtFlash > 0 && !reduced) {
+      ctx.strokeStyle = `rgba(237,171,140,${hurtFlash * 0.4})`;
+      ctx.lineWidth = 5;
+      ctx.strokeRect(3, 3, w - 6, h - 6);
+    }
+    if (slowTime > 0 && !reduced) {
+      ctx.strokeStyle = `rgba(243,220,164,${slowTime * 0.22})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, 42 + (0.45 - slowTime) * 140, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // Tiny health thirds indicate changes of pattern without attack-name banners.
+    if (phase === "fight") {
+      ctx.strokeStyle = form === 2 ? "#e5b5d252" : "#adc6a938";
+      ctx.lineWidth = 1;
+      for (const fraction of [1 / 3, 2 / 3]) {
+        const angle = -Math.PI / 2 + fraction * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(
+          b.cx + Math.cos(angle) * b.height * 0.67,
+          b.cy + Math.sin(angle) * b.height * 0.67,
+        );
+        ctx.lineTo(
+          b.cx + Math.cos(angle) * b.height * 0.7,
+          b.cy + Math.sin(angle) * b.height * 0.7,
+        );
+        ctx.stroke();
+      }
+    }
   }
   function sparkle(x: number, y: number, size: number, opacity: number) {
     ctx.globalAlpha = opacity;
@@ -1382,6 +1800,7 @@ export function mountArcade(
       ctx.fillRect(b.x - 8, b.y + b.height * 0.39, b.width + 16, 1);
       ctx.globalAlpha = 1;
     }
+    drawCombat(b);
     for (const drone of drones)
       if (drone.hp > 0) {
         const x = drone.x,
@@ -1396,6 +1815,21 @@ export function mountArcade(
         ctx.fillRect(x - 2, y - 5, 4, 7);
         ctx.fillStyle = "#f3ad8540";
         ctx.fillRect(x - 8, y - 17, 16, 3);
+        if (drone.targetX !== undefined && phase === "fight") {
+          const aim = unitVector(
+            drone.targetX - x,
+            (drone.targetY ?? player.y) - y,
+          );
+          ctx.strokeStyle = "#edbb8b88";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x + aim.x * 19, y + aim.y * 19);
+          ctx.lineTo(x + aim.x * 53, y + aim.y * 53);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(x, y, 21, 0, Math.PI * 2);
+          ctx.stroke();
+        }
       }
     for (const beam of beams) {
       const firing =
@@ -1718,6 +2152,7 @@ export function mountArcade(
       cols = face.cols;
       rows = face.rows;
       pixels = face.pixels;
+      indexPixels();
       phaseTo("ready");
     } catch {
       phaseTo("error");
@@ -1736,6 +2171,8 @@ export function mountArcade(
     togglePause,
     dash,
     pulse,
+    continueStage,
+    toggleFocus,
     stop() {
       running = false;
       cancelAnimationFrame(raf);
@@ -1784,6 +2221,40 @@ export function createSound() {
     if (ctx && output)
       output.gain.setTargetAtTime(muted ? 0 : 1, ctx.currentTime, 0.01);
   }
+  let beatTime = 0,
+    beat = 0;
+  function tone(
+    hz: number,
+    duration: number,
+    volume: number,
+    delay = 0,
+    stable = false,
+  ) {
+    if (!ctx || !output || muted || ctx.state !== "running") return;
+    const osc = ctx.createOscillator(),
+      gain = ctx.createGain(),
+      now = ctx.currentTime + delay;
+    osc.type = stable && hz < 160 ? "sine" : "triangle";
+    osc.frequency.setValueAtTime(hz, now);
+    if (!stable)
+      osc.frequency.exponentialRampToValueAtTime(
+        Math.max(30, hz * 0.5),
+        now + duration,
+      );
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(
+      volume,
+      now + Math.min(0.006, duration * 0.2),
+    );
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    osc.connect(gain).connect(output);
+    osc.start(now);
+    osc.stop(now + duration);
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+    };
+  }
   sync();
   window.addEventListener("aiden-sound-change", sync);
   return {
@@ -1791,26 +2262,32 @@ export function createSound() {
       unlocked = true;
       ensure();
     },
-    note(hz: number, duration: number, volume: number, delay = 0) {
-      if (!ctx || !output || muted || ctx.state !== "running") return;
-      const osc = ctx.createOscillator(),
-        gain = ctx.createGain(),
-        now = ctx.currentTime + delay;
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(hz, now);
-      osc.frequency.exponentialRampToValueAtTime(
-        Math.max(30, hz * 0.5),
-        now + duration,
-      );
-      gain.gain.setValueAtTime(volume, now);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-      osc.connect(gain).connect(output);
-      osc.start(now);
-      osc.stop(now + duration);
-      osc.onended = () => {
-        osc.disconnect();
-        gain.disconnect();
-      };
+    note: tone,
+    music(dt: number, form: 1 | 2, overdrive: boolean) {
+      if (!ctx || muted) return;
+      beatTime -= dt;
+      if (beatTime > 0) return;
+      beatTime += 1 / 3;
+      const step = beat++ % 32;
+      const human = [329.63, 0, 392, 0, 293.66, 0, 246.94, 293.66];
+      const cat = [523.25, 659.25, 783.99, 659.25, 587.33, 698.46, 880, 698.46];
+      if (step % 2 === 0)
+        tone(
+          (form === 1 ? [82.41, 98, 73.42, 82.41] : [130.81, 110, 87.31, 98])[
+            Math.floor(step / 8)
+          ],
+          0.27,
+          0.014,
+          0,
+          true,
+        );
+      const pitch = (form === 1 ? human : cat)[step % 8];
+      if (pitch) tone(pitch, 0.19, overdrive ? 0.009 : 0.005, 0, true);
+      if (overdrive && step % 2)
+        tone(pitch * 2 || 880, 0.08, 0.004, 0.15, true);
+    },
+    resetMusic() {
+      beat = beatTime = 0;
     },
     meow() {
       if (!ctx || !output || muted || ctx.state !== "running") return;

@@ -337,7 +337,9 @@ export function BreakRun({
       : phase === "intro" || phase === "fight" || phase === "transform"
         ? ".crt-glass > canvas"
         : ".crt-launch:not([disabled]), .crt-leave";
-    const first = monitor.current?.querySelector<HTMLElement>(selector);
+    const first = Array.from(
+      monitor.current?.querySelectorAll<HTMLElement>(selector) ?? [],
+    ).find((el) => el.getClientRects().length > 0);
     first?.focus({ preventScroll: true });
   }, [live, phase, paused]);
 
@@ -402,7 +404,7 @@ export function BreakRun({
                     <canvas
                       tabIndex={live && inPlay && !paused ? 0 : -1}
                       role="img"
-                      aria-label="Move with WASD, arrow keys, or drag. Auto-fire. Space to dash. Hold Shift for precise movement. X for a pulse. P to pause. Escape to exit."
+                      aria-label="Move with WASD, arrow keys, or drag. Auto-fire. Space to dash through shots. Hold Shift for a focused beam. X for a pulse. Close dodges charge overdrive. P to pause. Escape to exit."
                     />
                     <div className="crt-scan" aria-hidden="true" />
                     <div className="crt-vignette" aria-hidden="true" />
@@ -411,11 +413,17 @@ export function BreakRun({
                         GUAN <span data-stage="">I</span>
                       </div>
                       <div className="crt-health">
+                        <span className="crt-health-echo" data-signal-echo="" />
                         <span data-signal="" />
                       </div>
-                      <span className="crt-score" data-score="">
-                        000000
-                      </span>
+                      <div className="crt-score-block">
+                        <span className="crt-score" data-score="">
+                          000000
+                        </span>
+                        <span className="crt-timer" data-time="">
+                          00:00
+                        </span>
+                      </div>
                     </div>
                     {(phase === "loading" ||
                       phase === "ready" ||
@@ -450,7 +458,7 @@ export function BreakRun({
                                 <span className="crt-touch-control">Drag</span>
                               </span>
                               <span className="crt-focus-hint">
-                                <kbd>SHIFT</kbd> Focus
+                                <kbd>SHIFT</kbd> Beam
                               </span>
                               <span>
                                 <kbd>SPACE</kbd> Dash
@@ -459,6 +467,11 @@ export function BreakRun({
                                 <kbd>X</kbd> Pulse
                               </span>
                             </div>
+                          )}
+                          {phase !== "error" && (
+                            <p className="crt-play-hint">
+                              Close dodges charge overdrive.
+                            </p>
                           )}
                         </div>
                       </div>
@@ -474,13 +487,34 @@ export function BreakRun({
                             ◆ ◆ ◆
                           </span>
                           <span className="crt-combo" data-combo="" />
+                          <div
+                            className="crt-weapon"
+                            title="Close dodges, absorbed shots, and drone kills charge overdrive."
+                          >
+                            <span data-weapon="">MK.I</span>
+                            <span className="crt-overdrive-track">
+                              <span data-overdrive="" />
+                            </span>
+                          </div>
                         </div>
                         <div className="crt-abilities">
                           <button
                             type="button"
+                            className="crt-ability crt-focus-button"
+                            data-focus-button=""
+                            aria-label="Toggle focused beam"
+                            aria-pressed={false}
+                            onClick={() => game.current?.toggleFocus()}
+                          >
+                            <span>
+                              Beam <kbd>SHIFT</kbd>
+                            </span>
+                          </button>
+                          <button
+                            type="button"
                             className="crt-ability"
                             data-dash-button=""
-                            aria-label="Dash. Space."
+                            aria-label="Dash through shots to absorb them. Space."
                             onClick={() => game.current?.dash()}
                           >
                             <span className="crt-ability-fill" data-dash="" />
@@ -526,18 +560,48 @@ export function BreakRun({
                     {(phase === "win" || phase === "lose") && (
                       <div className="crt-end" role="status">
                         <h2>{phase === "win" ? "CLEAR" : "GAME OVER"}</h2>
+                        {phase === "win" && (
+                          <span
+                            className="crt-rank"
+                            aria-label="Run rank"
+                            data-run-rank=""
+                          />
+                        )}
                         <span className="crt-result-score" data-result-score="">
                           000000
                         </span>
-                        <span className="crt-best">
-                          BEST <span data-best="">000000</span>
-                        </span>
-                        <button
-                          className="crt-launch"
-                          onClick={() => game.current?.reset()}
-                        >
-                          Retry
-                        </button>
+                        <dl className="crt-run-stats">
+                          <div>
+                            <dt>Time</dt>
+                            <dd data-run-time="">00:00</dd>
+                          </div>
+                          <div>
+                            <dt>Dodges</dt>
+                            <dd data-run-grazes="">0</dd>
+                          </div>
+                          <div>
+                            <dt>Best</dt>
+                            <dd data-best="">000000</dd>
+                          </div>
+                        </dl>
+                        <div className="crt-result-actions">
+                          {phase === "lose" && (
+                            <button
+                              className="crt-launch crt-checkpoint"
+                              onClick={() => game.current?.continueStage()}
+                              aria-label="Restart stage two"
+                              title="Restart stage II with a 40% score penalty; highest possible rank B."
+                            >
+                              Stage II
+                            </button>
+                          )}
+                          <button
+                            className="crt-launch"
+                            onClick={() => game.current?.reset()}
+                          >
+                            Retry
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
