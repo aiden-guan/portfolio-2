@@ -30,6 +30,8 @@ type Lit = {
   px: number;
   py: number;
   at: number;
+  boost: number;
+  overdrive: boolean;
   // what the flame was last on, and where it landed last frame (mat px)
   on: "paper" | "mat";
   char: number;
@@ -66,7 +68,7 @@ type Particle = {
 // flame's landing point (mm)
 const ANGLE = (36 * Math.PI) / 180;
 const LEAN = (8 * Math.PI) / 180;
-const STANDOFF = 17;
+const STANDOFF = 25;
 const HOLD_TO_LIGHT = 260;
 const MAX_PARTICLES = 900;
 const MAX_SCORCHES = 240;
@@ -85,8 +87,8 @@ const smooth = (t: number) => t * t * (3 - 2 * t);
 // mat's plastic catching
 const RAMPS = [
   ["#fff6dc", "#ffd47e", "#ffa444", "#ff6c1f", "#d63f17", "#7c200c"],
-  ["#eef4ff", "#a8c6ff", "#6690ff", "#4258e6", "#3330b0", "#201a6a"],
-  ["#9db4ff", "#6f8cff", "#6a62e0", "#a050c0", "#e8682e", "#7a240e"],
+  ["#f0ffff", "#9df2ff", "#38c6ff", "#2870ff", "#5142d6", "#292079"],
+  ["#d5faff", "#79dfff", "#6179ff", "#a866df", "#ff963f", "#9a310d"],
 ];
 const SMOKE_DARK = "#2a2521";
 const SMOKE_LIGHT = "#b9b4ac";
@@ -120,6 +122,9 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   const sprites = RAMPS.map((ramp) => ramp.map((color) => sprite(color)));
   const smokeDark = sprite(SMOKE_DARK);
   const smokeLight = sprite(SMOKE_LIGHT);
+  const blueBloom = sprite("#209eff", 128);
+  const warmBloom = sprite("#ff8c30", 128);
+  const sparkBloom = sprite("#ffc36a", 32);
 
   let lit: Lit | null = null;
   let pending: Pending | null = null;
@@ -235,6 +240,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   }
 
   function burn(l: Lit, dt: number, box: DOMRect, now: number) {
+    l.boost += ((l.overdrive ? 1 : 0) - l.boost) * Math.min(1, dt * 9);
     // the torch sways into a sweep, the way a hand leads with the wrist
     const speedX = (l.cx - l.px) / Math.max(dt, 1e-3);
     const speedY = (l.cy - l.py) / Math.max(dt, 1e-3);
@@ -251,7 +257,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     // the heat, on whatever's under it
     const sweep = Math.hypot(l.vx, l.vy);
     // a flame moved quickly over something has less time to burn it
-    const power = 4.2 / (1 + sweep / 1100);
+    const power = (4.2 + l.boost * 5.8) / (1 + sweep / 1100);
     // the heat, laid all along the way the flame went since the last frame,
     // so a quick sweep leaves a line rather than a row of dots
     const from = l.last ?? target;
@@ -260,24 +266,24 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     for (let k = 1; k <= steps; k++) {
       const x = from.x + ((target.x - from.x) * k) / steps;
       const y = from.y + ((target.y - from.y) * k) / steps;
-      hit = surface.heat(x, y, mm * 6.5, power, dt / steps);
-      if (hit.on === "mat") scorch(x, y, dt / steps, now);
+      hit = surface.heat(x, y, mm * (6.5 + l.boost * 3), power, dt / steps);
+      if (hit.on === "mat") scorch(x, y, (dt / steps) * (1 + l.boost), now);
     }
     l.last = target;
     l.on = hit.on;
     l.char = hit.char;
-    l.burner.level(hit.on === "paper" ? Math.min(1, hit.char) : 0.25);
+    l.burner.level((hit.on === "paper" ? Math.min(1, hit.char) : 0.25) + l.boost);
     if (hit.on === "paper" && !still) crackle(Math.min(1, hit.char * 1.2));
 
     if (still) return;
     // where the jet lands it fans out across the surface, onward
     const paper = hit.on === "paper";
     const ramp = paper && hit.char > 0.25 ? 0 : paper ? 1 : 2;
-    const count = Math.round(dt * (paper ? 420 : 480) + Math.random());
+    const count = Math.round(dt * (paper ? 420 : 480) * (1 + l.boost * 0.45) + Math.random());
     for (let i = 0; i < count; i++) {
       const spread = (Math.random() - 0.5) * Math.PI * 1.5;
       const a = Math.atan2(-uy, -ux) + spread;
-      const speed = mm * (12 + Math.random() * 26) * (1 - Math.abs(spread) / 3.2);
+      const speed = mm * (16 + Math.random() * 34) * (1 + l.boost * 0.8) * (1 - Math.abs(spread) / 3.2);
       emit({
         kind: Kind.Lick,
         x: target.x + (Math.random() - 0.5) * mm,
@@ -311,8 +317,10 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     }
     const smoke = dt * (paper ? 26 * Math.min(1, hit.char + 0.2) : 9);
     for (let i = 0; i < smoke + Math.random() - 0.5; i++) puff(target.x, target.y, paper ? 1 : 0.6);
-    // burnt through: sparks fly out of the hole
-    if (paper && hit.char >= 1 && Math.random() < dt * 14) sparks(target.x, target.y, 1 + Math.floor(Math.random() * 3));
+    // Hot fragments spray in the jet's direction, then arc down under gravity.
+    if (Math.random() < dt * (paper ? 24 : 14) * (1 + l.boost * 2)) {
+      sparks(target.x, target.y, 2 + Math.floor(Math.random() * (3 + l.boost * 4)), Math.atan2(-uy, -ux));
+    }
   }
 
   function puff(x: number, y: number, k: number) {
@@ -329,18 +337,18 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     });
   }
 
-  function sparks(x: number, y: number, n: number) {
+  function sparks(x: number, y: number, n: number, direction?: number) {
     for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const speed = mm * (35 + Math.random() * 70);
+      const a = direction === undefined ? Math.random() * Math.PI * 2 : direction + (Math.random() - 0.5) * 2.6;
+      const speed = mm * (40 + Math.random() * 95);
       emit({
         kind: Kind.Spark,
         x,
         y,
         vx: Math.cos(a) * speed,
         vy: Math.sin(a) * speed - mm * 10,
-        life: 0.25 + Math.random() * 0.45,
-        size: mm * 0.35,
+        life: 0.3 + Math.random() * 0.55,
+        size: mm * (0.15 + Math.random() * 0.2),
         grow: 0,
         ramp: 0,
       });
@@ -379,83 +387,108 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   // ---- drawing
 
   function drawFlame(l: Lit, box: DOMRect, now: number) {
-    const { target, nozzle } = aim(l, box);
-    // into window coordinates
+    const { target, nozzle, angle } = aim(l, box);
     const tx = target.x + box.left;
     const ty = target.y + box.top;
     const nx = nozzle.x + box.left;
     const ny = nozzle.y + box.top;
-    const dx = tx - nx;
-    const dy = ty - ny;
-    const length = Math.hypot(dx, dy) || 1;
-    const ax = dx / length;
-    const ay = dy / length;
-    const px = -ay;
-    const py = ax;
-    const flicker = 0.93 + Math.sin(now * 0.047) * 0.03 + Math.random() * 0.05;
     const paper = l.on === "paper";
+    const boost = l.boost;
+    const time = still ? 0 : now * 0.001;
+    const flicker = still ? 1 : 0.97 + Math.sin(time * 53) * 0.02 + Math.sin(time * 97) * 0.015;
+    const ignition = still ? 0 : Math.max(0, 1 - (now - l.at) / 260);
+    const length = STANDOFF * mm;
+    const strength = 1 + boost * 0.55 + ignition * 0.3;
 
-    // light thrown round where it lands
-    const glowR = mm * (paper ? 30 : 22) * flicker;
-    const glow = fx!.createRadialGradient(tx, ty, 0, tx, ty, glowR);
-    if (paper) {
-      glow.addColorStop(0, `rgb(255 150 60 / ${0.34 * flicker})`);
-      glow.addColorStop(0.4, "rgb(255 110 40 / 0.1)");
-    } else {
-      glow.addColorStop(0, `rgb(140 160 255 / ${0.2 * flicker})`);
-      glow.addColorStop(0.35, "rgb(255 120 60 / 0.06)");
-    }
-    glow.addColorStop(1, "rgb(255 120 40 / 0)");
-    fx!.fillStyle = glow;
-    fx!.fillRect(tx - glowR, ty - glowR, glowR * 2, glowR * 2);
+    // Cached blooms keep the large pools of light cheap. A cool light at
+    // the barrel mixes with the warm light of paper actually catching fire.
+    fx!.globalAlpha = (0.22 + boost * 0.12) * flicker;
+    const halo = mm * (23 + boost * 9);
+    fx!.drawImage(blueBloom, nx - halo, ny - halo, halo * 2, halo * 2);
+    const spill = mm * (paper ? 34 : 25) * strength;
+    fx!.globalAlpha = (paper ? 0.4 : 0.24) * flicker;
+    fx!.drawImage(paper ? warmBloom : blueBloom, tx - spill, ty - spill, spill * 2, spill * 2);
 
-    // the jet: a pale envelope and the bright cone inside it, each drawn a
-    // few times wider and fainter so its edges are soft
-    const cone = (reach: number, base: number, end: number, color: CanvasGradient, alpha: number) => {
-      const ex = nx + ax * length * reach;
-      const ey = ny + ay * length * reach;
-      for (let k = 0; k < 3; k++) {
-        const wide = 1 + k * 0.6;
-        fx!.globalAlpha = (alpha / (1 + k * 1.4)) * flicker;
-        fx!.fillStyle = color;
-        fx!.beginPath();
-        fx!.moveTo(nx + px * base * wide, ny + py * base * wide);
-        fx!.quadraticCurveTo(
-          nx + ax * length * reach * 0.55 + px * end * wide * 1.25,
-          ny + ay * length * reach * 0.55 + py * end * wide * 1.25,
-          ex + ax * end * 0.6,
-          ey + ay * end * 0.6,
-        );
-        fx!.quadraticCurveTo(
-          nx + ax * length * reach * 0.55 - px * end * wide * 1.25,
-          ny + ay * length * reach * 0.55 - py * end * wide * 1.25,
-          nx - px * base * wide,
-          ny - py * base * wide,
-        );
-        fx!.closePath();
-        fx!.fill();
+    // Draw in nozzle space. Each ribbon has a different travelling wave;
+    // their silhouettes stay coherent instead of flickering randomly.
+    fx!.save();
+    fx!.translate(nx, ny);
+    fx!.rotate(angle + Math.PI);
+    const ribbon = (reach: number, base: number, width: number, phase: number) => {
+      fx!.beginPath();
+      for (const side of [1, -1]) {
+        for (let i = 0; i <= 24; i++) {
+          const t = side === 1 ? i / 24 : 1 - i / 24;
+          const wave = still ? 0 : (Math.sin(t * 19 - time * 38 + phase) + Math.sin(t * 31 - time * 57 + phase) * 0.4);
+          const taper = Math.sin(t * Math.PI) ** 0.8;
+          const radius = (base * (1 - t) + width * taper) * (1 + wave * 0.1 * t);
+          const bend = still ? 0 : Math.sin(t * 8 - time * 22 + phase) * mm * 0.45 * t * t;
+          const x = length * reach * t;
+          const y = side * radius + bend;
+          if (side === 1 && i === 0) fx!.moveTo(x, y);
+          else fx!.lineTo(x, y);
+        }
       }
+      fx!.closePath();
+      fx!.fill();
     };
-    const env = fx!.createLinearGradient(nx, ny, tx, ty);
-    env.addColorStop(0, "rgb(90 120 255 / 0.2)");
-    env.addColorStop(0.25, "rgb(110 130 255 / 0.9)");
-    env.addColorStop(0.85, paper ? "rgb(255 160 90 / 0.75)" : "rgb(150 110 255 / 0.7)");
-    env.addColorStop(1, paper ? "rgb(255 190 110 / 0.9)" : "rgb(190 150 255 / 0.6)");
-    cone(1.06 * flicker, mm * 1.1, mm * 2.6, env, 0.55);
-    const core = fx!.createLinearGradient(nx, ny, nx + ax * length * 0.5, ny + ay * length * 0.5);
-    core.addColorStop(0, "rgb(200 230 255 / 0.4)");
-    core.addColorStop(0.2, "rgb(170 220 255 / 1)");
-    core.addColorStop(1, "rgb(60 110 255 / 0.4)");
-    cone(0.48 * flicker, mm * 0.75, mm * 1.05, core, 0.95);
-    // and the white-hot point where it lands
-    const spotR = mm * 2.4;
-    const spot = fx!.createRadialGradient(tx, ty, 0, tx, ty, spotR);
-    spot.addColorStop(0, paper ? "rgb(255 236 190 / 0.8)" : "rgb(170 190 255 / 0.5)");
-    spot.addColorStop(0.45, paper ? "rgb(255 150 50 / 0.4)" : "rgb(110 120 255 / 0.3)");
-    spot.addColorStop(1, "rgb(255 120 40 / 0)");
-    fx!.globalAlpha = flicker;
+    const envelope = fx!.createLinearGradient(0, 0, length * 1.2, 0);
+    envelope.addColorStop(0, "#82edff00");
+    envelope.addColorStop(0.12, "#67dfff");
+    envelope.addColorStop(0.45, "#177bff");
+    envelope.addColorStop(0.78, "#6556f0b0");
+    envelope.addColorStop(1, paper ? "#ffad4530" : "#9a66ff00");
+    fx!.fillStyle = envelope;
+    fx!.globalAlpha = 0.16;
+    ribbon(1.22, mm * 1.5, mm * 6.5 * strength, 1);
+    fx!.globalAlpha = 0.55 * flicker;
+    ribbon(1.1, mm * 1.2, mm * 3.1 * strength, 3);
+
+    const jet = fx!.createLinearGradient(0, 0, length, 0);
+    jet.addColorStop(0, "#eeffff");
+    jet.addColorStop(0.17, "#a5f6ff");
+    jet.addColorStop(0.5, "#3ccaff");
+    jet.addColorStop(0.85, "#3977ffb0");
+    jet.addColorStop(1, "#8d8dff00");
+    fx!.fillStyle = jet;
+    fx!.globalAlpha = 0.9;
+    ribbon(0.97, mm * 0.95, mm * 1.2 * strength, 5);
+
+    // The small bright shock diamonds make it read as a pressurised jet.
+    // Source-over preserves the cyan silhouette against light paper.
+    fx!.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 5; i++) {
+      const x = mm * (3.2 + i * 3.7);
+      const rx = mm * (1.6 - i * 0.16) * flicker;
+      const ry = mm * (0.72 - i * 0.09) * strength;
+      fx!.globalAlpha = (0.8 - i * 0.12) * flicker;
+      fx!.fillStyle = i < 2 ? "#ddffff" : "#74e5ff";
+      fx!.beginPath();
+      fx!.moveTo(x - rx, 0);
+      fx!.quadraticCurveTo(x, -ry * 1.6, x + rx, 0);
+      fx!.quadraticCurveTo(x, ry * 1.6, x - rx, 0);
+      fx!.fill();
+    }
+    // Narrow white-hot inner cone, strongest during the ignition kick.
+    fx!.fillStyle = "#e8ffff";
+    fx!.globalAlpha = 0.8;
+    ribbon(0.36 + boost * 0.12, mm * 0.65, mm * 0.2, 0);
+    fx!.restore();
+
+    // A grounded ellipse of heat at contact; never a detached cursor halo.
+    const spotR = mm * (5 + boost * 2) * flicker;
+    fx!.save();
+    fx!.translate(tx, ty);
+    fx!.scale(1, 0.6);
+    const spot = fx!.createRadialGradient(0, 0, 0, 0, 0, spotR);
+    spot.addColorStop(0, paper ? "#fff1d9" : "#e2fbff");
+    spot.addColorStop(0.2, paper ? "#ffc36ac0" : "#88eaffc0");
+    spot.addColorStop(0.6, paper ? "#ff782b40" : "#469dff50");
+    spot.addColorStop(1, "#427aff00");
+    fx!.globalAlpha = 0.85;
     fx!.fillStyle = spot;
-    fx!.fillRect(tx - spotR, ty - spotR, spotR * 2, spotR * 2);
+    fx!.fillRect(-spotR, -spotR, spotR * 2, spotR * 2);
+    fx!.restore();
     fx!.globalAlpha = 1;
   }
 
@@ -512,11 +545,14 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
         fx!.globalAlpha = (p.ramp === 0 ? 0.45 : 0.26) * (1 - t) ** 1.3;
         fx!.drawImage(ramp[step]!, p.x + ox - size, p.y + oy - size, size * 2, size * 2);
       } else if (p.kind === Kind.Spark) {
+        const radius = mm * 1.6 * (1 - t);
+        fx!.globalAlpha = 0.5 * (1 - t);
+        fx!.drawImage(sparkBloom, p.x + ox - radius, p.y + oy - radius, radius * 2, radius * 2);
         fx!.globalAlpha = 1 - t;
         fx!.strokeStyle = t < 0.4 ? "#fff1c4" : "#ffab4a";
         fx!.lineWidth = Math.max(0.8, p.size);
         fx!.beginPath();
-        fx!.moveTo(p.x + ox - p.vx * 0.025, p.y + oy - p.vy * 0.025);
+        fx!.moveTo(p.x + ox - p.vx * 0.045, p.y + oy - p.vy * 0.045);
         fx!.lineTo(p.x + ox, p.y + oy);
         fx!.stroke();
       }
@@ -665,7 +701,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
 
   // ---- lighting it and putting it out
 
-  function light(id: number, cx: number, cy: number, touch: boolean) {
+  function light(id: number, cx: number, cy: number, touch: boolean, overdrive = false) {
     measure();
     unlockSound();
     lit = {
@@ -680,6 +716,8 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
       px: cx,
       py: cy,
       at: performance.now(),
+      boost: 0,
+      overdrive,
       on: "mat",
       char: 0,
       last: null,
@@ -689,6 +727,11 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     torch!.style.transform = `translate3d(${target.x.toFixed(2)}px, ${target.y.toFixed(2)}px, 0) rotate(${angle.toFixed(4)}rad)`;
     torch!.dataset.down = "";
     html.dataset.torching = "";
+    html.toggleAttribute("data-torch-boost", overdrive);
+    if (!still) {
+      sparks(target.x, target.y, 18, angle + Math.PI);
+      puff(target.x, target.y, 0.5);
+    }
     wake();
   }
 
@@ -699,6 +742,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     l.burner.stop();
     delete torch!.dataset.down;
     delete html.dataset.torching;
+    delete html.dataset.torchBoost;
     wake();
   }
 
@@ -736,7 +780,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     try {
       mat.setPointerCapture(event.pointerId);
     } catch {}
-    light(event.pointerId, event.clientX, event.clientY, false);
+    light(event.pointerId, event.clientX, event.clientY, false, event.shiftKey);
   };
 
   const onPointerMove = (event: PointerEvent) => {
@@ -750,6 +794,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     if (!lit || lit.id !== event.pointerId) return;
     lit.cx = event.clientX;
     lit.cy = event.clientY;
+    setOverdrive(event.shiftKey);
   };
 
   const onPointerUp = (event: PointerEvent) => {
@@ -813,7 +858,29 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     wake();
   };
 
-  const onBlur = () => out();
+  function setOverdrive(active: boolean) {
+    if (!lit || lit.overdrive === active) return;
+    lit.overdrive = active;
+    html.toggleAttribute("data-torch-boost", active);
+    if (active && !still) {
+      const { target, angle } = aim(lit, mat.getBoundingClientRect());
+      sparks(target.x, target.y, 14, angle + Math.PI);
+    }
+  }
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Shift" && !event.repeat) setOverdrive(true);
+    if (event.key === "Escape" || event.key.toLowerCase() === "k") onBlur();
+  };
+  const onKeyUp = (event: KeyboardEvent) => {
+    if (event.key === "Shift") setOverdrive(false);
+  };
+  const onBlur = () => {
+    if (pending) window.clearTimeout(pending.timer);
+    pending = null;
+    out();
+  };
+  const onVisibility = () => { if (document.hidden) onBlur(); };
 
   measure();
   mat.addEventListener("pointerdown", onPointerDown);
@@ -821,6 +888,9 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   window.addEventListener("pointerup", onPointerUp);
   window.addEventListener("pointercancel", onPointerUp);
   window.addEventListener("blur", onBlur);
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  document.addEventListener("visibilitychange", onVisibility);
   window.addEventListener(ASH_EVENT, onAsh);
   window.addEventListener("resize", onWear);
   window.addEventListener("scroll", onScroll, { passive: true });
@@ -829,10 +899,10 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   mat.addEventListener("contextmenu", onContextMenu);
 
   return () => {
+    // Stop before cancelling: out() wakes the loop to fade remaining embers.
+    onBlur();
     cancelAnimationFrame(raf);
     window.clearTimeout(timer);
-    out();
-    if (pending) window.clearTimeout(pending.timer);
     scorches.length = 0;
     particles.length = 0;
     letGo();
@@ -841,6 +911,9 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     window.removeEventListener("pointerup", onPointerUp);
     window.removeEventListener("pointercancel", onPointerUp);
     window.removeEventListener("blur", onBlur);
+    window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keyup", onKeyUp);
+    document.removeEventListener("visibilitychange", onVisibility);
     window.removeEventListener(ASH_EVENT, onAsh);
     window.removeEventListener("resize", onWear);
     window.removeEventListener("scroll", onScroll);

@@ -512,7 +512,7 @@ html[data-torching] * {
   left: 0;
   opacity: 0;
   scale: 1.08;
-  transform-origin: calc(var(--mm) * 17) 0;
+  transform-origin: calc(var(--mm) * 25) 0;
   visibility: hidden;
   transition:
     opacity 200ms var(--ease-out),
@@ -545,11 +545,170 @@ html[data-torching] * {
 }
 
 .torch-label {
-  fill: #8f2818;
+  fill: #bec4b3;
   font-family: var(--font-mono), var(--mono);
-  font-size: 2.6px;
+  font-size: 1.85px;
   font-weight: 600;
-  letter-spacing: 0.35px;
+  letter-spacing: 0.25px;
+}
+
+.torch-label-main {
+  fill: #f5d99d;
+  font-size: 3.6px;
+  letter-spacing: -0.05px;
+}
+
+.torch-label-micro {
+  font-size: 1.45px;
+  letter-spacing: 0.1px;
+}
+
+.torch-mouth,
+.torch-indicator {
+  opacity: 0.4;
+  transition: opacity 160ms ease-out;
+}
+
+.torch[data-down] :is(.torch-mouth, .torch-indicator) {
+  opacity: 1;
+}
+
+.torch-trigger {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  transition: transform 140ms var(--ease-out);
+}
+
+.torch[data-down] .torch-trigger {
+  transform: scaleY(0.65);
+}
+
+/* An instrument strip that belongs to the desk, visible with the tool in hand. */
+.torch-guide {
+  position: fixed;
+  z-index: 2147483003;
+  bottom: max(25px, env(safe-area-inset-bottom));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid #536772;
+  border-radius: 4px;
+  background: #142026f2;
+  box-shadow: 0 4px 24px #0003, inset 0 1px #e3f5ff12;
+  color: #c1d0d6;
+  font-family: var(--font-mono), var(--mono);
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 8px);
+  transition: opacity 160ms var(--ease-out), transform 200ms var(--ease-out), visibility 0s linear 200ms;
+}
+
+html[data-tool="torch"]:not([data-scene]) .torch-guide {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition-delay: 0s;
+}
+
+html[data-tool="torch"] .mat-hint {
+  visibility: hidden;
+}
+
+.torch-guide-light {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #6d838a;
+}
+
+.torch-guide-id {
+  color: #e9cb91;
+  padding-right: 12px;
+  border-right: 1px solid #536772;
+}
+
+.torch-guide-key {
+  margin-left: 8px;
+  color: #8c9da4;
+  font-size: 9px;
+}
+
+.torch-guide-key kbd {
+  padding: 1px 4px;
+  border: 1px solid #536772;
+  border-radius: 2px;
+  color: #c1d0d6;
+  font: inherit;
+}
+
+.torch-guide-live,
+.torch-guide-boost,
+.torch-guide-touch,
+html[data-torching] .torch-guide-idle,
+html[data-torch-boost] .torch-guide-live {
+  display: none;
+}
+
+html[data-torching] .torch-guide-live,
+html[data-torch-boost] .torch-guide-boost {
+  display: inline;
+  color: #a1eeff;
+}
+
+html[data-torching][data-torch-boost] .torch-guide-live {
+  display: none;
+}
+
+html[data-torching] .torch-guide-light {
+  background: #94ecff;
+  box-shadow: 0 0 9px #59cfff99;
+}
+
+html[data-torch-boost] .torch-guide {
+  border-color: #c99858;
+}
+
+html[data-torch-boost] .torch-guide-boost {
+  color: #ffd59a;
+}
+
+html[data-torch-boost] .torch-guide-light {
+  background: #ffd59a;
+  box-shadow: 0 0 9px #ffb75999;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .torch-guide-key,
+  .torch-guide-idle {
+    display: none;
+  }
+
+  html:not([data-torching]) .torch-guide-touch {
+    display: inline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .torch-guide,
+  .torch-trigger {
+    transition: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .torch-guide {
+    gap: 9px;
+    padding: 10px 12px;
+    font-size: 9px;
+  }
 }
 
 /* ---- what's been done to a thing ------------------------------------------ */

@@ -1,106 +1,110 @@
-// What the mat is burnt with: a pocket butane torch, drawn to scale (one
-// unit is a millimetre of mat) and held the way the knife is, its handle
-// running out along the x axis. The origin is where the flame lands; the
-// nozzle stands back from it, since a torch is held off what it's burning.
-// lib/torch holds it at the pointer while it's lit and draws the flame.
-
+// One SVG unit is one millimetre of mat. The flame lands at the origin;
+// the heat-blued nozzle is held 25 mm back from it.
 export function Torch() {
   return (
     <div className="torch" aria-hidden="true">
       <div className="torch-hand">
         <svg className="torch-art" viewBox="-4 -16 166 34" focusable="false">
           <defs>
-            <filter id="torch-soft" x="-10%" y="-60%" width="120%" height="220%">
-              <feGaussianBlur stdDeviation="1.1" />
+            <filter id="torch-soft" x="-15%" y="-80%" width="130%" height="260%">
+              <feGaussianBlur stdDeviation="1.4" />
             </filter>
-            <linearGradient id="torch-brass" x1="0" y1="-2" x2="0" y2="2" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stopColor="#e7c98a" />
-              <stop offset="0.35" stopColor="#c99a4a" />
-              <stop offset="1" stopColor="#7d5a26" />
+            <linearGradient id="torch-titanium" x1="0" y1="-4" x2="0" y2="4" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#232a32" />
+              <stop offset=".22" stopColor="#a6b5c1" />
+              <stop offset=".4" stopColor="#e4edf0" />
+              <stop offset=".52" stopColor="#6e7c85" />
+              <stop offset="1" stopColor="#1c242e" />
             </linearGradient>
-            <linearGradient id="torch-steel" x1="0" y1="-4" x2="0" y2="4" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stopColor="#e4e7e3" />
-              <stop offset="0.4" stopColor="#a6aba7" />
-              <stop offset="1" stopColor="#5d625e" />
+            <linearGradient id="torch-temper">
+              <stop stopColor="#142c51" />
+              <stop offset=".2" stopColor="#3e6da3" />
+              <stop offset=".43" stopColor="#61547d" />
+              <stop offset=".66" stopColor="#a38a67" />
+              <stop offset="1" stopColor="#bac4c5" />
             </linearGradient>
-            <linearGradient id="torch-head" x1="0" y1="-7" x2="0" y2="7" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stopColor="#4a4d4a" />
-              <stop offset="0.3" stopColor="#2a2c2a" />
-              <stop offset="1" stopColor="#121312" />
+            <linearGradient id="torch-head" x1="0" y1="-8" x2="0" y2="8" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#50545a" />
+              <stop offset=".25" stopColor="#292d31" />
+              <stop offset=".65" stopColor="#171b20" />
+              <stop offset="1" stopColor="#090c10" />
             </linearGradient>
-            <linearGradient id="torch-can" x1="0" y1="-11" x2="0" y2="11" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stopColor="#e2654c" />
-              <stop offset="0.22" stopColor="#c13a26" />
-              <stop offset="0.75" stopColor="#9a2a1a" />
-              <stop offset="1" stopColor="#6c1c10" />
+            <linearGradient id="torch-cell" x1="0" y1="-11" x2="0" y2="11" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#c78b32" />
+              <stop offset=".15" stopColor="#ffe0a1" />
+              <stop offset=".32" stopColor="#eab456" />
+              <stop offset=".7" stopColor="#d28a28" />
+              <stop offset="1" stopColor="#79501f" />
             </linearGradient>
-            <clipPath id="torch-can-clip">
-              <path d="M68 -10.5 H146 C150.5 -10.5 151.5 10.5 146 10.5 H68 Z" />
+            <pattern id="torch-knurl" width="1.2" height="1.2" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+              <path d="M0 0 V1.2" stroke="#000" strokeWidth=".35" opacity=".45" />
+              <path d="M.4 0 V1.2" stroke="#d0d9de" strokeWidth=".12" opacity=".2" />
+            </pattern>
+            <pattern id="torch-hazard" width="3.6" height="4" patternUnits="userSpaceOnUse" patternTransform="skewX(-30)">
+              <rect width="1.8" height="4" fill="#202123" />
+            </pattern>
+            <clipPath id="torch-cell-clip">
+              <rect x="77" y="-10.5" width="73" height="21" rx="3" />
             </clipPath>
           </defs>
-          {/* held well up off the mat, so its shadow falls a long way off */}
           <g className="torch-shadow" filter="url(#torch-soft)">
-            <path d="M17 -1.9 H42 V-3.6 H47 V-6.5 H68 V-10.5 H146 C150.5 -10.5 151.5 10.5 146 10.5 H68 V6.5 H47 V3.6 H42 V1.9 H17 Z" />
+            <path d="M25 -3 H47 V-5 H55 V-7 H77 V-10.5 H146 Q153 -10.5 153 0 Q153 10.5 146 10.5 H77 V7 H55 V5 H47 V3 H25Z" />
           </g>
-          {/* the nozzle: a brass tube with air holes, blackened at its mouth */}
-          <path d="M17 -1.9 H42 V1.9 H17 Z" fill="url(#torch-brass)" stroke="#5a4320" strokeWidth="0.2" />
-          <path d="M17 -1.9 H19.4 V1.9 H17 Z" fill="#3b3428" />
-          <path d="M17 -1.9 H19.4 V-1.1 H17 Z" fill="#6b5f4c" />
-          <ellipse cx="31.5" cy="-0.15" rx="1.3" ry="0.75" fill="#3d2d14" />
-          <ellipse cx="35.2" cy="-0.15" rx="1.3" ry="0.75" fill="#3d2d14" />
-          {/* the collar, and the head with its red push-button and gas dial */}
-          <path d="M42 -3.6 H47 V3.6 H42 Z" fill="url(#torch-steel)" stroke="#4e534f" strokeWidth="0.2" />
-          <path d="M43.2 -3.6 V3.6 M44.5 -3.6 V3.6 M45.8 -3.6 V3.6" stroke="#6e736f" strokeWidth="0.25" />
-          <path
-            d="M47 -6.5 H66 C67.6 -6.5 68 -5.6 68 -4.6 V4.6 C68 5.6 67.6 6.5 66 6.5 H47 Z"
-            fill="url(#torch-head)"
-            stroke="#0b0c0b"
-            strokeWidth="0.22"
-          />
-          <path d="M48 -5.6 H66 V-4.4 H48 Z" fill="#5b5f5b" opacity="0.55" />
-          <path
-            d="M52 -6.5 V-8.8 C52 -9.6 52.6 -10 53.4 -10 H60 C60.8 -10 61.4 -9.6 61.4 -8.8 V-6.5 Z"
-            fill="#c13a26"
-            stroke="#5e1a10"
-            strokeWidth="0.2"
-          />
-          <path d="M53 -9.3 H60.4 V-8.5 H53 Z" fill="#e0624a" />
-          <path d="M57 6.5 H64.5 V8.6 C64.5 9.1 64.1 9.4 63.6 9.4 H57.9 C57.4 9.4 57 9.1 57 8.6 Z" fill="#3a3d3a" />
-          <path d="M58.2 6.5 V9.4 M59.6 6.5 V9.4 M61 6.5 V9.4 M62.4 6.5 V9.4 M63.8 6.5 V9.4" stroke="#1c1e1c" strokeWidth="0.3" />
-          {/* the canister, the colour of the card's edge, and its label */}
-          <g clipPath="url(#torch-can-clip)">
-            <rect x="66" y="-11" width="88" height="22" fill="url(#torch-can)" />
-            <rect x="66" y="-8.8" width="88" height="2.2" fill="#ee8a72" opacity="0.45" />
-            <rect x="96" y="-11" width="36" height="22" fill="#efeae0" />
-            <rect x="96" y="-11" width="36" height="5" fill="#ffffff" opacity="0.5" />
-            <rect x="96" y="5" width="36" height="6" fill="#000000" opacity="0.14" />
-            <path d="M96 -11 V11 M132 -11 V11" stroke="#8f2818" strokeWidth="0.4" />
-            <text className="torch-label" x="114" y="0.9" textAnchor="middle">
-              AG—26 · BUTANE
-            </text>
-            <rect x="144" y="-11" width="10" height="22" fill="#1a1b1a" />
-            <rect x="144" y="-9" width="10" height="2" fill="#4a4c4a" />
+          {/* Machined, heat-tempered barrel and black ceramic mouth. */}
+          <path d="M25 -3.1 H46 L49 -2.2 V2.2 L46 3.1 H25Z" fill="url(#torch-titanium)" stroke="#202830" strokeWidth=".25" />
+          <path d="M25 -3.1 H43 V3.1 H25Z" fill="url(#torch-temper)" opacity=".8" />
+          <path d="M25 -3.1 H27 V3.1 H25Z" fill="#111c2b" />
+          <path className="torch-mouth" d="M25 -2.5 V2.5" stroke="#87eeff" strokeWidth=".5" />
+          <path d="M29 -2.4 H43" stroke="#d7e7f1" strokeWidth=".35" opacity=".6" />
+          {[33, 36.2, 39.4].map((x) => <rect key={x} x={x} y="-.8" width="1.5" height="1.6" rx=".65" fill="#16222e" stroke="#a3afb6" strokeWidth=".15" />)}
+          <rect x="46" y="-4.5" width="9" height="9" rx=".6" fill="url(#torch-titanium)" stroke="#1c242c" strokeWidth=".25" />
+          {[47, 49, 51, 53].map((x) => <path key={x} d={`M${x} -4.4 V4.4`} stroke="#1b242c" strokeWidth=".65" />)}
+          {/* Knurled regulator, ignition paddle, and a tiny live indicator. */}
+          <path d="M55 -7 H75 Q79 -7 79 -3 V3 Q79 7 75 7 H55Z" fill="url(#torch-head)" stroke="#080b0e" strokeWidth=".3" />
+          <rect x="56" y="-6" width="12" height="12" fill="url(#torch-knurl)" />
+          <path className="torch-trigger" d="M61 -7 V-10 Q61 -11 62 -11 H71 Q72 -11 72 -10 V-7" fill="#e9a241" stroke="#77501e" strokeWidth=".25" />
+          <path d="M62 -10.3 H71" stroke="#ffe6b0" strokeWidth=".35" />
+          <circle cx="72.5" cy="0" r="1.5" fill="#070d13" stroke="#4b565e" strokeWidth=".25" />
+          <circle className="torch-indicator" cx="72.5" cy="0" r=".8" fill="#8cefff" />
+          <path d="M64 7 H73 V9 H64Z" fill="#343b41" stroke="#0c1116" strokeWidth=".25" />
+          <path d="M65 7 V9 M67 7 V9 M69 7 V9 M71 7 V9" stroke="#0b1015" strokeWidth=".45" />
+          {/* Amber anodised fuel cell, with an inset instrument label. */}
+          <g clipPath="url(#torch-cell-clip)">
+            <rect x="77" y="-10.5" width="73" height="21" fill="url(#torch-cell)" />
+            <path d="M79 -8.3 H148" stroke="#fff0c7" strokeWidth=".5" opacity=".65" />
+            <rect x="79" y="-10.5" width="4" height="21" fill="url(#torch-head)" />
+            <rect x="88" y="-10.5" width="3" height="21" fill="url(#torch-knurl)" opacity=".65" />
+            <rect x="95" y="-7.7" width="40" height="15.4" rx=".7" fill="#172025" stroke="#f2cc81" strokeWidth=".25" />
+            <text className="torch-label torch-label-main" x="98" y="-2.7">AG / JET—01</text>
+            <text className="torch-label" x="98" y=".6">PRECISION TORCH</text>
+            <path d="M98 2.3 H132" stroke="#697166" strokeWidth=".2" />
+            <text className="torch-label torch-label-micro" x="98" y="5.3">BUTANE · 1,300°C · 26</text>
+            <rect x="138" y="-10.5" width="4" height="21" fill="url(#torch-hazard)" />
+            <rect x="145" y="-10.5" width="7" height="21" fill="url(#torch-head)" />
+            <path d="M146 -8 V8 M148 -8 V8" stroke="#697075" strokeWidth=".3" />
           </g>
-          <path
-            d="M68 -10.5 H146 C150.5 -10.5 151.5 10.5 146 10.5 H68 Z"
-            fill="none"
-            stroke="#4a140b"
-            strokeWidth="0.25"
-          />
+          <rect x="77" y="-10.5" width="73" height="21" rx="3" fill="none" stroke="#392e1b" strokeWidth=".3" />
         </svg>
       </div>
     </div>
   );
 }
 
-// The torch, the flame and its smoke (drawn over everything on the mat),
-// and the scorches it leaves on the mat itself (under everything on it).
 export function TorchLayer() {
   return (
     <>
       <canvas className="mat-scorch" aria-hidden="true" />
       <Torch />
       <canvas className="mat-fire" aria-hidden="true" />
+      <div className="torch-guide" aria-hidden="true">
+        <span className="torch-guide-light" />
+        <span className="torch-guide-id">JET—01</span>
+        <span className="torch-guide-idle">Hold to ignite</span>
+        <span className="torch-guide-live">Burning</span>
+        <span className="torch-guide-boost">Overdrive</span>
+        <span className="torch-guide-key"><kbd>⇧</kbd> overdrive</span>
+        <span className="torch-guide-touch">Hold &amp; drag to burn</span>
+      </div>
     </>
   );
 }

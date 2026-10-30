@@ -207,6 +207,7 @@ export function ignite(): Burner {
   if (!ctx || !out) return { level() {}, stop() {} };
   grain(ctx, { length: 0.012, freq: 5200, q: 5, gain: 0.09 });
   grain(ctx, { at: 0.004, length: 0.03, freq: 1600, q: 1.4, gain: 0.04 });
+  grain(ctx, { at: 0.015, length: 0.13, freq: 190, type: "lowpass", q: 0.8, gain: 0.18 });
   const now = ctx.currentTime;
   const source = ctx.createBufferSource();
   source.buffer = longNoise(ctx);
@@ -234,8 +235,12 @@ export function ignite(): Burner {
     level(k: number) {
       if (stopped) return;
       const t = ctx.currentTime;
-      roarGain.gain.setTargetAtTime(0.16 + 0.12 * k, t, 0.08);
-      hiss.frequency.setTargetAtTime(3400 - 900 * k, t, 0.1);
+      const heat = Math.max(0, Math.min(2, k));
+      const boost = Math.max(0, heat - 1);
+      roarGain.gain.setTargetAtTime(0.16 + 0.1 * heat, t, 0.08);
+      roar.frequency.setTargetAtTime(340 + boost * 240, t, 0.12);
+      hissGain.gain.setTargetAtTime(0.035 + boost * 0.02, t, 0.1);
+      hiss.frequency.setTargetAtTime(3400 - 900 * Math.min(1, heat) + boost * 650, t, 0.1);
     },
     stop() {
       if (stopped) return;
