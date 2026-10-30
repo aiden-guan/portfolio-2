@@ -1,0 +1,3295 @@
+{
+  "method": {
+    "stepHz": 120,
+    "damageWindowSeconds": 10,
+    "damageWarmupSeconds": 4,
+    "damageTarget": "Aligned, unarmored target; Wraith arcs at 240px, other weapons at 360px; incoming attacks disabled only for weapon measurement.",
+    "pilot": "All three hulls, normal collision/damage/movement, no health or damage overrides. Aware policy makes four decisions/sec from visible threat state. Each boss phase starts independently; one deterministic seed, 162 trials. This is a regression benchmark, not a claim of human difficulty or studio playtesting. The overdrive damage column measures active power, not its sustainable uptime."
+  },
+  "tuning": {
+    "hull": 4,
+    "hitRecovery": 0.95,
+    "dashCooldown": 2.6,
+    "pulseCooldown": 20,
+    "pulseDamage": 38,
+    "pulseBossDamage": 24,
+    "overdriveSeconds": 4.5,
+    "overdrivePower": 1.28,
+    "shipSwapCooldown": 3,
+    "repairEvery": 14,
+    "maxBossMinions": 5,
+    "cloneSealSeconds": 1.8,
+    "shipDamage": 1.15
+  },
+  "weapons": [
+    {
+      "ship": "Kestrel",
+      "normalDps": 63.2,
+      "focusedDps": 76.7,
+      "overdriveFocusedDps": 106.6
+    },
+    {
+      "ship": "Helix",
+      "normalDps": 74,
+      "focusedDps": 72.2,
+      "overdriveFocusedDps": 92.4
+    },
+    {
+      "ship": "Wraith",
+      "normalDps": 60.4,
+      "focusedDps": 67.6,
+      "overdriveFocusedDps": 86.6
+    }
+  ],
+  "encounters": [
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 0,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 8.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 417,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 1,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 8.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 380,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 2,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 8.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 153,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 0,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 14.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 348,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 17,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 1,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 20.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 727,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 17,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 2,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 20.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 228,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 17,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 0,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 18.3,
+      "result": "phase-cleared",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 800,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 1,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 19,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 800,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 2,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 16.4,
+      "result": "phase-cleared",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 800,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 0,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 6.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 405,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 42,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 1,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 6.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 329,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 42,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 2,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 6.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 153,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 42,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 0,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 9.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 266,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 42,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 1,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 9.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 329,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 42,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 2,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 9.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 98,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 42,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 0,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 38.9,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 950,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 46,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 1,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 24.6,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 923,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 60,
+      "maxEnemies": 4,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 2,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 27.7,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 950,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 46,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 0,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 8.9,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 544,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 11,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 1,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 8.9,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 462,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 11,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 2,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 8.9,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 197,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 11,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 0,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 17.6,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 550,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 21,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 1,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 17.6,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 601,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 21,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 2,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 17.6,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 194,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 21,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 0,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 17.4,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 563,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 21,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 1,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 28.6,
+      "result": "phase-cleared",
+      "hits": 3,
+      "hull": 1,
+      "bossDamage": 1150,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 30,
+      "maxEnemies": 4,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 2,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 28.2,
+      "result": "phase-cleared",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 1150,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 22,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 0,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 8.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 531,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 12,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 1,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 8.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 392,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 12,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 2,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 8.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 197,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 12,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 0,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 11.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 202,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 13,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 1,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 11.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 297,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 13,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 2,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 11.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 92,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 13,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 0,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 39.2,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 748,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 1,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 28.3,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 748,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 2,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 23,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 748,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 12,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 0,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 9.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 538,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 1,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 9.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 424,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 2,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 9.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 218,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 0,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 9.8,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 177,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 17,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 1,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 9.8,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 209,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 17,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 2,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 9.8,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 92,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 17,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 0,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 20.4,
+      "result": "phase-cleared",
+      "hits": 3,
+      "hull": 1,
+      "bossDamage": 726,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 18,
+      "maxEnemies": 4,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 1,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 19.7,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 726,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 18,
+      "maxEnemies": 4,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 2,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 26.8,
+      "result": "phase-cleared",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 726,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 12,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 0,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 6.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 361,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 14,
+      "maxEnemies": 3,
+      "hazards": [
+        "lunge",
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 1,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 6.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 310,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 14,
+      "maxEnemies": 3,
+      "hazards": [
+        "lunge",
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 2,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 6.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 189,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 14,
+      "maxEnemies": 3,
+      "hazards": [
+        "lunge",
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 0,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 10.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 228,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 14,
+      "maxEnemies": 3,
+      "hazards": [
+        "lunge",
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 1,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 10.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 234,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 14,
+      "maxEnemies": 3,
+      "hazards": [
+        "lunge",
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 2,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 10.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 134,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 14,
+      "maxEnemies": 3,
+      "hazards": [
+        "lunge",
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 0,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 23.3,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 726,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 20,
+      "maxEnemies": 4,
+      "hazards": [
+        "lunge",
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 1,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 19.5,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 726,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 20,
+      "maxEnemies": 4,
+      "hazards": [
+        "lunge",
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 2,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 19.1,
+      "result": "phase-cleared",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 726,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 3,
+      "hazards": [
+        "lunge",
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 0,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 12.4,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 213,
+      "casts": 1,
+      "clones": 2,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 1,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 12.4,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 290,
+      "casts": 1,
+      "clones": 2,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 2,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 12.4,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 68,
+      "casts": 1,
+      "clones": 2,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 0,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 48.4,
+      "result": "phase-cleared",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 952,
+      "casts": 2,
+      "clones": 4,
+      "maxBullets": 16,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 1,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 36.5,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 952,
+      "casts": 2,
+      "clones": 4,
+      "maxBullets": 16,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 2,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 60,
+      "result": "time-limit",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 376,
+      "casts": 2,
+      "clones": 4,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 0,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 30.3,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 952,
+      "casts": 2,
+      "clones": 4,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 1,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 25.6,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 952,
+      "casts": 1,
+      "clones": 2,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 2,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 28.6,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 952,
+      "casts": 2,
+      "clones": 4,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 0,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 10,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 237,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 9,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 1,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 10,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 252,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 9,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 2,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 10,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 55,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 9,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 0,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 20.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 265,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 11,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 1,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 20.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 325,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 11,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 2,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 20.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 130,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 10,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 0,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 30.1,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 924,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 10,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 1,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 31.6,
+      "result": "phase-cleared",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 924,
+      "casts": 2,
+      "clones": 3,
+      "maxBullets": 9,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 2,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 29.2,
+      "result": "phase-cleared",
+      "hits": 3,
+      "hull": 1,
+      "bossDamage": 924,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 9,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 0,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 13.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 279,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 13,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 1,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 13.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 298,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 13,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 2,
+      "width": 390,
+      "policy": "stationary",
+      "seconds": 17.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 123,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 13,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 0,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 20,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 255,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 14,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 1,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 20,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 294,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 14,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 2,
+      "width": 390,
+      "policy": "strafe",
+      "seconds": 20,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 92,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 14,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 0,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 31.9,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 924,
+      "casts": 2,
+      "clones": 3,
+      "maxBullets": 12,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 1,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 46,
+      "result": "phase-cleared",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 924,
+      "casts": 2,
+      "clones": 6,
+      "maxBullets": 14,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 2,
+      "width": 390,
+      "policy": "aware",
+      "seconds": 29.3,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 924,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 11,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 0,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 10.8,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 519,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 27,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 1,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 10.8,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 531,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 27,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 2,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 10.8,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 210,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 27,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 0,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 11.2,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 108,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 27,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 1,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 11.2,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 171,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 27,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 2,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 14.2,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 33,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 27,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 0,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 17.5,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 800,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 27,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 1,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 20.2,
+      "result": "phase-cleared",
+      "hits": 3,
+      "hull": 1,
+      "bossDamage": 800,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 30,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 1,
+      "ship": 2,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 18.2,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 800,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 27,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 0,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 10.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 557,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 66,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 1,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 10.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 588,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 66,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 2,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 10.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 229,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 66,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 0,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 28.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 304,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 79,
+      "maxEnemies": 4,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 1,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 28.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 405,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 75,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 2,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 28.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 98,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 79,
+      "maxEnemies": 4,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 0,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 23.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 726,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 67,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 1,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 38.8,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 950,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 67,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 2,
+      "ship": 2,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 33.4,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 950,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 66,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 0,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 10.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 550,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 34,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 1,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 10.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 557,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 34,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 2,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 10.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 218,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 34,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 0,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 35.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 392,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 47,
+      "maxEnemies": 4,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 1,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 36.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 481,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 47,
+      "maxEnemies": 3,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 2,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 35.7,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 131,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 47,
+      "maxEnemies": 4,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 0,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 50.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 860,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 41,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 1,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 46.4,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 734,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 40,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 1,
+      "stage": 3,
+      "ship": 2,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 39.5,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 1150,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 41,
+      "maxEnemies": 2,
+      "hazards": [
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 0,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 11.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 569,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 16,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 1,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 11.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 607,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 16,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 2,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 11.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 240,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 16,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 0,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 29.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 304,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 30,
+      "maxEnemies": 5,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 1,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 35,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 443,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 26,
+      "maxEnemies": 4,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 2,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 29.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 98,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 30,
+      "maxEnemies": 5,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 0,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 46.5,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 748,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 1,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 60,
+      "result": "time-limit",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 639,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 18,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 1,
+      "ship": 2,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 26.1,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 748,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 15,
+      "maxEnemies": 2,
+      "hazards": [
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 0,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 12.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 607,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 19,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 1,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 12.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 620,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 19,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 2,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 12.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 251,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 19,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 0,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 10,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 108,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 20,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 1,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 10,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 114,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 20,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 2,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 10,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 33,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 20,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 0,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 27.9,
+      "result": "phase-cleared",
+      "hits": 3,
+      "hull": 1,
+      "bossDamage": 726,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 28,
+      "maxEnemies": 5,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 1,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 28.3,
+      "result": "phase-cleared",
+      "hits": 3,
+      "hull": 1,
+      "bossDamage": 726,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 28,
+      "maxEnemies": 5,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 2,
+      "ship": 2,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 36.3,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 726,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 18,
+      "maxEnemies": 3,
+      "hazards": [
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 0,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 7.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 392,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 17,
+      "maxEnemies": 3,
+      "hazards": [
+        "lunge",
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 1,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 7.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 392,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 17,
+      "maxEnemies": 3,
+      "hazards": [
+        "lunge",
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 2,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 7.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 200,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 17,
+      "maxEnemies": 3,
+      "hazards": [
+        "lunge",
+        "zones"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 0,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 17.9,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 190,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 22,
+      "maxEnemies": 5,
+      "hazards": [
+        "lunge",
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 1,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 17.9,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 196,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 19,
+      "maxEnemies": 5,
+      "hazards": [
+        "lunge",
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 2,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 17.9,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 55,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 22,
+      "maxEnemies": 5,
+      "hazards": [
+        "lunge",
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 0,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 39.9,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 670,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 26,
+      "maxEnemies": 5,
+      "hazards": [
+        "lunge",
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 1,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 20.7,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 726,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 24,
+      "maxEnemies": 5,
+      "hazards": [
+        "lunge",
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 2,
+      "stage": 3,
+      "ship": 2,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 39,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 726,
+      "casts": 0,
+      "clones": 0,
+      "maxBullets": 17,
+      "maxEnemies": 3,
+      "hazards": [
+        "lunge",
+        "zones",
+        "shockwaves"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 0,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 20.9,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 133,
+      "casts": 1,
+      "clones": 2,
+      "maxBullets": 22,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 1,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 13.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 133,
+      "casts": 1,
+      "clones": 2,
+      "maxBullets": 21,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 2,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 13.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 55,
+      "casts": 1,
+      "clones": 2,
+      "maxBullets": 21,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 0,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 60,
+      "result": "time-limit",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 466,
+      "casts": 1,
+      "clones": 2,
+      "maxBullets": 27,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 1,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 60,
+      "result": "time-limit",
+      "hits": 3,
+      "hull": 1,
+      "bossDamage": 683,
+      "casts": 2,
+      "clones": 4,
+      "maxBullets": 24,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 2,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 60,
+      "result": "time-limit",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 155,
+      "casts": 1,
+      "clones": 2,
+      "maxBullets": 27,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 0,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 28.7,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 952,
+      "casts": 1,
+      "clones": 2,
+      "maxBullets": 21,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 1,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 30.7,
+      "result": "phase-cleared",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 952,
+      "casts": 2,
+      "clones": 2,
+      "maxBullets": 22,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 1,
+      "ship": 2,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 38.7,
+      "result": "phase-cleared",
+      "hits": 1,
+      "hull": 3,
+      "bossDamage": 952,
+      "casts": 2,
+      "clones": 4,
+      "maxBullets": 21,
+      "maxEnemies": 2,
+      "hazards": [
+        "hand-seal"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 0,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 10.2,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 133,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 9,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 1,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 10.2,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 127,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 9,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 2,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 10.2,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 55,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 9,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 0,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 39.6,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 306,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 17,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 1,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 50.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 569,
+      "casts": 2,
+      "clones": 6,
+      "maxBullets": 17,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 2,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 39.6,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 113,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 17,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 0,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 31.9,
+      "result": "phase-cleared",
+      "hits": 0,
+      "hull": 4,
+      "bossDamage": 924,
+      "casts": 2,
+      "clones": 3,
+      "maxBullets": 18,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 1,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 24.9,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 183,
+      "casts": 1,
+      "clones": 3,
+      "maxBullets": 13,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 2,
+      "ship": 2,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 31.1,
+      "result": "phase-cleared",
+      "hits": 2,
+      "hull": 2,
+      "bossDamage": 924,
+      "casts": 2,
+      "clones": 3,
+      "maxBullets": 15,
+      "maxEnemies": 3,
+      "hazards": [
+        "hand-seal",
+        "lasers",
+        "zones"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 0,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 11.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 133,
+      "casts": 1,
+      "clones": 4,
+      "maxBullets": 24,
+      "maxEnemies": 4,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 1,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 11.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 127,
+      "casts": 1,
+      "clones": 4,
+      "maxBullets": 26,
+      "maxEnemies": 4,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 2,
+      "width": 1200,
+      "policy": "stationary",
+      "seconds": 11.1,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 55,
+      "casts": 1,
+      "clones": 4,
+      "maxBullets": 26,
+      "maxEnemies": 4,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 0,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 17.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 157,
+      "casts": 1,
+      "clones": 4,
+      "maxBullets": 25,
+      "maxEnemies": 4,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 1,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 17.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 188,
+      "casts": 1,
+      "clones": 4,
+      "maxBullets": 25,
+      "maxEnemies": 4,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 2,
+      "width": 1200,
+      "policy": "strafe",
+      "seconds": 17.5,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 53,
+      "casts": 1,
+      "clones": 4,
+      "maxBullets": 25,
+      "maxEnemies": 4,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 0,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 27.9,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 239,
+      "casts": 1,
+      "clones": 4,
+      "maxBullets": 27,
+      "maxEnemies": 4,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 1,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 46.3,
+      "result": "phase-cleared",
+      "hits": 3,
+      "hull": 1,
+      "bossDamage": 924,
+      "casts": 2,
+      "clones": 4,
+      "maxBullets": 30,
+      "maxEnemies": 4,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    },
+    {
+      "sector": 3,
+      "stage": 3,
+      "ship": 2,
+      "width": 1200,
+      "policy": "aware",
+      "seconds": 36.3,
+      "result": "defeated",
+      "hits": 4,
+      "hull": 0,
+      "bossDamage": 538,
+      "casts": 1,
+      "clones": 4,
+      "maxBullets": 27,
+      "maxEnemies": 4,
+      "hazards": [
+        "hand-seal",
+        "zones",
+        "shockwaves",
+        "lasers"
+      ]
+    }
+  ]
+}

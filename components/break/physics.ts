@@ -42,6 +42,7 @@ export type FlightState = {
   focused: boolean;
 };
 export type FlightInput = {
+  speedScale?: number;
   x: number;
   y: number;
   focused: boolean;
@@ -105,7 +106,8 @@ export function stepFlight(
   const ox = body.x,
     oy = body.y,
     wasDashing = body.dashTime > 0;
-  const speed = flightSpeed(bounds) * (input.focused ? 0.44 : 1);
+  const speed =
+    flightSpeed(bounds) * (input.focused ? 0.44 : 1) * (input.speedScale ?? 1);
   body.focused = input.focused;
   body.dashCooldown = Math.max(0, body.dashCooldown - dt);
   const direction = input.target
