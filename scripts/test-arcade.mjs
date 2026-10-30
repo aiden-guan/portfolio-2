@@ -565,7 +565,10 @@ test("all three boss forms have safe transformations, a final checkpoint, and a 
     e.labels.get("[data-energy]").style.transform.slice(7),
   );
   const carriedHull = e.labels.get("[data-hull]").textContent;
-  assert.ok(carriedEnergy < 1, `The EMP is still cooling down: ${carriedEnergy}`);
+  assert.ok(
+    carriedEnergy < 1,
+    `The EMP is still cooling down: ${carriedEnergy}`,
+  );
   const firstDuration = e.elapsed - 1.2;
   assert.ok(e.elapsed > 20, `First form ended at ${e.elapsed}s`);
   assert.equal(e.host.dataset.form, "cat");
@@ -1018,10 +1021,12 @@ test("cat ears share the portrait grid, have pink interiors, and mirror without 
   assert.ok(ears.length > 250);
   const positions = new Map(ears.map((p) => [`${p.col},${p.row}`, p.ink]));
   assert.equal(positions.size, ears.length);
-  assert.ok(ears.some((p) => p.row < -10));
   const top = Math.min(...ears.map((p) => p.row));
+  const bottom = Math.max(...ears.map((p) => p.row));
+  assert.ok(top >= -7 && top < 0, "Ears stay close to the hairline");
+  assert.ok(bottom - top < 20, "The silhouette stays short and wide");
   assert.ok(
-    ears.filter((p) => p.row === top && p.col < 31).length >= 3,
+    ears.filter((p) => p.row === top && p.col < 31).length >= 5,
     "Tips have a rounded cap",
   );
   assert.ok(ears.some((p) => p.ink >= 6));
