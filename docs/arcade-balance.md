@@ -8,11 +8,11 @@ The original CRT, pixel portraits and Guan's three visual forms remain. This pas
 
 | Hull | Normal damage/sec | Focused damage/sec | Focused overdrive damage/sec | Tradeoff |
 | --- | ---: | ---: | ---: | --- |
-| Kestrel | 63.2 | 76.7 | 106.6 | Fastest handling, precise forward coverage; Focus slows movement |
-| Helix | 74.0 | 72.2 | 92.4 | Spread and seekers, 12% slower handling; all-pellet measurements assume alignment |
-| Wraith | 60.4 | 67.6 | 86.6 | Arcs require a target within 275px, jumps within 130px, and lose 55% damage per jump; rail pierces at reduced damage |
+| Kestrel | 68.8 | 83.4 | 115.8 | Fastest handling, precise forward coverage; Focus slows movement |
+| Helix | 80.4 | 78.5 | 100.5 | Spread and seekers, 12% slower handling; all-pellet measurements assume alignment |
+| Wraith | 65.6 | 73.5 | 94.1 | Arcs require a target within 275px, jumps within 130px, and lose 55% damage per jump; rail pierces at reduced damage |
 
-The latest adjustment increases every ship weapon's damage by 15%, including focused fire, seekers, chained hits, and overdrive wing shots. Enemy health, attack speed, warnings, summon pressure, recovery windows, and player defensive cooldowns retain the preceding tuning.
+Every ship weapon now deals 25% more damage than the base rebalance, including focused fire, seekers, chained hits, and overdrive wing shots. The multiplier increased from 1.15 to 1.25, an additional 8.7%. Enemy health, attack speed, warnings, summon pressure, recovery windows, and player defensive cooldowns retain the preceding tuning.
 
 For comparison, the previous nominal focused rates were about 169, 168, and 112 damage/sec. Those older formulas assumed all shots hit and did not account for accuracy or target movement.
 

@@ -13,7 +13,7 @@ export const BALANCE = {
   repairEvery: 14,
   maxBossMinions: 5,
   cloneSealSeconds: 1.8,
-  shipDamage: 1.15,
+  shipDamage: 1.25,
 } as const;
 
 export const WEAPONS = [

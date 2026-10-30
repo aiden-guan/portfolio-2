@@ -870,9 +870,9 @@ test("measured single-target damage and overdrive stay inside the rebalance budg
     const normal = benchmarkWeapon(ship),
       focus = benchmarkWeapon(ship, true),
       peak = benchmarkWeapon(ship, true, true);
-    assert.ok(normal >= 58 && normal <= 78, `ship ${ship} normal ${normal}`);
-    assert.ok(focus >= 64 && focus <= 80, `ship ${ship} focus ${focus}`);
-    assert.ok(peak < 110, `ship ${ship} overdrive ${peak}`);
+    assert.ok(normal >= 64 && normal <= 84, `ship ${ship} normal ${normal}`);
+    assert.ok(focus >= 71 && focus <= 87, `ship ${ship} focus ${focus}`);
+    assert.ok(peak < 120, `ship ${ship} overdrive ${peak}`);
   }
 });
 test("ship swapping cannot reset weapon cooldowns into a burst-fire exploit", () => {
