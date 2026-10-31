@@ -1,0 +1,301 @@
+/* The messaging dock and the toast: the things fixed to the window. */
+
+.dock {
+  position: fixed;
+  right: 24px;
+  bottom: 0;
+  z-index: 90;
+  width: 288px;
+  border-radius: 10px 10px 0 0;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(140 140 140 / 0.2), 0 4px 14px rgb(0 0 0 / 0.16);
+  transition: width 280ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.dock[data-open] {
+  width: 352px;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 48px;
+  padding: 0 12px 0 8px;
+  border: 0;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  color: rgb(0 0 0 / 0.9);
+  font: 600 14px/20px var(--li-font);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 167ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bar:hover {
+  background: rgb(0 0 0 / 0.04);
+}
+
+.bar:focus-visible {
+  outline: 2px solid #0a66c2;
+  outline-offset: -2px;
+}
+
+.barAvatar {
+  position: relative;
+  display: flex;
+  flex: none;
+}
+
+.barAvatar img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 30%;
+}
+
+.presence {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #01754f;
+}
+
+.barTitle {
+  flex: 1;
+}
+
+.barIcon,
+.chevron {
+  flex: none;
+  color: rgb(0 0 0 / 0.6);
+}
+
+.chevron {
+  transition: transform 280ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.dock[data-open] .chevron {
+  transform: rotate(180deg);
+}
+
+.panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 300ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.dock[data-open] .panel {
+  grid-template-rows: 1fr;
+}
+
+.panelInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.compose {
+  display: flex;
+  flex-direction: column;
+  height: min(360px, calc(100vh - 140px));
+  border-top: 1px solid rgb(140 140 140 / 0.2);
+}
+
+.composeHead {
+  margin: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgb(140 140 140 / 0.2);
+  color: rgb(0 0 0 / 0.9);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.to {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgb(140 140 140 / 0.2);
+}
+
+.toLabel {
+  color: rgb(0 0 0 / 0.6);
+  font-size: 14px;
+}
+
+.recipient {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 4px;
+  border-radius: 14px;
+  background: #e2ecf7;
+  color: rgb(0 0 0 / 0.9);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.recipient img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 30%;
+}
+
+.field {
+  flex: 1;
+  min-height: 0;
+  margin: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: #f4f2ee;
+  color: rgb(0 0 0 / 0.9);
+  font: 400 14px/20px var(--li-font);
+  resize: none;
+  outline: none;
+}
+
+.field::placeholder {
+  color: rgb(0 0 0 / 0.6);
+}
+
+.field:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.6);
+}
+
+.composeFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid rgb(140 140 140 / 0.2);
+}
+
+.hint {
+  color: rgb(0 0 0 / 0.6);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* Toast, bottom left */
+
+.toasts {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 110;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(400px, calc(100vw - 32px));
+  padding: 12px 8px 12px 16px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(140 140 140 / 0.2), 0 6px 18px rgb(0 0 0 / 0.18);
+  pointer-events: auto;
+  animation: toast-in 280ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.toastIcon {
+  flex: none;
+  color: #057642;
+}
+
+.toastText {
+  flex: 1;
+  margin: 0;
+  color: rgb(0 0 0 / 0.9);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.toastClose {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgb(0 0 0 / 0.6);
+  cursor: pointer;
+}
+
+.toastClose:hover {
+  background: rgb(0 0 0 / 0.08);
+  color: rgb(0 0 0 / 0.9);
+}
+
+.toastClose:focus-visible {
+  outline: 2px solid #0a66c2;
+  outline-offset: 0;
+}
+
+@media (max-width: 767px) {
+  .dock {
+    right: 0;
+    left: 0;
+    width: auto;
+    border-radius: 12px 12px 0 0;
+    transform: translateY(100%);
+    visibility: hidden;
+    transition: transform 300ms cubic-bezier(0.2, 0.75, 0.25, 1), visibility 0s linear 300ms;
+  }
+
+  .dock[data-open] {
+    width: auto;
+    transform: none;
+    visibility: visible;
+    transition: transform 300ms cubic-bezier(0.2, 0.75, 0.25, 1);
+  }
+
+  .panel,
+  .dock[data-open] .panel {
+    grid-template-rows: 1fr;
+  }
+
+  .toasts {
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+  }
+
+  .toast {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock,
+  .dock[data-open],
+  .panel,
+  .chevron,
+  .toast {
+    transition: none;
+    animation: none;
+  }
+}

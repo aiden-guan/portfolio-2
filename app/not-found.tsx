@@ -19,7 +19,7 @@ export default function NotFound() {
         <p className="not-found-label">404 / Off the mat</p>
         <h1>This page isn’t here.</h1>
         <p>The useful way back is short.</p>
-        <Link href="/">Back to the mat</Link>
+        <Link href="/student">Back to the mat</Link>
       </div>
     </main>
   );

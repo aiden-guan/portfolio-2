@@ -586,7 +586,7 @@ export function AdminEditor() {
   if (!authenticated) {
     return (
       <main className="editor-shell editor-login">
-        <Link className="editor-back-link" href="/">
+        <Link className="editor-back-link" href="/student">
           ← View portfolio
         </Link>
         <div className="editor-login-card">
@@ -640,7 +640,7 @@ export function AdminEditor() {
           <p className="editor-header-copy">Change the content here, then save once.</p>
         </div>
         <div className="editor-actions">
-          <Link className="editor-button" href="/" target="_blank" rel="noreferrer">
+          <Link className="editor-button" href="/student" target="_blank" rel="noreferrer">
             View site ↗
           </Link>
           <button className="editor-button" type="button" onClick={() => void logout()}>

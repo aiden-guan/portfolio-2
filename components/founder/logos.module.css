@@ -1,0 +1,69 @@
+.logo {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--logo-size);
+  height: var(--logo-size);
+  overflow: hidden;
+  background: var(--logo-bg);
+  color: var(--logo-fg);
+}
+
+.mark {
+  font-size: calc(var(--logo-size) * var(--logo-scale));
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+
+.logo[data-serif] .mark {
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  letter-spacing: -0.02em;
+  transform: translateX(-0.03em);
+}
+
+.project .mark {
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.glyph {
+  width: 56%;
+  height: 56%;
+}
+
+/* "Clocked" + the square */
+
+.wordmark {
+  display: inline-block;
+  color: #0a66c2;
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+}
+
+.box {
+  position: relative;
+  display: inline-block;
+  width: 0.86em;
+  height: 0.86em;
+  margin-left: 0.06em;
+  border-radius: 0.12em;
+  background: #0a66c2;
+  vertical-align: -0.035em;
+}
+
+.box > span {
+  position: absolute;
+  right: 0.08em;
+  bottom: -0.005em;
+  color: #fff;
+  font-size: 0.8em;
+  letter-spacing: -0.025em;
+  line-height: 1;
+}
+

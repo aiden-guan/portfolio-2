@@ -1,0 +1,90 @@
+.scroll {
+  max-width: 100%;
+}
+
+.track {
+  position: relative;
+  display: flex;
+  width: max-content;
+}
+
+.option {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  height: 34px;
+  padding: 9px 13px 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--dim, #6b6b6b);
+  font: 500 13.5px/1.2 var(--sans, sans-serif);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 200ms ease;
+}
+
+.option:hover {
+  color: var(--ink, #111);
+}
+
+.option:focus-visible {
+  outline: 2px solid var(--ink, #111);
+  outline-offset: 2px;
+}
+
+.count {
+  position: relative;
+  top: -0.5em;
+  font: 400 10px/1 var(--mono, monospace);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
+}
+
+/* The pill: the same row again, white on ink, clipped to the pressed option. */
+.ink {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  border-radius: 999px;
+  background: var(--ink, #111);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.ink .option {
+  color: #fff;
+  cursor: default;
+}
+
+.track[data-ready] .ink {
+  opacity: 1;
+  transition: clip-path 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Until the pill is placed, the pressed button wears it. */
+.track:not([data-ready]) .option[aria-pressed="true"] {
+  background: var(--ink, #111);
+  color: #fff;
+}
+
+@media (max-width: 639px) {
+  .scroll {
+    margin: 0 calc(var(--gutter, 16px) * -1);
+    padding: 4px var(--gutter, 16px);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .scroll::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track[data-ready] .ink {
+    transition: none;
+  }
+}
