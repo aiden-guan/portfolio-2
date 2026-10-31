@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   // The count is the bell's: it goes when the notifications are opened.
   title: { absolute: `(${NOTIFICATIONS.length}) ${PAGE_TITLE}` },
   description:
-    "Aiden Guan on ClockedIn, a LinkedIn parody: building alai, three first-place hackathon finishes, 13 projects, and Business + Data Science at UC Berkeley.",
+    "Aiden Guan on LockedIn, a LinkedIn parody: building alai, three first-place hackathon finishes, 13 projects, and Business + Data Science at UC Berkeley.",
   alternates: { canonical: "/founder" },
 };
 

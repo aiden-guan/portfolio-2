@@ -55,9 +55,9 @@ import { SeeMore } from "./see-more";
 import { TopNav } from "./top-nav";
 import styles from "./founder.module.css";
 
-export const PAGE_TITLE = "Aiden Guan | ClockedIn";
+export const PAGE_TITLE = "Aiden Guan | LockedIn";
 
-/** ClockedIn: Aiden's experience, laid out as a LinkedIn profile. */
+/** LockedIn: Aiden's experience, laid out as a LinkedIn profile. */
 export function FounderProfile() {
   const now = thisMonth();
 
@@ -123,7 +123,7 @@ export function FounderProfile() {
           </main>
           <Aside year={now.year} />
         </div>
-        <MessagingDock name={PROFILE.name} photo={PROFILE.photo} email={PROFILE.email} subject="Hello from ClockedIn" />
+        <MessagingDock name={PROFILE.name} photo={PROFILE.photo} email={PROFILE.email} subject="Hello from LockedIn" />
       </FounderProvider>
     </div>
   );
@@ -554,7 +554,7 @@ function Aside({ year }: { year: number }) {
           </ul>
           <p className={styles.copyright}>
             <Wordmark className={styles.footerMark} />
-            <span>ClockedIn Corporation © {year}</span>
+            <span>LockedIn Corporation © {year}</span>
           </p>
           <p className={styles.parody}>A parody. Not affiliated with LinkedIn.</p>
         </footer>

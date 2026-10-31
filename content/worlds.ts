@@ -1,7 +1,8 @@
 // The projects and facts the founder, builder and designer pages are made
 // from. The mat at /student keeps its own content in the editor; this file is
 // the one to change for everything else. Images live in public/projects, as
-// <slug>.webp (1600 wide) and <slug>-sm.webp (800 wide).
+// <slug>.webp (1600 wide) and <slug>-sm.webp (800 wide), and each project's
+// square logo in public/logos/<slug>.webp.
 
 export type Role = "founder" | "student" | "builder" | "designer";
 

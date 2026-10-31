@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { projectImage, type Role } from "@/content/worlds";
+import type { Role } from "@/content/worlds";
 import {
   BellIcon,
   CaretDownIcon,
@@ -101,7 +101,7 @@ export function TopNav({
     <header className={styles.nav}>
       <div className={styles.inner}>
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a full page load, on purpose */}
-        <a className={styles.brand} href="/" aria-label="ClockedIn home">
+        <a className={styles.brand} href="/" aria-label="LockedIn home">
           <Wordmark className={styles.wordmarkFull} />
         </a>
         <NavSearch projects={projects} onChoose={revealProject} />
@@ -173,7 +173,7 @@ export function TopNav({
                         <span className={styles.unreadDot} aria-hidden="true" />
                         <Image
                           className={styles.notificationThumb}
-                          src={projectImage(item.project, "sm")}
+                          src={`/logos/${item.project}.webp`}
                           alt=""
                           width={48}
                           height={48}
@@ -376,7 +376,7 @@ function NavSearch({ projects, onChoose }: { projects: NavProject[]; onChoose: (
               }}
               onClick={() => choose(item.slug)}
             >
-              <Image className={styles.resultThumb} src={projectImage(item.slug, "sm")} alt="" width={32} height={32} />
+              <Image className={styles.resultThumb} src={`/logos/${item.slug}.webp`} alt="" width={32} height={32} />
               <span className={styles.resultText}>
                 <span className={styles.resultName}>
                   <Highlight text={item.name} query={needle} />

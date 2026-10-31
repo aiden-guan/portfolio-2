@@ -399,13 +399,3 @@ export function BuildingGlyph(props: IconProps) {
     </Svg>
   );
 }
-
-export function RecordGlyph(props: IconProps) {
-  return (
-    <Svg {...props}>
-      <rect x="3" y="5" width="18" height="13" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <circle cx="12" cy="11.5" r="3" fill="#ff5a4e" />
-      <path d="M8.5 21h7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </Svg>
-  );
-}

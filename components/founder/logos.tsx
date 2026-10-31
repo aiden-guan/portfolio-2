@@ -1,60 +1,37 @@
-import type { CSSProperties } from "react";
+import Image from "next/image";
 import type { Org } from "@/content/founder";
 import type { WorldProject } from "@/content/worlds";
-import { inkOn } from "./format";
-import { BuildingGlyph, RecordGlyph } from "./icons";
+import { BuildingGlyph } from "./icons";
 import styles from "./logos.module.css";
 
-type LogoStyle = CSSProperties & Record<`--${string}`, string>;
-
-function markScale(mark: string) {
-  if (mark.length <= 1) return "0.56";
-  if (mark.length === 2) return "0.4";
-  if (mark.length === 3) return "0.36";
-  return "0.28";
+function Square({ src, size, className }: { src: string; size: number; className?: string }) {
+  return (
+    <span className={[styles.logo, className].filter(Boolean).join(" ")} style={{ width: size, height: size }} aria-hidden="true">
+      <Image src={src} alt="" width={size} height={size} />
+    </span>
+  );
 }
 
-/** A company or school logo: a monogram square. */
+/** A company or school logo; one without a logo gets the grey building, as on LinkedIn. */
 export function OrgLogo({ org, size = 48, className }: { org: Org; size?: number; className?: string }) {
-  const style: LogoStyle = {
-    "--logo-size": `${size}px`,
-    "--logo-bg": org.bg,
-    "--logo-fg": org.fg,
-    "--logo-scale": markScale(org.mark ?? ""),
-  };
+  if (org.logo) return <Square src={org.logo} size={size} className={className} />;
   return (
-    <span className={[styles.logo, className].filter(Boolean).join(" ")} style={style} data-serif={org.serif || undefined} aria-hidden="true">
-      {org.icon === "building" ? (
-        <BuildingGlyph className={styles.glyph} />
-      ) : org.icon === "record" ? (
-        <RecordGlyph className={styles.glyph} />
-      ) : (
-        <span className={styles.mark}>{org.mark}</span>
-      )}
+    <span className={[styles.logo, styles.blank, className].filter(Boolean).join(" ")} style={{ width: size, height: size }} aria-hidden="true">
+      <BuildingGlyph className={styles.glyph} />
     </span>
   );
 }
 
-/** A project dressed as a company page: its initial on its colour. */
+/** A project dressed as a company page: its own mark, from public/logos. */
 export function ProjectLogo({ project, size = 48, className }: { project: WorldProject; size?: number; className?: string }) {
-  const style: LogoStyle = {
-    "--logo-size": `${size}px`,
-    "--logo-bg": project.accent,
-    "--logo-fg": inkOn(project.accent),
-    "--logo-scale": "0.5",
-  };
-  return (
-    <span className={[styles.logo, styles.project, className].filter(Boolean).join(" ")} style={style} aria-hidden="true">
-      <span className={styles.mark}>{project.name.charAt(0).toUpperCase()}</span>
-    </span>
-  );
+  return <Square src={`/logos/${project.slug}.webp`} size={size} className={className} />;
 }
 
-/** "Clocked" and the blue square: the site's own wordmark. */
+/** "Locked" and the blue square: the site's own wordmark. */
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={[styles.wordmark, className].filter(Boolean).join(" ")}>
-      <span>Clocked</span>
+      <span>Locked</span>
       <span className={styles.box}>
         <span>in</span>
       </span>

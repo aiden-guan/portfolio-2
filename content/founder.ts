@@ -1,37 +1,24 @@
-// ClockedIn, the LinkedIn-style profile at /founder: this is the file to edit. The page reads everything it says from here and from content/worlds.ts.
+// LockedIn, the LinkedIn-style profile at /founder: this is the file to edit. The page reads everything it says from here and from content/worlds.ts.
 
 import { MOMENTS, PERSON, PROJECTS } from "./worlds";
 
-/** A square logo, drawn in CSS: a monogram (or a small icon) on a colour. */
+/** A company, school or event. Its logo is a square image in public/logos; without one it gets LinkedIn's grey building. */
 export type Org = {
   name: string;
-  /** The letters on the square. */
-  mark?: string;
-  /** An icon instead of letters. */
-  icon?: "building" | "record";
-  bg: string;
-  fg: string;
-  /** Italic serif letters, like Cal's script. */
-  serif?: boolean;
+  logo?: string;
   /** Where the logo and the name link to, in Experience. */
   href?: string;
 };
 
 const ORG_LIST = {
-  alai: { name: "alai", mark: "a", bg: "#ffd23f", fg: "#1e1b3a", href: "https://tryalai.app" },
-  independent: { name: "Independent", icon: "building", bg: "#e9e5df", fg: "#8c8c8c" },
-  openscreen: {
-    name: "OpenScreen",
-    icon: "record",
-    bg: "#16181d",
-    fg: "#ffffff",
-    href: "https://github.com/getopenscreen/openscreen",
-  },
-  agnotify: { name: "AGNotify", mark: "AG", bg: "#f5a524", fg: "#24170a" },
-  berkeley: { name: "UC Berkeley", mark: "Cal", serif: true, bg: "#003262", fg: "#fdb515" },
-  yc: { name: "Y Combinator", mark: "Y", bg: "#f26522", fg: "#ffffff" },
-  a16z: { name: "a16z", mark: "a16z", bg: "#121212", fg: "#ffffff" },
-  spacexai: { name: "SpaceXAI", mark: "SX", bg: "#000000", fg: "#ffffff" },
+  alai: { name: "alai", logo: "/logos/alai.webp", href: "https://tryalai.app" },
+  independent: { name: "Independent" },
+  openscreen: { name: "OpenScreen", logo: "/logos/openscreen.webp", href: "https://github.com/getopenscreen/openscreen" },
+  agnotify: { name: "AGNotify", logo: "/logos/agnotify.webp" },
+  berkeley: { name: "UC Berkeley", logo: "/logos/berkeley.webp" },
+  yc: { name: "Y Combinator", logo: "/logos/yc.webp" },
+  a16z: { name: "a16z", logo: "/logos/a16z.webp" },
+  spacexai: { name: "SpaceXAI", logo: "/logos/spacexai.webp" },
 } satisfies Record<string, Org>;
 
 export type OrgId = keyof typeof ORG_LIST;
@@ -48,7 +35,7 @@ export const PROFILE = {
   linkedin: PERSON.linkedin,
   site: "https://aidenguan.com",
   /** What the "Public profile & URL" card shows. */
-  publicUrl: "clockedin.com/in/aidenguan",
+  publicUrl: "lockedin.com/in/aidenguan",
   language: "English",
   /** The logo chips to the right of the name, and the section each one jumps to. */
   chips: [

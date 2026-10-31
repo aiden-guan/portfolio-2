@@ -41,7 +41,7 @@ The front page is black, with one sentence on it: *Hi, my name is Aiden and I am
 | Route | What it is |
 | :--- | :--- |
 | `/student` | The cutting mat described above, unchanged. |
-| `/founder` | **ClockedIn**: the work history as a LinkedIn profile, with posts, honors and endorsements. |
+| `/founder` | **LockedIn**: the work history as a LinkedIn profile, with posts, honors and endorsements. |
 | `/builder` | Every build as a thumbnail; a thumbnail opens into the full story. |
 | `/designer` | A pixel-art island, rendered live in WebGL: LedgerLens's tree on the hill and its koi pond below, Continuity's bridge and the thread of letters across it, Seyrin's mailbox, Rally's table, CourtVision's court, PigeonBox's dovecote, alai's chalkboard, BarkOff's corgis. Click anything to open it. It turns to night after 8pm local time. |
 
@@ -296,7 +296,7 @@ portfolio-2/
 │   ├── opengraph-image.tsx  # Dynamic 1200x630 OpenGraph card generation via @vercel/og
 │   ├── page.tsx             # The black page: "Hi, my name is Aiden and I am a ___"
 │   ├── student/page.tsx     # Masthead and the mat, built from the live content
-│   ├── founder/             # ClockedIn, the LinkedIn-style profile
+│   ├── founder/             # LockedIn, the LinkedIn-style profile
 │   ├── builder/             # The builds gallery
 │   ├── designer/            # The pixel island
 │   ├── scenery.css          # Scenery versions and legacy page-turn styles

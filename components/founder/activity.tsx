@@ -140,7 +140,7 @@ function PostCard({ post, author }: { post: Post; author: Author }) {
           <p className={styles.postHeadline}>{author.headline}</p>
           <p className={styles.postTime}>
             {post.when} •{" "}
-            <GlobeIcon size={14} className={styles.postGlobe} aria-label="Visible to anyone on or off ClockedIn" aria-hidden={false} role="img" />
+            <GlobeIcon size={14} className={styles.postGlobe} aria-label="Visible to anyone on or off LockedIn" aria-hidden={false} role="img" />
           </p>
         </div>
       </header>
