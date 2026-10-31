@@ -54,7 +54,8 @@
   outline: none;
 }
 
-/* —— markers: LedgerLens's little squares, each with a dotted leader to its name */
+/* —— markers: LedgerLens's little squares; pointing at a place swaps its
+   square for a label that settles in above it */
 
 .markers {
   position: absolute;
@@ -85,9 +86,10 @@
   pointer-events: auto;
 }
 
-.root[data-open] .marker:not([data-active]) {
+.root[data-open] .marker {
   opacity: 0;
   pointer-events: none;
+  transition-duration: 200ms;
 }
 
 .pin {
@@ -113,7 +115,7 @@
     var(--cobalt);
   image-rendering: pixelated;
   animation: bob 2.8s ease-in-out infinite;
-  transition: transform 220ms var(--ease), background-color 220ms ease;
+  transition: opacity 160ms ease, transform 240ms var(--ease);
 }
 
 .marker:nth-child(3n) .pin::before {
@@ -125,16 +127,13 @@
 }
 
 .marker[data-active] .pin::before {
-  background:
-    linear-gradient(#fff, #fff) center / 6px 2px no-repeat,
-    var(--orange);
-  animation: none;
-  transform: scale(1.25);
+  opacity: 0;
+  transform: scale(0.6);
 }
 
 @keyframes bob {
   50% {
-    transform: translateY(-3px);
+    translate: 0 -3px;
   }
 }
 
@@ -142,75 +141,80 @@
   outline: none;
 }
 
-.marker:focus-visible .pin::after {
-  content: "";
-  position: absolute;
-  inset: 4px;
-  border: 2px solid var(--ink);
+.marker:focus-visible .tip {
+  box-shadow: 0 0 0 2px var(--cobalt), 0 10px 28px -14px rgba(20, 22, 30, 0.4);
 }
 
-.callout {
+.tip {
   position: absolute;
-  left: 8px;
-  top: -5px;
-  display: flex;
-  align-items: flex-start;
-  gap: 0;
+  left: 0;
+  bottom: var(--rise, 14px);
+  display: grid;
+  gap: 2px;
+  padding: 8px 11px 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 0 10px 28px -14px rgba(20, 22, 30, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  text-align: left;
+  white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  transform: translateX(-4px);
-  transition: opacity 180ms ease, transform 260ms var(--ease);
-  white-space: nowrap;
+  transform: translate(-50%, 6px) scale(0.96);
+  transform-origin: 50% 100%;
+  transition: opacity 140ms ease, transform 240ms var(--ease);
 }
 
-.marker[data-side="left"] .callout {
-  left: auto;
-  right: 8px;
-  flex-direction: row-reverse;
-  transform: translateX(4px);
-  text-align: right;
+.tip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 8px;
+  height: 8px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+  transform: translateX(-50%) rotate(45deg);
 }
 
-.marker[data-active] .callout {
+.marker[data-active] .tip {
   opacity: 1;
-  transform: none;
+  transform: translate(-50%, 0) scale(1);
 }
 
-.root[data-open] .callout {
-  opacity: 0;
+.marker[data-below] .tip {
+  top: var(--drop, 14px);
+  bottom: auto;
+  transform: translate(-50%, -6px) scale(0.96);
+  transform-origin: 50% 0;
 }
 
-.leader {
-  width: 34px;
-  height: 2px;
-  margin-top: 5px;
-  background: radial-gradient(circle, var(--cobalt) 1px, transparent 1.2px) 0 0 / 4px 2px repeat-x;
+.marker[data-below][data-active] .tip {
+  transform: translate(-50%, 0) scale(1);
 }
 
-.calloutText {
-  display: grid;
-  gap: 3px;
-  margin-top: -6px;
-  padding: 7px 10px 8px;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
-  box-shadow: 0 0 0 1px var(--line);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  text-align: inherit;
+.marker[data-below] .tip::after {
+  top: -5px;
+  bottom: auto;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
 }
 
-.calloutText strong {
-  font-size: 14px;
+.tip strong {
+  font-size: 13.5px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  line-height: 1.1;
+  line-height: 1.15;
 }
 
-.calloutText span {
+.tip span {
   color: var(--muted);
   font-size: 12px;
-  line-height: 1.2;
+  line-height: 1.25;
 }
 
 /* —— chrome */
@@ -715,7 +719,7 @@
     font-size: 24px;
   }
 
-  .calloutText span {
+  .tip span {
     display: none;
   }
 

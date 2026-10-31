@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WorldSwitch } from "@/components/identity/world-switch";
 import { identityFonts } from "@/components/identity/fonts";
-import { findProject, formatMonth, PERSON, PROJECTS, projectImage, type WorldProject } from "@/content/worlds";
+import { findProject, formatMonth, imageFocus, PERSON, PROJECTS, projectImage, type WorldProject } from "@/content/worlds";
 import type { Engine, Marker } from "./scene/engine";
 import styles from "./designer.module.css";
 
@@ -63,6 +63,12 @@ export function Designer() {
               node.style.transform = `translate3d(${marker.x.toFixed(1)}px, ${marker.y.toFixed(1)}px, 0)`;
               if (marker.visible) node.dataset.shown = "";
               else delete node.dataset.shown;
+              // the label sits just above the thing, or below its base when
+              // there's no room above
+              node.style.setProperty("--rise", `${Math.max(12, marker.y - marker.top + 8).toFixed(1)}px`);
+              node.style.setProperty("--drop", `${Math.max(12, marker.bottom - marker.y + 8).toFixed(1)}px`);
+              if (marker.top < 130) node.dataset.below = "";
+              else delete node.dataset.below;
             }
           },
         });
@@ -176,8 +182,7 @@ export function Designer() {
                   else markers.current.delete(s.id);
                 }}
                 className={styles.marker}
-                data-active={hovered === s.id || selected === s.id || undefined}
-                data-side={s.id === "pigeonbox" || s.id === "courtvision" ? "left" : "right"}
+                data-active={hovered === s.id || undefined}
                 onPointerEnter={() => engine.current?.hover(s.id)}
                 onPointerLeave={() => engine.current?.hover(null)}
                 onFocus={() => engine.current?.hover(s.id)}
@@ -186,12 +191,9 @@ export function Designer() {
                 aria-label={`${text?.name ?? s.id}${s.caption ? `, ${s.caption.toLowerCase()}` : ""}`}
               >
                 <span className={styles.pin} aria-hidden="true" />
-                <span className={styles.callout} aria-hidden="true">
-                  <span className={styles.leader} />
-                  <span className={styles.calloutText}>
-                    <strong>{text?.name}</strong>
-                    <span>{text?.line}</span>
-                  </span>
+                <span className={styles.tip} aria-hidden="true">
+                  <strong>{text?.name}</strong>
+                  <span>{text?.line}</span>
                 </span>
               </button>
             );
@@ -297,7 +299,14 @@ function ProjectBody({ project, image }: { project: WorldProject; image: string 
     <>
       <div className={styles.shot}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={projectImage(image, "sm")} alt={`${project.name}, as it looks`} width={800} height={500} decoding="async" />
+        <img
+          src={projectImage(image, "sm")}
+          alt={`${project.name}, as it looks`}
+          width={800}
+          height={500}
+          decoding="async"
+          style={{ objectPosition: imageFocus(image) }}
+        />
       </div>
       <h2 className={styles.title} style={{ "--accent": project.accent } as React.CSSProperties}>
         {project.name}

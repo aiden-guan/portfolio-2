@@ -1,6 +1,7 @@
 import {
   BufferGeometry,
   CanvasTexture,
+  CircleGeometry,
   Group,
   Line,
   LineBasicMaterial,
@@ -10,6 +11,7 @@ import {
   NearestFilter,
   Object3D,
   PlaneGeometry,
+  PointLight,
   SRGBColorSpace,
   Vector3,
 } from "three";
@@ -38,7 +40,7 @@ import {
   wing,
 } from "./kit";
 import { at, BRIDGE, PADS, POND, WATER_LEVEL } from "./layout";
-import { FLAG } from "./shared";
+import { FLAG, uniforms } from "./shared";
 import { heightAt, padHeight } from "./terrain";
 import { hash3, Voxels } from "./voxels";
 
@@ -68,6 +70,14 @@ function rng(seed: number) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+// Things that only move about a place (birds in the air, falling petals) are
+// left out of pointing and outlining, so the hover follows the place itself.
+export function decorate(object: Object3D) {
+  object.traverse((o) => {
+    o.userData.decor = true;
+  });
 }
 
 export function ground(s: number, t: number) {
@@ -175,6 +185,7 @@ export function ledgerTree(): Place {
     const p = new Voxels(V * 0.9, 0);
     p.set(0, 0, 0, i % 3 === 0 ? ORANGES[0] : BLUES[i % BLUES.length]);
     const m = mesh(p, materials.soft, { shadow: false });
+    decorate(m);
     const start = tips[Math.floor(random() * tips.length)].clone().multiplyScalar(V);
     petals.push({ m, start, t: random(), speed: 0.06 + random() * 0.05 });
     group.add(m);
@@ -289,6 +300,16 @@ export function koiPond(): Place {
   group.add(ripple);
 
   // the koi: orange, white and LedgerLens blue, just under the surface
+  // The water is one sheet under the whole island, so the pond gets a
+  // surface of its own that draws nothing but can be pointed at and outlined.
+  const surface = new Mesh(new CircleGeometry(1, 48), new MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
+  surface.rotation.x = -Math.PI / 2;
+  surface.rotation.z = -POND.angle;
+  surface.scale.set(POND.rx * 1.02, POND.rz * 1.02, 1);
+  surface.position.set(cx, WATER_LEVEL + 0.005, cz);
+  surface.renderOrder = -1;
+  group.add(surface);
+
   const fish: Array<{ m: Object3D; rx: number; rz: number; speed: number; phase: number; wobble: number }> = [];
   for (let i = 0; i < 7; i += 1) {
     const m = centred(koi(i * 17 + 3), materials.soft, { shadow: false });
@@ -795,6 +816,7 @@ export function dovecote(): Place {
     left.position.set(0.05, 0.25, 0.25);
     right.position.set(0.05, 0.25, -0.25);
     g.add(left, right);
+    decorate(g);
     group.add(g);
     return { g, left, right, radius: 2.4 + i * 0.7, height: 4 + i * 0.6, speed: 0.55 - i * 0.08, phase: i * 2.1 };
   });
@@ -1026,14 +1048,25 @@ export function nightLights(): Place[] {
     const { post, glass } = lampPost();
     const g = new Group();
     g.add(centred(post), centred(glass, materials.lamp, { shadow: false, occlude: false }));
+    // a warm pool on the ground at night; off (but present) by day, so
+    // turning night on never recompiles a shader
+    const light = new PointLight(0xffb35c, 0, 7.5, 1.6);
+    light.position.set(0, 2.2, 0);
+    g.add(light);
     g.position.copy(ground(s, t)).add(new Vector3(0, -0.05, 0));
-    places.push({ object: g });
+    const flicker = Math.random() * 10;
+    places.push({
+      object: g,
+      update: (time) => {
+        light.intensity = uniforms.uNight.value * (9 + Math.sin(time * 7 + flicker) * 0.35);
+      },
+    });
   }
   const random = rng(77);
   const group = new Group();
   const flies: Array<{ m: Object3D; home: Vector3; phase: number; r: number }> = [];
   const homes: Array<[number, number, number]> = [[-12, -5, 6], [-21, 5, 3], [-12, 19, 3], [6, -2, 5], [-2, 26, 6], [24, -14, 3]];
-  for (let i = 0; i < 34; i += 1) {
+  for (let i = 0; i < 18; i += 1) {
     const [s, t, r] = homes[i % homes.length];
     const v = new Voxels(V * 0.6, 0);
     v.set(0, 0, 0, i % 4 === 0 ? 0xfff2a8 : 0xd9ff7a);

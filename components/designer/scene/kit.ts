@@ -16,7 +16,7 @@ export const materials = {
     flag: FLAG.soft,
     sway: 0.03,
     swayFrom: 1.5,
-    fragment: "totalEmissiveRadiance += diffuseColor.rgb * (0.06 + uNight * 0.42);",
+    fragment: "totalEmissiveRadiance += diffuseColor.rgb * (0.05 + uNight * 0.16);",
   }),
   reeds: worldMaterial({ key: "reeds", flag: FLAG.soft, sway: 0.09, swayFrom: 0 }),
   soft: worldMaterial({ key: "soft", flag: FLAG.soft }),
@@ -24,19 +24,20 @@ export const materials = {
     key: "cloud",
     flag: FLAG.soft,
     cloud: false,
+    // dissolves away a pixel at a time as night falls
     fragment:
-      "reflectedLight.directDiffuse *= 0.18; reflectedLight.indirectDiffuse *= 0.3; totalEmissiveRadiance += diffuseColor.rgb * mix(0.82, 0.07, uNight) + vec3(0.01, 0.016, 0.035) * uNight;",
+      "if (uNight > hash12(floor(vWorld.xz / 0.32) + floor(vWorld.y / 0.32) * vec2(7.0, 11.0) + 5.0) * 0.9) discard; reflectedLight.directDiffuse *= 0.18; reflectedLight.indirectDiffuse *= 0.3; totalEmissiveRadiance += diffuseColor.rgb * 0.82;",
   }),
   glow: worldMaterial({ key: "glow", flag: FLAG.solid, fragment: "totalEmissiveRadiance = diffuseColor.rgb * (0.55 + uNight * 2.6);" }),
   // lamp glass: pale by day, lit at night
-  lamp: worldMaterial({ key: "lamp", flag: FLAG.soft, fragment: "totalEmissiveRadiance += diffuseColor.rgb * uNight * 3.2;" }),
+  lamp: worldMaterial({ key: "lamp", flag: FLAG.soft, fragment: "totalEmissiveRadiance += diffuseColor.rgb * uNight * 2.2;" }),
   // only out at night, blinking
   firefly: worldMaterial({
     key: "firefly",
     flag: FLAG.soft,
     cloud: false,
     fragment:
-      "float blink = 0.5 + 0.5 * sin(uTime * 2.7 + vWorld.x * 9.0 + vWorld.z * 5.0); if (uNight * blink < 0.35) discard; totalEmissiveRadiance = diffuseColor.rgb * 3.0 * uNight;",
+      "float blink = 0.5 + 0.5 * sin(uTime * 2.1 + vWorld.x * 9.0 + vWorld.z * 5.0); if (uNight * blink < 0.45) discard; totalEmissiveRadiance = diffuseColor.rgb * 0.85 * uNight;",
   }),
 };
 

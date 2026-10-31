@@ -110,13 +110,14 @@ export const PROJECTS: WorldProject[] = [
     name: "CourtVision",
     line: "Live basketball stats from one camera.",
     about:
-      "Tracks every player and the ball from a single camera, keeps the box score as the game happens, and calls the play-by-play with Claude.",
+      "Plays, possessions, shots and box scores from one basketball camera. It runs on a Mac, and the stats come from the video, not the scoreboard.",
     date: "2026-10",
     status: "Live",
     stack: ["Python", "Computer vision", "Claude"],
     source: "https://github.com/aiden-guan/courtvision",
     accent: "#f08a32",
     tone: "dark",
+    gallery: ["courtvision-replay", "courtvision-lens", "courtvision-shots"],
   },
   {
     slug: "pigeonbox",
@@ -138,26 +139,28 @@ export const PROJECTS: WorldProject[] = [
     name: "Inroad",
     line: "An AI head of GTM for founder-led sales.",
     about:
-      "Finds who to talk to and why now, drafts every touch with sources you can check, and preps every call.",
+      "Who to talk to and why now, every touch drafted with its sources, and the quarter called deal by deal. You approve everything it writes.",
     date: "2026-10",
     status: "In progress",
     stack: ["Next.js", "Claude", "MapLibre"],
     source: "https://github.com/aiden-guan/inroad",
-    accent: "#3b82f6",
-    tone: "dark",
+    accent: "#3b4fc4",
+    tone: "light",
+    gallery: ["inroad-today", "inroad-plays", "inroad-revenue"],
   },
   {
     slug: "agenthub",
     name: "agenthub",
     line: "Stops parallel coding agents overwriting each other.",
     about:
-      "Each agent works in its own git worktree while a shared hub tracks who is editing what and enforces file leases before every edit.",
+      "Claude Code, Cursor and Codex each work in their own git worktree. Every file edit takes a lease first, so a file someone else holds is refused at the edit, not found at merge time.",
     date: "2026-10",
     status: "Open source",
     stack: ["TypeScript", "SQLite", "Git worktrees"],
     source: "https://github.com/aiden-guan/agenthub",
-    accent: "#22c55e",
+    accent: "#c6f24e",
     tone: "dark",
+    gallery: ["agenthub-overview", "agenthub-claims"],
   },
   {
     slug: "antiagent",
@@ -220,6 +223,28 @@ export function findProject(slug: string) {
 
 export function projectImage(slug: string, size: "lg" | "sm" = "lg") {
   return `/projects/${slug}${size === "sm" ? "-sm" : ""}.webp`;
+}
+
+// Not every image is 16:10. Where a centred crop into a 16:10 frame would cut
+// into what matters, keep this edge instead (by image name). The README
+// heroes are 2:1 with the title on the left, so they keep their left edge.
+export const IMAGE_FOCUS: Record<string, string> = {
+  continuity: "0% 50%",
+  courtvision: "0% 50%",
+  "courtvision-shots": "0% 50%",
+  agenthub: "0% 50%",
+  inroad: "0% 50%",
+  startupsim: "0% 50%",
+  seyrin: "0% 50%",
+  "seyrin-doc": "0% 50%",
+  "pigeonbox-app": "0% 0%",
+  alai: "50% 14%",
+  rally: "50% 18%",
+  antiagent: "50% 0%",
+};
+
+export function imageFocus(image: string) {
+  return IMAGE_FOCUS[image] ?? "50% 50%";
 }
 
 // "2026-10" → "Oct 2026"
