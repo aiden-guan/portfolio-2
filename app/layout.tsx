@@ -78,7 +78,7 @@ const themeScript = `
         : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       document.documentElement.dataset.theme = theme;
       const scene = localStorage.getItem('aiden-scene');
-      if (location.pathname === '/' && ['chongqing', 'rockies', 'reef', 'golden-gate'].includes(scene)) {
+      if (location.pathname === '/student' && ['chongqing', 'rockies', 'reef', 'golden-gate'].includes(scene)) {
         document.documentElement.dataset.scene = scene;
       }
     } catch (_) {}

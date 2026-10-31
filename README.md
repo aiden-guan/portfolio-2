@@ -34,6 +34,19 @@ The mat itself is a self-healing one, so it can be cut. Over the bare mat the po
 
 Behind the mat is a private, authenticated in-browser CMS. Content edits and project media publish instantly to production via Cloudflare R2 object storage with zero build latency, zero egress fees, and zero redeployment requirements.
 
+### Four ways in
+
+The front page is black, with one sentence on it: *Hi, my name is Aiden and I am a ___.* The blank rolls through four answers, each set in the face of the page it leads to; hover or tap it to see all four and pick one. The page you pick washes in from the word.
+
+| Route | What it is |
+| :--- | :--- |
+| `/student` | The cutting mat described above, unchanged. |
+| `/founder` | **ClockedIn**: the work history as a LinkedIn profile, with posts, honors and endorsements. |
+| `/builder` | Every build as a thumbnail; a thumbnail opens into the full story. |
+| `/designer` | A pixel-art island, rendered live in WebGL: LedgerLens's tree on the hill and its koi pond below, Continuity's bridge and the thread of letters across it, Seyrin's mailbox, Rally's table, CourtVision's court, PigeonBox's dovecote, alai's chalkboard, BarkOff's corgis. Click anything to open it. It turns to night after 8pm local time. |
+
+Everything outside the mat reads from [`content/worlds.ts`](content/worlds.ts) (projects, thumbnails in `public/projects/`) and [`content/founder.ts`](content/founder.ts) (the profile). The island is drawn at a low resolution and scaled up by whole device pixels: voxel models lit by a late sun, then a post pass that dithers colour down to a few levels, rims solid things in a darker line, and dissolves the ground's edge into the paper.
+
 ---
 
 ## Core Capabilities
@@ -281,7 +294,11 @@ portfolio-2/
 │   ├── layout.tsx           # Root layout, fonts, zero-flicker theme script, and canonical metadata
 │   ├── mat.css              # The mat and everything on it: stocks, inks, stamps, prints, rulers
 │   ├── opengraph-image.tsx  # Dynamic 1200x630 OpenGraph card generation via @vercel/og
-│   ├── page.tsx             # Masthead and the mat, built from the live content
+│   ├── page.tsx             # The black page: "Hi, my name is Aiden and I am a ___"
+│   ├── student/page.tsx     # Masthead and the mat, built from the live content
+│   ├── founder/             # ClockedIn, the LinkedIn-style profile
+│   ├── builder/             # The builds gallery
+│   ├── designer/            # The pixel island
 │   ├── scenery.css          # Scenery versions and legacy page-turn styles
 │   ├── robots.ts            # Dynamic robots.txt generation
 │   └── sitemap.ts           # Dynamic sitemap.xml generation

@@ -205,6 +205,35 @@ html[data-holding] {
   gap: 1.25rem;
 }
 
+/* the name, and beside it the way to the other four pages, dressed as one
+   more tool on the band */
+.masthead-lead {
+  display: flex;
+  justify-self: start;
+  align-items: center;
+  gap: 1.1rem;
+  min-width: 0;
+}
+
+.masthead .masthead-world {
+  --ws-fg: var(--mat-ink);
+  --ws-dim: var(--mat-ink-dim);
+  --ws-bg: var(--mat-print);
+  --ws-line: var(--mat-line-strong);
+  --ws-hover: rgb(214 236 222 / 0.08);
+  color: var(--mat-ink-dim);
+}
+
+.masthead .masthead-world:hover {
+  color: var(--mat-ink);
+}
+
+@media (max-width: 1100px) {
+  .masthead .masthead-world [data-lead] {
+    display: none;
+  }
+}
+
 .sound-toggle,
 .masthead .theme-toggle,
 .tidy-button {
@@ -3338,7 +3367,8 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
 
   .file-nav,
   .masthead-mark,
-  .sound-toggle {
+  .sound-toggle,
+  .masthead-world [data-lead] {
     display: none;
   }
 

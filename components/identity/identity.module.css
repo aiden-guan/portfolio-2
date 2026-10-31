@@ -1,0 +1,346 @@
+/* The page goes black edge to edge, whatever the mat's global styles say. */
+:global(html):has(.root),
+:global(html):has(.root) :global(body) {
+  background: #000;
+  color-scheme: dark;
+}
+
+.root {
+  --ink: #f6f6f2;
+  --dim: #6c6c68;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-swift: cubic-bezier(0.23, 1, 0.32, 1);
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow: hidden;
+  background: #000;
+  color: var(--ink);
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.root ::selection {
+  background: #f6f6f2;
+  color: #000;
+}
+
+.line {
+  --row: 1.2em;
+  position: relative;
+  margin: 0 0 0.35em;
+  font-size: clamp(30px, 3.85vw, 58px);
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.034em;
+  text-align: center;
+  color: var(--dim);
+}
+
+.head,
+.tail {
+  white-space: nowrap;
+}
+
+.name {
+  color: #e7e7e2;
+}
+
+.part {
+  display: inline-block;
+  transition: opacity 420ms ease;
+  animation: rise 1000ms var(--ease-out) backwards;
+  animation-delay: calc(var(--d) * 120ms + 160ms);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.28em);
+    filter: blur(8px);
+  }
+}
+
+.root[data-open] .part {
+  opacity: 0.4;
+}
+
+.root[data-leaving] .part {
+  opacity: 0;
+  transition-duration: 300ms;
+}
+
+/* The blank: the word in it, the list it opens, and the rule under it. */
+.blank {
+  position: relative;
+  display: inline-block;
+}
+
+.slot {
+  position: relative;
+  display: inline-block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  white-space: nowrap;
+  vertical-align: baseline;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: width 640ms var(--ease-swift);
+}
+
+.slot:focus-visible {
+  outline: none;
+}
+
+.slot::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.04em;
+  height: max(1px, 0.03em);
+  background: currentColor;
+  opacity: 0.24;
+  transform-origin: left center;
+  transition: opacity 260ms ease;
+}
+
+.blank:hover .slot::after,
+.slot:focus-visible::after {
+  opacity: 0.85;
+}
+
+.root[data-leaving] .slot::after {
+  opacity: 0;
+}
+
+.word {
+  display: inline-block;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* each answer in the face of the page it opens */
+.word[data-role="founder"] {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+
+.word[data-role="student"] {
+  font-family: var(--font-grotesk), "Arial Narrow", sans-serif;
+  font-weight: 800;
+  font-stretch: 62.5%;
+  font-variation-settings: "wdth" 62.5;
+  letter-spacing: -0.008em;
+}
+
+.word[data-role="builder"] {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-weight: 400;
+  letter-spacing: -0.075em;
+}
+
+.word[data-role="designer"] {
+  font-family: var(--font-pixel), monospace;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.word[data-phase="first"] {
+  animation: rise 1100ms var(--ease-out) 520ms backwards;
+}
+
+.word[data-phase="in"] {
+  animation: word-in 780ms var(--ease-out) both;
+}
+
+.word[data-phase="out"] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  animation: word-out 520ms cubic-bezier(0.5, 0, 0.75, 0) both;
+}
+
+@keyframes word-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.45em);
+    filter: blur(12px);
+  }
+}
+
+@keyframes word-out {
+  to {
+    opacity: 0;
+    transform: translateY(-0.45em);
+    filter: blur(12px);
+  }
+}
+
+/* The list: all four answers in a column, slid so the current one sits in
+   the sentence. Hidden until the blank is hovered, focused or tapped. */
+.picker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  transform: translateY(calc(var(--at) * var(--row) * -1));
+  transition: transform 560ms var(--ease-swift);
+  pointer-events: none;
+}
+
+.row {
+  display: block;
+  height: var(--row);
+  text-align: left;
+}
+
+.option {
+  color: var(--ink);
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 280ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.root[data-open] .picker {
+  pointer-events: auto;
+}
+
+.root[data-open] .option {
+  opacity: 0.28;
+}
+
+.root[data-open] .option[data-current],
+.root[data-open] .option:hover,
+.root[data-open] .option:focus-visible {
+  opacity: 1;
+}
+
+.option:focus-visible {
+  outline: none;
+  text-decoration: underline;
+  text-decoration-thickness: max(1px, 0.03em);
+  text-underline-offset: 0.14em;
+}
+
+.root[data-open] .slot .word {
+  visibility: hidden;
+}
+
+.root[data-leaving] .option:not([data-chosen]) {
+  opacity: 0;
+}
+
+.root[data-leaving] .option[data-chosen] {
+  opacity: 1;
+}
+
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.measure {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(30px, env(safe-area-inset-bottom));
+  margin: 0;
+  color: #55554f;
+  font: 400 12px/1 var(--font-geist-mono), ui-monospace, monospace;
+  letter-spacing: 0.01em;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 1400ms ease;
+}
+
+.hint[data-shown] {
+  opacity: 1;
+}
+
+.coarse {
+  display: none;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .fine {
+    display: none;
+  }
+
+  .coarse {
+    display: inline;
+  }
+}
+
+@media (max-width: 760px) {
+  .root {
+    padding: 24px 18px;
+  }
+
+  .line {
+    max-width: 100%;
+    font-size: clamp(24px, 7.4vw, 40px);
+    line-height: 1.22;
+  }
+
+  .head {
+    display: block;
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .part,
+  .word[data-phase="first"],
+  .word[data-phase="in"] {
+    animation: fade-in 500ms ease both;
+  }
+
+  .word[data-phase="out"] {
+    animation: fade-out 300ms ease both;
+  }
+
+  .slot,
+  .picker {
+    transition: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
