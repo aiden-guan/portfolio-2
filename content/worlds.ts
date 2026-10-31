@@ -87,7 +87,7 @@ export const PROJECTS: WorldProject[] = [
     date: "2026-10",
     status: "Live",
     stack: ["Three.js", "WebRTC", "Convex", "Motion sensors"],
-    live: "https://rally-gamma-gold.vercel.app",
+    live: "https://playrally.cc",
     accent: "#2f6fe4",
     tone: "dark",
   },
