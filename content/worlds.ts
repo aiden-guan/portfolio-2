@@ -261,7 +261,7 @@ export function formatMonth(date: string | null) {
 export const PERSON = {
   name: "Aiden Guan",
   first: "Aiden",
-  photo: "/aiden-face.jpg",
+  photo: "/aiden.webp",
   school: "UC Berkeley",
   program: "Business Administration + Data Science",
   location: "Berkeley, California",
