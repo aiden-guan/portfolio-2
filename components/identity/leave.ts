@@ -117,6 +117,9 @@ function wipe(color: string, x: number, y: number, duration: number) {
   return { sheet: cover as HTMLElement, finished };
 }
 
+// covers still on the page; a full load out never lifts its own
+const live = new Set<HTMLElement>();
+
 // Covers the page in the next page's ground, growing from (x, y). The cover
 // lives outside React, so it survives a client-side navigation; call
 // `uncoverWhenReady` to lift it once the next page is on screen. Resolves
@@ -124,8 +127,16 @@ function wipe(color: string, x: number, y: number, duration: number) {
 export async function cover(role: Role, x: number, y: number, reduced: boolean) {
   const color = groundFor(role);
   const { sheet, finished } = reduced ? wipe(color, x, y, 1) : role === "designer" ? dissolve(color, x, y, 760) : wipe(color, x, y, 680);
+  live.add(sheet);
   await Promise.race([finished, new Promise((resolve) => setTimeout(resolve, 1400))]);
   return sheet;
+}
+
+// Takes every cover off at once, for when the browser's back arrow hands this
+// page back exactly as it was left: covered over in the next page's ground.
+export function liftCovers() {
+  for (const sheet of live) sheet.remove();
+  live.clear();
 }
 
 export function uncoverWhenReady(cover: HTMLElement, role: Role) {
@@ -139,9 +150,13 @@ export function uncoverWhenReady(cover: HTMLElement, role: Role) {
     // two frames, so the next page has painted under the cover
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
+        const lift = () => {
+          cover.remove();
+          live.delete(cover);
+        };
         cover
           .animate([{ opacity: 1 }, { opacity: 0 }], { duration: 320, easing: "ease-out", fill: "forwards" })
-          .finished.then(() => cover.remove(), () => cover.remove());
+          .finished.then(lift, lift);
       }),
     );
   };

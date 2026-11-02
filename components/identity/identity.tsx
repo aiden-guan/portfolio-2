@@ -6,7 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { ROLES, type Role } from "@/content/worlds";
 import { Egoists } from "./egoists";
 import { identityFonts } from "./fonts";
-import { cover, uncoverWhenReady } from "./leave";
+import { cover, liftCovers, uncoverWhenReady } from "./leave";
 import { Striker } from "./striker";
 import styles from "./identity.module.css";
 
@@ -79,6 +79,20 @@ export function Identity() {
     const timer = window.setTimeout(() => setHint(true), HINT_AFTER);
     return () => window.clearTimeout(timer);
   }, [touched]);
+
+  // the way into /student is a full load, so the back arrow can bring this
+  // page back from the browser's cache just as it was left: covered, the
+  // sentence gone quiet. Start it again instead.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      liftCovers();
+      setLeaving(null);
+      setOpen(false);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
 
   useEffect(() => {
     const idle = window.requestIdleCallback ?? ((callback: () => void) => window.setTimeout(callback, 600));

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 import type { Role } from "@/content/worlds";
+import { switchWorld } from "@/components/identity/world-switch";
 import {
   BellIcon,
   CaretDownIcon,
@@ -229,7 +230,12 @@ export function TopNav({
                   <ul>
                     {roles.map((role) => (
                       <li key={role}>
-                        <a className={styles.meLink} href={`/${role}`} aria-current={role === current ? "page" : undefined}>
+                        <a
+                          className={styles.meLink}
+                          href={`/${role}`}
+                          aria-current={role === current ? "page" : undefined}
+                          onClick={switchWorld}
+                        >
                           {ROLE_LABEL[role]}
                           {role === current ? <CheckIcon className={styles.meCheck} /> : null}
                         </a>
