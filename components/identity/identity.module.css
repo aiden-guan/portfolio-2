@@ -10,10 +10,13 @@
   --dim: #6c6c68;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-swift: cubic-bezier(0.23, 1, 0.32, 1);
+  --pitch-h: clamp(150px, 27vh, 250px);
+  --pitch-gap: clamp(4px, 2.4vh, 26px);
   position: fixed;
   inset: 0;
   display: grid;
   place-items: center;
+  align-content: center;
   padding: 24px;
   overflow: hidden;
   background: #000;
@@ -28,10 +31,17 @@
   color: #000;
 }
 
+/* On its own in the middle of the page; when the striker plays it moves up to
+   make room for him under it. */
 .line {
   --row: 1.2em;
   position: relative;
+  z-index: 1;
   margin: 0 0 0.35em;
+  transform: translateY(calc((var(--pitch-h) + var(--pitch-gap)) / 2));
+  transition:
+    opacity 700ms ease,
+    transform 900ms var(--ease-out);
   font-size: clamp(30px, 3.85vw, 58px);
   font-weight: 400;
   line-height: 1.2;
@@ -248,6 +258,129 @@
   opacity: 1;
 }
 
+/* The play under the sentence: a strip as wide as the line, its picture
+   scaled up by whole device pixels and its edges dithered into the page.
+   Empty until the plushie is squeezed. */
+.pitch {
+  position: relative;
+  width: min(100%, 1180px);
+  height: var(--pitch-h);
+  margin-top: var(--pitch-gap);
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 420ms ease;
+}
+
+.pitch[data-playing] {
+  opacity: 1;
+}
+
+.root:has(.pitch[data-playing]) .line {
+  transform: none;
+}
+
+.pitch canvas {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  display: block;
+  transform: translateX(-50%);
+  image-rendering: pixelated;
+}
+
+.root[data-open] .pitch[data-playing] {
+  opacity: 0.4;
+}
+
+/* while the celebration has the whole screen the sentence steps back, unless
+   someone is choosing from it */
+.root:not([data-open]):has(.pitch[data-stage]) .line {
+  opacity: 0;
+}
+
+.root[data-leaving] .pitch {
+  opacity: 0;
+  transition-duration: 300ms;
+}
+
+/* The plushie in the bottom-left corner, and how many have been here. It
+   leans in when you go to it and squashes when you squeeze it. */
+.egoist {
+  position: absolute;
+  left: max(22px, env(safe-area-inset-left));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: arrive 1200ms ease 1400ms backwards;
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+  }
+}
+
+.plushie {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transform-origin: 50% 100%;
+  transition: transform 520ms var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.plushie img {
+  display: block;
+  width: auto;
+  height: 96px;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.plushie:hover {
+  transform: rotate(-4deg) scale(1.05);
+}
+
+.plushie:active {
+  transform: scale(1.08, 0.88);
+  transition-duration: 110ms;
+}
+
+.plushie[data-playing] {
+  cursor: default;
+  transform: none;
+}
+
+.plushie:focus-visible {
+  outline: 1px solid var(--dim);
+  outline-offset: 6px;
+  border-radius: 12px;
+}
+
+.count {
+  margin: 0;
+  color: var(--dim);
+  font: 400 12px/1.3 var(--font-geist-mono), ui-monospace, monospace;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 900ms ease;
+}
+
+.count[data-shown] {
+  opacity: 1;
+}
+
+.root[data-leaving] .egoist {
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
 .hidden {
   position: absolute;
   width: 1px;
@@ -304,6 +437,15 @@
     padding: 24px 18px;
   }
 
+  .plushie img {
+    height: 72px;
+  }
+
+  /* the hint goes up over the plushie, out of its way */
+  .hint {
+    bottom: calc(max(30px, env(safe-area-inset-bottom)) + 76px);
+  }
+
   .line {
     max-width: 100%;
     font-size: clamp(24px, 7.4vw, 40px);
@@ -328,7 +470,9 @@
   }
 
   .slot,
-  .picker {
+  .picker,
+  .line,
+  .plushie {
     transition: none;
   }
 }

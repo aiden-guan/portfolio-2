@@ -4,6 +4,7 @@ import {
   AbortMultipartUploadCommand,
 } from "@aws-sdk/client-s3";
 import type { PortfolioContent } from "@/content/portfolio";
+import { EGOIST_KEYS } from "@/lib/egoists";
 
 // Cloudflare R2 Free Tier Monthly Allowances:
 // - Storage: 10 GB / month
@@ -235,6 +236,9 @@ export function extractReferencedMediaKeys(content?: PortfolioContent | null): S
   // Always protect the portfolio content JSON database file
   referenced.add("portfolio/content.json");
   referenced.add("content.json");
+  // and the identity page's visitor count
+  referenced.add(EGOIST_KEYS.production);
+  referenced.add(EGOIST_KEYS.elsewhere);
 
   function addFromSrc(src: string | undefined) {
     if (!src) return;
