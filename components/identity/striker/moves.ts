@@ -235,6 +235,24 @@ function flop(r: number) {
 const WRIST = flop(0.32);
 const WRIST2 = flop(0.64);
 
+/** A slow wander between about -1 and 1, through a fresh random value a
+ * little more often than once a stride and smooth through all of them, so it
+ * never comes round the same way twice. `seed` picks which. */
+export function wander(phase: number, seed: number) {
+  const t = phase * 1.37 + seed * 7.13;
+  const i = Math.floor(t);
+  const k = t - i;
+  const at = (n: number) => {
+    const s = Math.sin(n * 127.1 + seed * 311.7) * 43758.5453;
+    return (s - Math.floor(s)) * 2 - 1;
+  };
+  const a = at(i - 1);
+  const b = at(i);
+  const c = at(i + 1);
+  const d = at(i + 2);
+  return b + 0.5 * k * (c - a + k * (2 * a - 5 * b + 4 * c - d + k * (3 * (b - c) + d - a)));
+}
+
 /** The whole body at a point in its running cycle: `phase` counts cycles,
  * and at whole numbers the near foot is touching down. */
 export function run(x: number, phase: number, g: Gait, f = 1, z = 0, speed = 1): Pose {
@@ -257,20 +275,27 @@ export function run(x: number, phase: number, g: Gait, f = 1, z = 0, speed = 1):
   // up in front, opens as the arm drives down past the hip, closes again
   // behind as the upper arm stops and the forearm swings on, and opens a
   // little as the arm starts forward: twice bent, twice straightened a
-  // stride. The hands are loosely shut and ride the wrist, each carried on
-  // a little past its forearm at either end of the swing.
-  const arm = (offset: number) => {
-    const k = g.arms;
-    const at = 2 * Math.PI * (s - 0.47 - offset);
+  // stride. The hands ride the wrist, each carried on a little past its
+  // forearm at either end of the swing.
+  //
+  // But a footballer is not a sprinter on a track: the arms are for balance
+  // as much as for pace, so no two swings are the same. Each arm wanders in
+  // how far it goes, where it carries, how bent it is and when it turns,
+  // the far arm a little wider and quieter than the near, and the hands run
+  // open and loose, the fingers a little apart, opening and closing as they
+  // go.
+  const arm = (offset: number, seed: number, wide: number) => {
+    const k = g.arms * (1 - 0.1 * wide) * (1 + 0.32 * wander(phase, seed));
+    const at = 2 * Math.PI * (s - 0.47 - offset + 0.05 * wander(phase * 0.7, seed + 1));
     const twice = 2 * at - 0.5;
     const reach = 0.72 * k;
     const bend = 0.4 * k;
     const whip = 0.3 * k;
-    const upper = -0.12 - 0.2 * k + reach * Math.cos(at);
+    const upper = -0.24 - 0.2 * k + 0.12 * wide + reach * Math.cos(at) + 0.17 * wander(phase * 0.8, seed + 2);
     return {
       s: upper + lean,
-      e: 1.6 - 0.25 * k + bend * Math.cos(at) + whip * Math.cos(twice),
-      g: 0.5,
+      e: 1.6 - 0.25 * k - 0.15 * wide + bend * Math.cos(at) + whip * Math.cos(twice) + 0.24 * wander(phase, seed + 3),
+      g: 0.22 + 0.2 * wander(phase, seed + 4),
       w: (reach + bend) * WRIST.gain * Math.cos(at - WRIST.lag) + whip * WRIST2.gain * Math.cos(twice - WRIST2.lag),
     };
   };
@@ -284,8 +309,8 @@ export function run(x: number, phase: number, g: Gait, f = 1, z = 0, speed = 1):
     head: -lean * 0.32 + 0.04,
     near: { x: x + f * near.x, y: near.y, a: near.a },
     far: { x: x + f * far.x, y: far.y, a: far.a },
-    armNear: arm(0),
-    armFar: arm(0.5),
+    armNear: arm(0, 1, 0),
+    armFar: arm(0.5, 11, 1),
     face: 0,
     hair: 0.35 + 0.95 * speed + 0.16 * Math.sin(4 * Math.PI * s - 1.2),
   };
