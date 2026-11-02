@@ -578,6 +578,25 @@ export function createPlay() {
       // eyes down for each touch, up again to look at what is coming, and
       // up after the ball while it is over him
       if (t < F || t >= F + FLICK_TIME) for (const touch of [t1, tChip, tCushion, tSet, tNudge, tCollect]) p.head += 0.24 * Math.exp(-(((t - touch) / 0.11) ** 2));
+      // and the arms flare for balance as he takes each touch: the arm
+      // across from the foot on the ball comes through and out, the other
+      // goes back, both elbows open and the hands spread. Each flare is over
+      // within a fifth of a second, before anything posed by hand takes over
+      if (t < F || t >= F + FLICK_TIME) {
+        for (const [touch, farFoot] of [[t1, false], [tChip, true], [tCushion, false], [tSet, false], [tNudge, true], [tCollect, false]] as const) {
+          const u = (t - touch - 0.03) / 0.2;
+          if (u <= -1 || u >= 1) continue;
+          const w = (1 - u * u) ** 2;
+          const flare = (a: Pose["armNear"], s: number, e: number) => ({ ...a, s: a.s + s * w, e: a.e - e * w, g: (a.g ?? 0) * (1 - 0.6 * w) });
+          if (farFoot) {
+            p.armNear = flare(p.armNear, 0.32, 0.4);
+            p.armFar = flare(p.armFar, -0.18, 0.25);
+          } else {
+            p.armFar = flare(p.armFar, 0.32, 0.4);
+            p.armNear = flare(p.armNear, -0.18, 0.25);
+          }
+        }
+      }
       p.head -= 0.42 * ramp(t, F + FLICK_TIME - 0.05, apexAt - 0.1) * (1 - ramp(t, apexAt + 0.15, tCollect - 0.15));
       if (t > F - 0.5) p.face = Math.max(p.face, 1);
       return p;

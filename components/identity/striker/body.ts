@@ -486,11 +486,12 @@ export function drawPlayer(ink: Ink, v: View, p: Pose, look: Look, between?: () 
     const shade = far || long ? 0 : look.shade;
     parts.push({ pts: project(limb(sx, sy, ex, ey, UPPER_SHAPE, f), z), fill, line: edge, shade: shade ? project(limbShade(sx, sy, ex, ey, UPPER_SHAPE, f, 0.45, 1), z) : undefined, tone: shade });
     parts.push({ pts: project(limb(ex, ey, wx, wy, FORE_SHAPE, f), z), fill, line: edge, shade: shade ? project(limbShade(ex, ey, wx, wy, FORE_SHAPE, f), z) : undefined, tone: shade });
-    // the hand, turned at the wrist
-    const ha = fa + (a.w ?? 0);
+    // the hand, turned at the wrist, and an open one hanging a little under
+    // its own weight; a fist is held
+    const g = Math.max(0, Math.min(1, a.g ?? 0));
+    const ha = fa + (a.w ?? 0) - 0.28 * (1 - g) * Math.sin(fa);
     const du = [f * Math.sin(ha), -Math.cos(ha)];
     const dn = [f * Math.cos(ha), Math.sin(ha)];
-    const g = Math.max(0, Math.min(1, a.g ?? 0));
     const size = look.gloves ? 1.3 : 1;
     const inHand = (points: number[][]) => project(frame(points.map(([u, n]) => [u * size, n * size]), wx, wy, du[0], du[1], dn[0], dn[1]), z);
     parts.push({ pts: inHand(shut(HANDS, g)), fill: look.gloves ?? skin, line });
