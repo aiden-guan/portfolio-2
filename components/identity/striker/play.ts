@@ -571,8 +571,8 @@ export function createPlay() {
         p.near = { ...p.near, y: p.near.y + arc + tuck };
         p.far = { ...p.far, y: p.far.y + arc + tuck * 0.6 };
         const w = ramp(u, 0, 0.25) * (1 - ramp(u, 0.75, 1));
-        p.armNear = { s: lerp(p.armNear.s, 0.9 - 0.5 * u, w), e: lerp(p.armNear.e, 0.8, w) };
-        p.armFar = { s: lerp(p.armFar.s, -0.4 + 0.6 * u, w), e: lerp(p.armFar.e, 0.7, w) };
+        p.armNear = { ...p.armNear, s: lerp(p.armNear.s, 0.9 - 0.5 * u, w), e: lerp(p.armNear.e, 0.8, w) };
+        p.armFar = { ...p.armFar, s: lerp(p.armFar.s, -0.4 + 0.6 * u, w), e: lerp(p.armFar.e, 0.7, w) };
         p.lean += 0.08 * Math.sin(u * Math.PI);
       }
       // eyes down for each touch, up again to look at what is coming, and
@@ -673,7 +673,7 @@ function fromPose(p: Pose) {
     x: p.x, y: p.y, z: p.z, lean: p.lean, head: p.head,
     nx: p.near.x, ny: p.near.y, na: p.near.a, fx: p.far.x, fy: p.far.y, fa: p.far.a,
     ns: p.armNear.s, ne: p.armNear.e, fs: p.armFar.s, fe: p.armFar.e, face: p.face, hair: p.hair,
-    ng: p.armNear.g ?? 0, fg: p.armFar.g ?? 0,
+    ng: p.armNear.g ?? 0, fg: p.armFar.g ?? 0, nw: p.armNear.w ?? 0, fw: p.armFar.w ?? 0,
   };
 }
 
