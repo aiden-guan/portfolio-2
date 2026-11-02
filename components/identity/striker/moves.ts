@@ -11,6 +11,9 @@ export type Gait = {
   cycle: number;
   /** the share of the cycle a foot is on the ground */
   stance: number;
+  /** how much of the foot's time on the ground is in front of his hips:
+   * less, and he is leaning from the ankles, falling over a planted leg */
+  plant: number;
   /** how high the heel and knee come up, 1 for a sprint */
   lift: number;
   lean: number;
@@ -23,11 +26,14 @@ export type Gait = {
 // Contact is short, as it is for footballers at pace, so a planted foot is
 // never far out in front of him or behind: his hips can ride high, with the
 // knee giving a little under him rather than squatting, and the leg never
-// has to stretch further than it can. At pace he leans right into it from
-// the hips, the knees and heels come up high and the arms drive hard.
-export const SPRINT: Gait = { cycle: 94, stance: 0.23, lift: 1.1, lean: 0.68, arms: 1.1, bob: 0.55, height: HIP - 1.8 };
-export const DRIBBLE: Gait = { cycle: 82, stance: 0.26, lift: 0.95, lean: 0.55, arms: 0.95, bob: 0.55, height: HIP - 1.7 };
-export const JOG: Gait = { cycle: 62, stance: 0.31, lift: 0.55, lean: 0.2, arms: 0.6, bob: 0.55, height: HIP - 1.4 };
+// has to stretch further than it can. At pace he leans into it, from the
+// ankles rather than the hips (see `spine`): about twenty-odd degrees, as
+// footballers do flat out, a little less on the ball, where the head stays
+// up to see and the arms stay looser for balance; knees and heels come up,
+// and the arms drive hard when he is free of it.
+export const SPRINT: Gait = { cycle: 94, stance: 0.21, plant: 0.25, lift: 1.05, lean: 0.5, arms: 1.1, bob: 0.55, height: HIP - 1.8 };
+export const DRIBBLE: Gait = { cycle: 82, stance: 0.23, plant: 0.28, lift: 0.9, lean: 0.42, arms: 0.85, bob: 0.5, height: HIP - 1.7 };
+export const JOG: Gait = { cycle: 62, stance: 0.31, plant: 0.4, lift: 0.55, lean: 0.14, arms: 0.6, bob: 0.55, height: HIP - 1.4 };
 
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
@@ -41,6 +47,7 @@ export const ramp = (t: number, a: number, b: number) => smooth((t - a) / (b - a
 export function mixGait(a: Gait, b: Gait, t: number): Gait {
   return {
     cycle: lerp(a.cycle, b.cycle, t),
+    plant: lerp(a.plant, b.plant, t),
     stance: lerp(a.stance, b.stance, t),
     lift: lerp(a.lift, b.lift, t),
     lean: lerp(a.lean, b.lean, t),
@@ -174,7 +181,7 @@ function planted(u: number, g: Gait) {
   const reach = g.cycle * g.stance;
   const k = Math.max(0, (u - 0.45) / 0.55);
   const a = -0.75 * Math.max(0.5, g.lift) * k * k;
-  return { x: reach * 0.4 - u * reach + BALL * (1 - Math.cos(a)), y: ANKLE - BALL * Math.sin(a), a };
+  return { x: reach * g.plant - u * reach + BALL * (1 - Math.cos(a)), y: ANKLE - BALL * Math.sin(a), a };
 }
 
 /** One ankle, relative to the hips, `s` of the way through its cycle from
@@ -183,7 +190,7 @@ export function stride(s: number, g: Gait) {
   if (s < g.stance) return planted(s / g.stance, g);
   const u = (s - g.stance) / (1 - g.stance);
   const reach = g.cycle * g.stance;
-  const land = reach * 0.4;
+  const land = reach * g.plant;
   const L = g.lift;
   // it leaves the grass going the way the push-off sends it, and comes down
   // going back as fast as the grass goes by, pawing at it, so it never snaps
@@ -244,9 +251,8 @@ export function run(x: number, phase: number, g: Gait, f = 1, z = 0, speed = 1):
     z,
     f,
     lean,
-    // the head goes with the spine, a little less, chin out and eyes up on
-    // what is coming
-    head: -lean * 0.2 + 0.04,
+    // the head goes a little with the spine but stays up, eyes on the play
+    head: -lean * 0.32 + 0.04,
     near: { x: x + f * near.x, y: near.y, a: near.a },
     far: { x: x + f * far.x, y: far.y, a: far.a },
     armNear: arm(0),

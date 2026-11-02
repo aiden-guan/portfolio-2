@@ -111,10 +111,52 @@ export const DY = 0.16;
 export const px = (v: View, x: number, z: number) => v.ox + (x + z * DX - v.cx) * v.zoom;
 export const py = (v: View, y: number, z: number) => v.base - (y + z * DY - v.cy) * v.zoom;
 
+/** how much of the lean his pelvis takes. A runner leans from the ankles,
+ * hips kept under him; the lean that shows in his chest comes up through
+ * the lower back, not from folding at the hips, which sits the seat back and
+ * out behind him. */
+const PELVIS = 0.4;
+
+/** His spine, from the pelvis to the base of the neck: tipped forward only a
+ * little low down, coming round to the full lean of the chest over the
+ * lower back. `at` takes a point given forward and up from the pelvis, as the
+ * torso's shapes are, onto it. */
+export function spine(p: Pose) {
+  const f = p.f;
+  const low = p.lean * PELVIS;
+  const angle = (b: number) => {
+    const k = Math.min(1, Math.max(0, (b - 1.5) / 8));
+    return low + (p.lean - low) * k * k * (3 - 2 * k);
+  };
+  // the line of it, a unit at a time
+  const xs = [p.x];
+  const ys = [p.y];
+  for (let s = 1; s <= 17; s += 1) {
+    const a = angle(s - 0.5);
+    xs.push(xs[s - 1] + f * Math.sin(a));
+    ys.push(ys[s - 1] + Math.cos(a));
+  }
+  const at = (fwd: number, up: number) => {
+    const a = angle(up);
+    let cx: number;
+    let cy: number;
+    if (up <= 0) {
+      cx = p.x + f * Math.sin(low) * up;
+      cy = p.y + Math.cos(low) * up;
+    } else {
+      const i = Math.min(16, Math.floor(up));
+      const k = Math.min(1, up - i);
+      cx = xs[i] + (xs[i + 1] - xs[i]) * k;
+      cy = ys[i] + (ys[i + 1] - ys[i]) * k;
+    }
+    return [cx + f * Math.cos(a) * fwd, cy - Math.sin(a) * fwd];
+  };
+  return { at, neck: at(0, TORSO) };
+}
+
 /** The middle of his head, in the world. */
 export function headOf(p: Pose) {
-  const neckX = p.x + p.f * Math.sin(p.lean) * TORSO;
-  const neckY = p.y + Math.cos(p.lean) * TORSO;
+  const [neckX, neckY] = spine(p).neck;
   const tilt = p.lean * 0.45 + p.head;
   return {
     x: neckX + p.f * (Math.sin(tilt) * HEAD_UP + Math.cos(tilt) * HEAD_FWD),
@@ -129,8 +171,7 @@ function armJoints(p: Pose, a: Arm) {
   // the shoulder comes forward with the arm as the chest turns into the
   // swing, and goes back with it, but not once the arm is up over his head
   const turn = 0.7 * Math.sin(a.s) * Math.max(0, 1 - Math.max(0, Math.abs(a.s) - 1.4) / 0.6) - 0.4;
-  const sx = p.x + f * Math.sin(p.lean) * (TORSO - SHOULDER) + f * Math.cos(p.lean) * turn;
-  const sy = p.y + Math.cos(p.lean) * (TORSO - SHOULDER) - Math.sin(p.lean) * turn;
+  const [sx, sy] = spine(p).at(turn, TORSO - SHOULDER);
   const ua = a.s - p.lean;
   const ex = sx + f * Math.sin(ua) * UPPER;
   const ey = sy - Math.cos(ua) * UPPER;
@@ -142,8 +183,7 @@ function armJoints(p: Pose, a: Arm) {
  * stands off it]: what the flow comes off. Torso, head, near leg, far leg,
  * near arm, far arm. */
 export function bones(p: Pose) {
-  const neckX = p.x + p.f * Math.sin(p.lean) * TORSO;
-  const neckY = p.y + Math.cos(p.lean) * TORSO;
+  const [neckX, neckY] = spine(p).neck;
   const head = headOf(p);
   const out = [
     [p.x, p.y, neckX, neckY, p.z, 3.3],
@@ -361,8 +401,8 @@ export function drawPlayer(ink: Ink, v: View, p: Pose, look: Look, between?: () 
   const width = Math.max(1, Math.min(2.2, 0.42 * zoom));
   const f = p.f;
   const up = [f * Math.sin(p.lean), Math.cos(p.lean)];
-  const fwd = [f * Math.cos(p.lean), -Math.sin(p.lean)];
-  const neck = [p.x + up[0] * TORSO, p.y + up[1] * TORSO];
+  const back = spine(p);
+  const neck = back.neck;
   const tilt = p.lean * 0.45 + p.head;
   const hu = [f * Math.sin(tilt), Math.cos(tilt)];
   const hf = [f * Math.cos(tilt), -Math.sin(tilt)];
@@ -377,7 +417,7 @@ export function drawPlayer(ink: Ink, v: View, p: Pose, look: Look, between?: () 
     return out;
   };
   const inHead = (points: number[][]) => frame(points, head[0], head[1], hf[0], hf[1], hu[0], hu[1]);
-  const inTorso = (points: number[][]) => frame(points, p.x, p.y, fwd[0], fwd[1], up[0], up[1]);
+  const inTorso = (points: number[][]) => points.flatMap(([a, b]) => back.at(a, b));
   // the loose bib lifts at the back and flaps at the hem as he goes, up
   // off him like cloth rather than out behind him
   const billow = (points: number[][]) =>
