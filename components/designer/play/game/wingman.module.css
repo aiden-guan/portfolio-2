@@ -1,0 +1,625 @@
+.hud {
+  --ink: #1b1d22;
+  --paper: #fbf8f1;
+  --cream: #f6eedd;
+  --cobalt: #2f6be8;
+  --orange: #f08a32;
+  --pink: #ff5f8f;
+  --gold: #f2c46b;
+  --muted: #6d6b65;
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  pointer-events: none;
+  font-family: var(--font-pixel), ui-monospace, monospace;
+  color: var(--ink);
+}
+
+/* —— words where things happen */
+
+.popups {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.popup {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+
+.popup b {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  padding: 3px 8px 4px;
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+  background: var(--pink);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: 0 4px 0 var(--ink);
+  transform: translate(-50%, -100%);
+  animation: pop 1400ms var(--ease) forwards;
+}
+
+.popup[data-tone="gold"] b {
+  background: var(--gold);
+  color: var(--ink);
+  font-size: 21px;
+  box-shadow: 0 4px 0 var(--ink), 0 0 18px rgba(242, 196, 107, 0.8);
+}
+
+.popup[data-tone="nope"] b {
+  background: var(--ink);
+  color: #ff8f8f;
+}
+
+.popup[data-tone="dm"] b {
+  background: var(--cobalt);
+}
+
+.popup[data-tone="oof"] b {
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.popup[data-tone="power"] b {
+  background: var(--orange);
+}
+
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -60%) scale(0.4) rotate(-6deg);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, -110%) scale(1.12) rotate(2deg);
+  }
+  24% {
+    transform: translate(-50%, -100%) scale(1) rotate(-1deg);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -190%) scale(0.96);
+  }
+}
+
+/* —— the top: how far, how many, dives, pause */
+
+.top {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 0 max(14px, env(safe-area-inset-left));
+  animation: drop 500ms var(--ease) both;
+}
+
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+
+.card,
+.dives,
+.pause,
+.meter,
+.landed,
+.title,
+.results {
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 2px var(--cream), 0 5px 0 var(--ink);
+}
+
+.card {
+  display: grid;
+  gap: 2px;
+  min-width: 190px;
+  padding: 8px 12px 9px;
+  pointer-events: auto;
+}
+
+.kicker {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.distance {
+  font-size: 30px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.count {
+  font-size: 13px;
+}
+
+.count i {
+  color: var(--pink);
+  font-style: normal;
+}
+
+.right {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.dives {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 4px 10px 6px;
+}
+
+.dives small {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dives span {
+  display: flex;
+  gap: 4px;
+}
+
+.dives i {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 2px;
+  background: var(--cream);
+  transform: rotate(45deg);
+  transition: background 200ms ease, transform 300ms var(--ease);
+}
+
+.dives i[data-on] {
+  background: var(--pink);
+  transform: rotate(45deg) scale(1.05);
+}
+
+.pause {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  cursor: pointer;
+}
+
+.pause svg {
+  width: 16px;
+  height: 16px;
+  fill: var(--ink);
+}
+
+/* —— entering a zone */
+
+.zone {
+  position: absolute;
+  left: 50%;
+  top: max(96px, calc(env(safe-area-inset-top) + 96px));
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 8px 26px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 0 5px 0 rgba(27, 29, 34, 0.35);
+  transform: translateX(-50%);
+  animation: enter 3200ms var(--ease) forwards;
+}
+
+.zone small {
+  color: rgba(251, 248, 241, 0.6);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.zone strong {
+  color: var(--gold);
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.zone span {
+  color: var(--pink);
+  font-size: 15px;
+}
+
+@keyframes enter {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-12px) scale(0.9);
+  }
+  10% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.04);
+  }
+  16% {
+    transform: translateX(-50%) scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+  }
+}
+
+/* —— the throw meter */
+
+.meter {
+  position: absolute;
+  left: 50%;
+  bottom: max(26px, calc(env(safe-area-inset-bottom) + 18px));
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(420px, calc(100vw - 32px));
+  padding: 12px 14px 10px;
+  transform: translateX(-50%);
+  animation: rise 360ms var(--ease) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+}
+
+.track {
+  position: relative;
+  width: 100%;
+  height: 22px;
+  border: 3px solid var(--ink);
+  border-radius: 3px;
+  background: linear-gradient(90deg, #9cc0fa 0%, #8fd3b6 45%, var(--orange) 80%, var(--orange) 90%, transparent 90%);
+  overflow: hidden;
+}
+
+.sweet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 90%;
+  right: 0;
+  background: var(--gold);
+  box-shadow: inset 2px 0 0 var(--ink);
+  animation: shine 900ms ease-in-out infinite alternate;
+}
+
+@keyframes shine {
+  to {
+    background: #ffe39a;
+  }
+}
+
+.needle {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 6px;
+  margin-left: -3px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+}
+
+.hint,
+.tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.hint kbd,
+.tip kbd {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  background: var(--cobalt);
+  color: var(--paper);
+  font: 700 12px/1 var(--font-pixel), monospace;
+  box-shadow: 0 2px 0 var(--ink);
+}
+
+.tip {
+  position: absolute;
+  left: 50%;
+  bottom: max(24px, calc(env(safe-area-inset-bottom) + 16px));
+  margin: 0;
+  padding: 6px 12px 7px;
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+  transform: translateX(-50%);
+  animation: rise 360ms var(--ease) both 300ms;
+}
+
+/* —— between throws, and the cards */
+
+.landed {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 10px 22px 12px;
+  transform: translate(-50%, -50%);
+  animation: land 2000ms var(--ease) forwards 500ms;
+  opacity: 0;
+}
+
+.landed small {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.landed strong {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.landed span {
+  color: var(--pink);
+  font-size: 14px;
+}
+
+@keyframes land {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -40%) scale(0.85);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.04);
+  }
+  20% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -54%);
+  }
+}
+
+.title,
+.results {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(440px, calc(100vw - 32px));
+  padding: 18px 20px 16px;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  animation: card 520ms var(--ease) both;
+}
+
+@keyframes card {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -44%) scale(0.94);
+  }
+}
+
+.title h2,
+.results h2 {
+  margin: 0;
+  font-size: 48px;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  transform: rotate(-2deg);
+  text-shadow: 3px 3px 0 var(--gold);
+}
+
+.title h2 span {
+  color: var(--pink);
+}
+
+.results h2 {
+  font-size: 34px;
+}
+
+.title p {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.title ul {
+  display: grid;
+  gap: 5px;
+  margin: 2px 0;
+  padding: 10px 12px;
+  border: 2px dashed rgba(27, 29, 34, 0.2);
+  border-radius: 4px;
+  list-style: none;
+  font-size: 13px;
+}
+
+.title li {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.title li kbd {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  background: var(--cobalt);
+  color: var(--paper);
+  font: 700 11px/1 var(--font-pixel), monospace;
+}
+
+.results ol {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.results li {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 3px;
+  background: var(--cream);
+  font-size: 13px;
+  text-align: left;
+}
+
+.results li b {
+  font-size: 17px;
+}
+
+.results li em {
+  color: var(--pink);
+  font-style: normal;
+}
+
+.results dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+  margin: 4px 0 0;
+}
+
+.results dl div {
+  display: grid;
+  gap: 2px;
+  padding: 8px 4px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+}
+
+.results dt {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.results dd {
+  margin: 0;
+  font-size: 22px;
+}
+
+/* —— the wipe between throws */
+
+.wipe {
+  position: absolute;
+  inset: 0;
+  background: var(--paper);
+  transform: translateX(-102%);
+  pointer-events: none;
+}
+
+.wipe[data-on] {
+  animation: wipe 950ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+@keyframes wipe {
+  0% {
+    transform: translateX(-102%);
+  }
+  45%,
+  55% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(102%);
+  }
+}
+
+@media (max-width: 560px) {
+  .card {
+    min-width: 0;
+  }
+
+  .distance {
+    font-size: 24px;
+  }
+
+  .zone strong {
+    font-size: 20px;
+  }
+
+  .title h2 {
+    font-size: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popup b,
+  .zone,
+  .landed,
+  .title,
+  .results,
+  .meter,
+  .tip,
+  .top {
+    animation-duration: 1ms;
+  }
+
+  .wipe[data-on] {
+    animation: none;
+  }
+}

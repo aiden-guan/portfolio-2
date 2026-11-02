@@ -1,11 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WorldSwitch } from "@/components/identity/world-switch";
 import { identityFonts } from "@/components/identity/fonts";
 import { findProject, formatMonth, imageFocus, PERSON, PROJECTS, projectImage, type WorldProject } from "@/content/worlds";
 import type { Engine, Marker } from "./scene/engine";
 import styles from "./designer.module.css";
+
+// The game behind the PLAY button, fetched only when it's wanted (and early,
+// when the pointer comes near the button).
+const loadPlay = () => import("./play/play");
+const Play = dynamic(loadPlay, { ssr: false });
 
 // What each thing on the island opens, in the order the arrows walk them.
 const SPOTS: Array<{ id: string; slug: string; image?: string; caption?: string }> = [
@@ -37,6 +43,12 @@ export function Designer() {
   const engine = useRef<Engine | null>(null);
   const markers = useRef(new Map<string, HTMLButtonElement>());
   const panel = useRef<HTMLElement>(null);
+  // the island's next frame, for whoever asked for it (the store page's screenshots)
+  const capture = useRef<((canvas: HTMLCanvasElement, markers: Marker[]) => void) | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [playing, setPlaying] = useState(false);
+  // PLAY waits for the island to have arrived: the store page is cut from it
+  const [revealed, setRevealed] = useState(false);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -69,6 +81,11 @@ export function Designer() {
               node.style.setProperty("--drop", `${Math.max(12, marker.bottom - marker.y + 8).toFixed(1)}px`);
               if (marker.top < 130) node.dataset.below = "";
               else delete node.dataset.below;
+            }
+            if (list[0]?.visible) setRevealed(true);
+            if (capture.current && canvas.current) {
+              capture.current(canvas.current, list);
+              capture.current = null;
             }
           },
         });
@@ -127,6 +144,7 @@ export function Designer() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (playing) return;
       if ((event.target as HTMLElement).closest("input, textarea")) return;
       if (event.key === "Escape") {
         if (selected) open(null);
@@ -143,7 +161,31 @@ export function Designer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, selected, step]);
+  }, [open, selected, step, playing]);
+
+  const askCapture = useCallback((fn: ((canvas: HTMLCanvasElement, markers: Marker[]) => void) | null) => {
+    capture.current = fn;
+  }, []);
+
+  const play = useCallback(() => {
+    if (!revealed) return;
+    open(null);
+    setIndex(false);
+    setPlaying(true);
+  }, [open, revealed]);
+
+  // back from the game: the island takes the whole page again, where it was
+  const leave = useCallback(() => {
+    const node = rootRef.current;
+    if (node) {
+      node.style.transform = "";
+      node.style.clipPath = "";
+      node.style.visibility = "";
+    }
+    engine.current?.pause(false);
+    engine.current?.look(null, 1, 5);
+    setPlaying(false);
+  }, []);
 
   const spot = SPOTS.find((s) => s.id === selected) ?? null;
   const project = spot && spot.slug !== "about" ? findProject(spot.slug) ?? null : null;
@@ -161,12 +203,15 @@ export function Designer() {
   }, []);
 
   return (
+    <>
     <div
+      ref={rootRef}
       data-world="designer"
       className={`${styles.root} ${identityFonts}`}
       data-night={night || undefined}
       data-ready={ready || undefined}
       data-open={selected ? "" : undefined}
+      data-play={playing || undefined}
     >
       <div ref={container} className={styles.stage} onPointerDown={() => setIndex(false)}>
         <canvas ref={canvas} className={styles.canvas} aria-label="A pixel island of Aiden's projects. Drag to look around, scroll to zoom, click a place to open it." />
@@ -213,6 +258,20 @@ export function Designer() {
       <div className={styles.controls}>
         <button
           type="button"
+          className={styles.play}
+          onClick={play}
+          onPointerEnter={() => void loadPlay()}
+          onFocus={() => void loadPlay()}
+          disabled={!revealed}
+          aria-label="Play Aiden: Life of a Handsome Entrepreneur"
+        >
+          <svg viewBox="0 0 8 10" aria-hidden="true" shapeRendering="crispEdges">
+            <path d="M0 0h2v1h2v1h2v1h2v4H6v1H4v1H2v1H0z" />
+          </svg>
+          Play
+        </button>
+        <button
+          type="button"
           className={styles.control}
           aria-pressed={night}
           aria-label={night ? "Daytime" : "Night-time"}
@@ -221,10 +280,10 @@ export function Designer() {
         >
           {night ? <SunIcon /> : <MoonIcon />}
         </button>
-        <button type="button" className={styles.control} aria-label="Zoom out" title="Zoom out" onClick={() => engine.current?.zoomBy(1 / 1.35)}>
+        <button type="button" className={styles.control} data-zoom="" aria-label="Zoom out" title="Zoom out" onClick={() => engine.current?.zoomBy(1 / 1.35)}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" /></svg>
         </button>
-        <button type="button" className={styles.control} aria-label="Zoom in" title="Zoom in" onClick={() => engine.current?.zoomBy(1.35)}>
+        <button type="button" className={styles.control} data-zoom="" aria-label="Zoom in" title="Zoom in" onClick={() => engine.current?.zoomBy(1.35)}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M8 3v10" /></svg>
         </button>
         <button
@@ -291,6 +350,8 @@ export function Designer() {
         ) : null}
       </aside>
     </div>
+    {playing ? <Play root={rootRef} engine={engine} capture={askCapture} onExit={leave} /> : null}
+    </>
   );
 }
 

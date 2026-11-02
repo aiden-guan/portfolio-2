@@ -246,6 +246,69 @@
   gap: 6px;
 }
 
+/* PLAY: the way into the game the island turns out to be a trailer for */
+.play {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  margin-right: 4px;
+  padding: 0 14px 0 12px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: var(--cobalt);
+  color: #fff;
+  font: 700 15px/1 var(--font-pixel), ui-monospace, monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: inset 0 -3px 0 rgba(10, 20, 60, 0.28), 0 8px 18px -10px rgba(47, 107, 232, 0.9);
+  transition: transform 160ms var(--ease), box-shadow 160ms ease, filter 160ms ease, opacity 300ms ease;
+}
+
+.play svg {
+  width: 10px;
+  height: 12px;
+  fill: currentColor;
+}
+
+.play::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.38) 45%, transparent 60%);
+  transform: translateX(-120%);
+  animation: shine 5.5s ease-in-out 2.5s infinite;
+  pointer-events: none;
+}
+
+@keyframes shine {
+  0%, 78% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+.play:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.play:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 -1px 0 rgba(10, 20, 60, 0.28), 0 4px 10px -8px rgba(47, 107, 232, 0.9);
+}
+
+.play:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.play:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
 .control {
   display: grid;
   place-items: center;
@@ -681,6 +744,30 @@
   display: none;
 }
 
+/* —— while the game is on, the page is footage: no chrome, and it moves as one */
+
+.root[data-play] {
+  z-index: 42;
+  transform-origin: 0 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.root[data-play] .top,
+.root[data-play] .controls,
+.root[data-play] .hint,
+.root[data-play] .markers,
+.root[data-play] .panel,
+.root[data-play] .failed {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 320ms ease;
+}
+
+.root[data-play] .canvas {
+  image-rendering: auto;
+}
+
 @media (max-width: 760px) {
   .top {
     left: 14px;
@@ -735,7 +822,25 @@
   }
 }
 
+@media (max-width: 480px) {
+  .control[data-zoom] {
+    display: none;
+  }
+
+  .play {
+    gap: 6px;
+    margin-right: 0;
+    padding: 0 10px 0 9px;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .play::after {
+    animation: none;
+  }
+
   .pin::before {
     animation: none;
   }

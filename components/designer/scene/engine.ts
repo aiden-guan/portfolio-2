@@ -45,7 +45,7 @@ const BACKGROUND = {
   night: { top: new Color(0x0e1c40), bottom: new Color(0x283a68) },
 };
 
-const POST_VERTEX = /* glsl */ `
+export const POST_VERTEX = /* glsl */ `
 varying vec2 vUv;
 void main() {
   vUv = position.xy * 0.5 + 0.5;
@@ -59,7 +59,7 @@ void main() {
 // a small set of levels with ordered dither, so gradients become pixel
 // patterns; lets lit things bleed a dithered glow at night; and eases a
 // one-pixel rim around whatever is pointed at.
-const POST_FRAGMENT = /* glsl */ `
+export const POST_FRAGMENT = /* glsl */ `
 uniform sampler2D tColor;
 uniform sampler2D tDepth;
 uniform sampler2D tMask;
@@ -281,6 +281,8 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
   // —— camera: where it is, where it is going, and how the panel shifts it
   const view: View = { target: HOME.clone(), zoom: 1 };
   const goal: View = { target: HOME.clone(), zoom: 1 };
+  // how quickly the camera closes on where it's going; the trailer slows it
+  let pace = 5;
   const inset = { x: 0, y: 0 }; // css px the open panel takes from the right / bottom
   const right = new Vector3();
   const up = new Vector3();
@@ -524,6 +526,7 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
 
   let before: View | null = null;
   function select(id: string | null) {
+    pace = 5;
     if (id && !selected) before = { target: goal.target.clone(), zoom: goal.zoom };
     selected = id;
     // the pointer may not be over the thing it was over once the camera moves
@@ -575,9 +578,15 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
   let last = 0;
   let frame = 0;
   let running = true;
+  // while the game is on, the island holds still and draws nothing
+  let paused = false;
   const tick = (now: number) => {
     if (!running) return;
     frame = requestAnimationFrame(tick);
+    if (paused) {
+      last = now;
+      return;
+    }
     if (!start) start = now;
     const dt = Math.min(0.05, (now - (last || now)) / 1000);
     last = now;
@@ -597,7 +606,7 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
       panBy(coast.x, coast.y);
       coast.multiplyScalar(Math.exp(-dt * 6));
     }
-    const k = reduced ? 1 : 1 - Math.exp(-dt * 5);
+    const k = reduced ? 1 : 1 - Math.exp(-dt * pace);
     if (pointers.size === 0) view.target.lerp(goal.target, k);
     view.zoom += (goal.zoom - view.zoom) * k;
     placeCamera();
@@ -663,6 +672,18 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
         night = nightGoal;
         applyLight();
       }
+    },
+    /** Points the camera at a place without opening it, at its own pace: the trailer's slow moves. */
+    look: (id: string | null, zoom = 1.6, speed = 5) => {
+      const spot = id ? spots.find((s) => s.id === id) : null;
+      goal.target.copy(spot ? spot.focus : HOME);
+      goal.zoom = spot ? zoom : 1;
+      pace = speed;
+    },
+    pause: (on: boolean) => {
+      paused = on;
+      // the game shares the island's uniforms; take them back
+      if (!on) applyLight();
     },
     home: () => {
       goal.target.copy(HOME);
