@@ -1,0 +1,435 @@
+import { Vector3 } from "three";
+import { LOOKS } from "../people";
+import type { Question } from "../screens-berkeley";
+import type { ActorSpec } from "../stage";
+import { GUESTS } from "./cast";
+import { DATA_MIDTERM_2, examHall, MATH_MIDTERM_2, sitExam } from "./midterms";
+import { say, type Chapter, type Ctx } from "./types";
+
+// alai, for real: Allen at the roommate's desk, midterms again, a final
+// round at a16z Alpha that ends in a no, a bench at midnight, two
+// applications, a bug bash, and the first student who says "oh". Then the
+// story catches up with the present, and stops.
+
+const ALLEN_AT_DESK: ActorSpec = { id: "allen", look: LOOKS.allen, at: new Vector3(2.15, 0, -2.05), heading: Math.PI, pose: "type", seat: 0.45, label: "Allen", behaviour: "idle", solid: false };
+
+const REVIEW: Question[] = [
+  { q: "A model’s residual plot fans out as x grows. That suggests…", options: ["A perfect fit", "The spread of errors changes with x", "Too few points", "The slope is zero"], answer: 1 },
+  { q: "You A/B test two hints. Hint B wins with p = 0.30. You should…", options: ["Ship B", "Not call it yet: that could easily be chance", "Ship A", "Lower the bar to 0.30"], answer: 1 },
+  { q: "Math 52: Σ (1/3)ⁿ, from n = 0 to ∞", options: ["1/3", "3/2", "3", "∞"], answer: 1 },
+];
+
+// —— act one: round two
+
+async function roundTwo(ctx: Ctx) {
+  await ctx.scene({
+    id: "dorm",
+    night: true,
+    features: ["trophies", "ipad", "monitor", "late"],
+    actors: [ALLEN_AT_DESK],
+    at: new Vector3(-0.6, 0, 0.9),
+    heading: Math.PI * 0.9,
+    banner: { place: "Midterms, round two", time: "Tuesday, 11:20 PM" },
+    day: "Tue · Week 11",
+    clock: 23 * 60 + 20,
+  });
+  ctx.go("talkAllen");
+  await ctx.say([say("aiden", "Second round of midterms: Data C8, then Math 52."), say("aiden", "Also: a company.")]);
+}
+
+// —— act two: the final round
+
+async function alpha(ctx: Ctx) {
+  await ctx.scene({
+    id: "dorm",
+    features: ["trophies", "ipad", "monitor"],
+    actors: [{ ...ALLEN_AT_DESK, pose: "stand", at: new Vector3(-1.2, 0, -1.0), heading: Math.PI * 0.8, behaviour: "watch" }],
+    at: new Vector3(-2.0, 0, -1.3),
+    heading: Math.PI,
+    banner: { place: "a16z Alpha", time: "Final round, Thursday, 1:58 PM" },
+    day: "Thu · Final round",
+    clock: 13 * 60 + 58,
+  });
+  ctx.go("call");
+  await ctx.say([say("allen", "Final round. Two partners."), say("aiden", "Camera on. Hair: handled.")]);
+}
+
+async function bench(ctx: Ctx) {
+  await ctx.scene({
+    id: "glade",
+    night: true,
+    actors: [{ id: "allen", look: LOOKS.allen, at: new Vector3(2.55, 0, 3.25), heading: Math.PI, pose: "sit", seat: 0.5, label: "Allen", behaviour: "idle", solid: false }],
+    at: new Vector3(-1.5, 0, 0.6),
+    heading: Math.PI * 0.4,
+    banner: { place: "Memorial Glade", time: "Friday, 11:48 PM" },
+    day: "Fri · Late",
+    clock: 23 * 60 + 48,
+  });
+  ctx.go("bench");
+}
+
+// —— act three: building
+
+async function building(ctx: Ctx) {
+  await ctx.scene({
+    id: "dorm",
+    night: true,
+    features: ["trophies", "ipad", "monitor", "late"],
+    actors: [ALLEN_AT_DESK],
+    at: new Vector3(-2.2, 0, -1.2),
+    heading: Math.PI,
+    banner: { place: "The office (a dorm room)", time: "Sunday, 1:30 AM" },
+    day: "Sun · Week 13",
+    clock: 90,
+  });
+  ctx.go("applyYC");
+  await ctx.say([say("allen", "Speedrun and YC. Both tonight."), say("aiden", "And then we fix everything.")]);
+}
+
+export const chapter4: Chapter = {
+  id: "ch4",
+  number: "Chapter 4",
+  title: "The Tutor",
+  line: "alai, a co-founder, a final interview, and a lot of bugs.",
+  intro: ["Three first places.", "One of them wouldn’t leave us alone:", "a tutor that catches the wrong step.", "So we made it a company."],
+  hud: { money: false, ready: "Midterm 2 prep", members: "Waitlist" },
+  acts: [
+    { stats: { money: 0, ready: 30, members: 240 }, run: roundTwo },
+    { stats: { money: 0, ready: 100, members: 620 }, run: alpha },
+    { stats: { money: 0, ready: 100, members: 900 }, run: building },
+  ],
+  objectives: {
+    talkAllen: "Talk to Allen",
+    study: "Study for the second midterms",
+    midterm: "Head to your midterms",
+    seat: "Find your seat for Data C8",
+    seat2: "Math 52, midterm 2",
+    call: "Join the call",
+    bench: "Sit with Allen",
+    applyYC: "Apply to YC",
+    applySpeedrun: "Apply to a16z speedrun",
+    bugs: "Bug bash on the iPad",
+    tester: "Let Jun try alai",
+    last: "Keep building",
+    done: "",
+  },
+  targets: {
+    talkAllen: "allen",
+    study: "laptop",
+    midterm: "door",
+    seat: "seat",
+    call: "laptop",
+    bench: "allen",
+    applyYC: "laptop",
+    applySpeedrun: "laptop",
+    bugs: "ipad",
+    tester: "jun",
+    last: "laptop",
+  },
+  use: async (id, ctx) => {
+    const step = ctx.step();
+    const stage = ctx.stage();
+    switch (id) {
+      case "allen":
+        if (step === "talkAllen") {
+          await ctx.say([
+            say("allen", "Miles goes out at eleven and comes back after three. I’ve tracked it for two weeks."),
+            say("aiden", "You tracked my roommate."),
+            say("allen", "His desk is free four hours a night. That’s an office."),
+            say("allen", "SpeedHacks was one weekend. This could be a company."),
+            say("aiden", "The next big consumer edtech company."),
+            say("allen", "Multi-billion. That’s not a guess. I made a model. Do you want to see it? It has forty tabs."),
+            say("aiden", "Later."),
+            say("allen", "Okay. I’ll leave it open."),
+            say("allen", "…We should probably also pass our midterms."),
+          ]);
+          stage.pose("cheer", 2200);
+          stage.actor("allen")?.pose("cheer", 2200);
+          await ctx.open({ kind: "impact", text: "CO-FOUNDERS", sub: "alai · day one" });
+          return ctx.go("study");
+        }
+        if (step === "bench") {
+          stage.place(new Vector3(1.85, 0, 3.25), Math.PI);
+          stage.pose("sit", 0, 0.5);
+          await ctx.say([
+            say("allen", "Final round, though. That’s the last round. There isn’t one after it."),
+            say("aiden", "Final round isn’t a yes."),
+            say("allen", "No. But “not this time” is a different answer from “no.” I read the email four times."),
+            say("aiden", "Speedrun’s open. YC’s open. We apply to both."),
+            say("allen", "And we fix every bug a student has ever hit. They’re in a spreadsheet. I sorted them by how stuck the student got."),
+            say("aiden", "And we make it so good the next one can’t say no."),
+            say("allen", "Okay. That’s a plan."),
+            say("note", "The Campanile rang midnight. Neither of them went home."),
+          ]);
+          stage.pose("stand");
+          ctx.checkpoint(2);
+          return building(ctx);
+        }
+        return ctx.say([say("allen", step === "applyYC" || step === "applySpeedrun" ? "Read me the one-liner again. Slower." : step === "bugs" ? "The voice cuts out mid-hint. I know why. Give me twenty minutes." : "Ship first. Sleep later. I slept on Tuesday.")]);
+
+      case "laptop":
+        if (step === "study") {
+          const right = (await ctx.open<number>({ kind: "study", title: "Midterm 2 review", subject: "Data C8 · Math 52", questions: REVIEW })) ?? 0;
+          ctx.stat("ready", 55 + right * 15, 800);
+          await ctx.say([say("aiden", "No fever this time. Just tired.")]);
+          ctx.sound()?.notify();
+          ctx.stat("members", 480, 1200);
+          await ctx.say([
+            say("allen", "The waitlist is at 480."),
+            say("aiden", "From one demo?"),
+            say("allen", "From one demo. 480, not “almost five hundred.” I don’t round up."),
+            say("note", "1:40 AM. The door opens."),
+          ]);
+          // Miles, home from the party, and everyone he met there
+          const miles: ActorSpec = { id: "miles", look: LOOKS.miles, at: new Vector3(-3.7, 0, 2.3), heading: Math.PI / 2, label: "Miles", behaviour: "watch" };
+          stage.addActor(miles);
+          ctx.sound()?.click();
+          for (const guest of GUESTS(1800)) stage.addActor(guest);
+          await stage.actor("miles")?.walkTo(new Vector3(1.6, 0, 1.2));
+          await ctx.say([
+            say("miles", "Don’t mind us."),
+            say("allen", "There are eight people in a room designed for two."),
+            say("miles", "Nine."),
+            say("allen", "Eight. I counted twice."),
+            say("miles", "I counted you twice."),
+            say("allen", "…That’s not how counting works."),
+            say("miles", "Why did the startup cross the road?"),
+            say("aiden", "Don’t."),
+            say("miles", "To get to the other side. Of the road. It was a normal road."),
+            say("allen", "That isn’t a joke. That’s a description of a road."),
+            say("miles", "Thank you."),
+            say("allen", "That wasn’t a compliment."),
+            say("note", "Allen put on headphones and fixed three bugs before the room emptied. Study, then build. Build, then study. Sleep, occasionally."),
+          ]);
+          return ctx.go("midterm");
+        }
+        if (step === "call") {
+          await ctx.say([say("allen", "I wrote down every question they could ask. There are sixty-one.")]);
+          const picks = (await ctx.open<number[]>({
+            kind: "call",
+            title: "a16z Alpha · final round",
+            host: { name: "Partner", face: "partner" },
+            guests: [{ name: "Allen", face: "allen" }],
+            questions: [
+              {
+                q: "Tutoring is crowded. Why does alai win?",
+                options: [
+                  { label: "It watches the work, not just the answer. It catches the wrong step while they’re still writing.", who: "aiden" },
+                  { label: "Voice first. Students talk to it like a person, and it never gives the answer away.", who: "allen" },
+                  { label: "We’re cheaper than a human tutor.", who: "aiden" },
+                ],
+                replies: ["Mm. That’s a real wedge.", "Interesting. Kids actually talk to it?", "Cheaper isn’t a moat."],
+              },
+              {
+                q: "How many students are using it today?",
+                options: [
+                  { label: "A waitlist that grows every time we demo it.", who: "aiden" },
+                  { label: "Honestly, early. We fix whatever they hit, every night.", who: "allen" },
+                ],
+                replies: ["Waitlists are easy. Retention is hard.", "I appreciate the honesty."],
+              },
+              {
+                q: "Last one. Why the two of you?",
+                options: [
+                  { label: "We built it in a weekend and won. Imagine a year.", who: "aiden" },
+                  { label: "We don’t stop. Midterms, hackathons, this. Same week.", who: "allen" },
+                ],
+                replies: ["Fair.", "I believe that."],
+              },
+            ],
+            outro: "Thank you, both of you. We’ll be in touch by Friday.",
+          })) ?? [];
+          await ctx.say([
+            say("allen", picks[0] === 2 ? "You said “cheaper.” We agreed not to say “cheaper.” It was on the list." : "They said Friday. That’s specific. I like specific."),
+            say("note", "Friday."),
+          ]);
+          await ctx.open({
+            kind: "email",
+            app: "Mail",
+            from: "a16z Alpha",
+            subject: "Your application",
+            lines: [
+              "Hi Aiden and Allen,",
+              "Thank you for making it to the final round. It was a hard decision.",
+              "Unfortunately, we’ve decided not to move forward with alai this time.",
+              "We’d love to stay in touch as you keep building.",
+            ],
+            tone: "bad",
+          });
+          await ctx.say([say("aiden", "…"), say("allen", "“Not this time.”"), say("allen", "That means there’s a next time. Logically."), say("allen", "Walk?")]);
+          return bench(ctx);
+        }
+        if (step === "applyYC") {
+          await ctx.open({
+            kind: "form",
+            title: "Y Combinator · Apply",
+            accent: "#f26522",
+            fields: [
+              { label: "Describe what your company does in 50 characters or less.", answer: "A tutor that catches the wrong step as you write." },
+              { label: "What is your company going to make?", answer: "alai is a voice-first AI tutor for STEM homework. Students work by hand on an iPad; when they pause after a wrong step, alai underlines it and nudges them out loud, without giving the answer away." },
+              { label: "Why did you pick this idea?", answer: "We built it in a weekend at a16z SpeedHacks and won. Every student who tried it asked when they could use it for real." },
+              { label: "How long have the founders known each other?", answer: "Since SpeedHacks. It feels like years. Most weeks since have been a hundred hours." },
+            ],
+            submit: "Submit application",
+            done: "Application submitted.",
+          });
+          await ctx.say([say("allen", "One down. One to go. Then two hundred and eleven bugs.")]);
+          return ctx.go("applySpeedrun");
+        }
+        if (step === "applySpeedrun") {
+          await ctx.open({
+            kind: "form",
+            title: "a16z speedrun · Apply",
+            accent: "#1b1d22",
+            fields: [
+              { label: "alai, in one line", answer: "The tutor that hears you think, and catches the step where it went wrong." },
+              { label: "Traction", answer: "A waitlist that grows with every demo, and students coming back every night of exam season." },
+              { label: "Why now?", answer: "Voice is finally fast enough to talk in real time, and handwriting finally reads right. Homework help just changed." },
+            ],
+            submit: "Submit",
+            done: "Submitted.",
+          });
+          await ctx.say([say("aiden", "Two down. Now the part that actually matters.")]);
+          return ctx.go("bugs");
+        }
+        if (step === "last") {
+          await ctx.say([
+            say("aiden", "Applications in. Midterms done. A hundred bugs fixed."),
+            say("allen", "A hundred and eleven to go. I counted."),
+            say("aiden", "Every student who opens it should feel what Jun felt."),
+            say("allen", "Better than every tutor out there."),
+            say("aiden", "Not yet."),
+            say("aiden", "Soon."),
+            say("allen", "Coffee? Same order as always. It’s one less decision."),
+            say("aiden", "Coffee."),
+            say("note", "That’s where the story is, right now."),
+          ]);
+          stage.actor("allen")?.pose("type");
+          stage.pose("sit", 0, 0.45);
+          return ctx.end();
+        }
+        return ctx.say([say("aiden", step === "tester" ? "Somebody’s at the door." : "Forty tabs. Half of them are alai’s logs.")]);
+
+      case "ipad":
+        if (step === "bugs") {
+          const fixed = (await ctx.open<number>({
+            kind: "bugs",
+            seconds: 22,
+            bugs: [
+              "voice cuts out mid-hint",
+              "pencil lags on older iPads",
+              "wrong step not underlined",
+              "hint gives the answer away",
+              "page 2 doesn’t sync",
+              "mic permission loop",
+              "fractions read as 1/7",
+              "dark mode flashbang",
+            ],
+          })) ?? 0;
+          await ctx.say([say("allen", `${fixed} fixed. The rest by morning. I’ll be up. I like this part.`)]);
+          // Jun, through the door without knocking, as ever
+          stage.addActor({ id: "jun", look: LOOKS.jun, at: new Vector3(-3.7, 0, 2.3), heading: Math.PI / 2, label: "Jun", behaviour: "watch" });
+          ctx.sound()?.click();
+          ctx.bubble("door", "BANG", 900);
+          await stage.actor("jun")?.walkTo(new Vector3(-2.4, 0, 1.6));
+          stage.actor("jun")?.face(stage.position);
+          return ctx.go("tester");
+        }
+        return ctx.say([say("aiden", "alai, open on problem four. It’s waiting for someone to get stuck.")]);
+
+      case "door":
+        if (step === "midterm") {
+          await examHall(ctx, { course: "Data C8", exam: "Midterm 2", seed: 520, day: "Thu · Midterms", clock: 8 * 60 + 58 });
+          return ctx.go("seat");
+        }
+        if (step === "tester") return chapter4.use("jun", ctx);
+        return ctx.say([say("aiden", "Hallway. Someone’s microwaving popcorn at 1 AM again.")]);
+
+      case "jun":
+        if (step === "tester") {
+          await ctx.say([
+            say("jun", "Poker?"),
+            say("allen", "No."),
+            say("jun", "You didn’t hear the buy-in."),
+            say("allen", "The buy-in doesn’t change the answer."),
+            say("jun", "Fine. Does your robot do calc? Set’s due at nine."),
+            say("aiden", "Try it. Problem four."),
+            say("note", "Jun writes. He stops halfway down the page."),
+            say("alai", "Check your second line. What happens to the minus sign when you distribute?"),
+            say("jun", "…Oh."),
+            say("jun", "OH."),
+            say("aiden", "That. That “oh.” That’s the whole company."),
+            say("jun", "It’s alright, I guess."),
+            say("allen", "He means it’s good."),
+            say("jun", "I said what I said."),
+            say("jun", "…Can I keep using it?"),
+            say("allen", "Join the waitlist like everyone else. You’d be number 1,401."),
+            say("aiden", "You’re on it. You’re first."),
+          ]);
+          ctx.stat("members", 1400, 1400);
+          ctx.sound()?.sparkle();
+          return ctx.go("last");
+        }
+        return ctx.say([say("jun", "Poker’s at eleven. You’ll both lose. That’s fine.")]);
+
+      case "seat":
+        if (step === "seat") {
+          const data = await sitExam(ctx, { title: "DATA C8 · MIDTERM 2", subject: "Data C8", questions: DATA_MIDTERM_2, seconds: 70 });
+          await ctx.say([say("aiden", data >= 3 ? "Data C8: done. No fever this time." : "Data C8: done. Not my best. Not sick, though."), say("note", "Then Math 52.")]);
+          ctx.go("seat2");
+          await examHall(ctx, { course: "Math 52", exam: "Midterm 2", seed: 640, day: "Thu · Midterms", clock: 13 * 60 + 58, seated: true });
+          const math = await sitExam(ctx, { title: "MATH 52 · MIDTERM 2", subject: "Math 52", questions: MATH_MIDTERM_2, seconds: 70 });
+          ctx.stat("ready", 100, 600);
+          await ctx.say([
+            say("aiden", math >= 3 ? "Series converge. So do I." : "Series: survived."),
+            say("aiden", "No fever. No Tylenol. Just two midterms."),
+            say("note", "Second round: done. Back to the company."),
+          ]);
+          ctx.checkpoint(1);
+          return alpha(ctx);
+        }
+        return ctx.say([say("aiden", "Somebody’s seat.")]);
+
+      case "trophies":
+        return ctx.say([say("aiden", "BarkOff, alai, Continuity. Three cups, one shelf. The same shelf as on the desk in the beginning.")]);
+      case "window":
+        return ctx.say([say("aiden", step === "call" ? "Focus. The partners are waiting." : "The Campanile. Still ringing. Still awake, like us.")]);
+      case "photo":
+        return ctx.say([say("aiden", "Phoebe. She’d sit on the iPad. That’s user research.")]);
+      case "phone":
+        return ctx.say([say("aiden", "The group chat. John sent a jeans ad. Jerry sent “🔥🔥🔥” under it.")]);
+      case "pennant":
+        return ctx.say([say("aiden", "Go Bears.")]);
+      case "fridge":
+        return ctx.say([say("aiden", "Cold brew, cold brew, and a third cold brew.")]);
+      case "roommate":
+        return ctx.say([say("allen", "Miles’s desk. Mine from eleven to three. We have an arrangement. He doesn’t know about it.")]);
+      case "miles":
+        return ctx.say([say("miles", "What do you call a co-founder? …Allen. That’s his name. I don’t have a joke.")]);
+      case "board":
+        return ctx.say([say("aiden", "“3 for 3.” Under it, in Allen’s writing: “now do it for real.”")]);
+      case "bed":
+        return ctx.say([say("aiden", "Later. Much later.")]);
+      case "campanile":
+        return ctx.say([say("aiden", "Midnight. It’s always midnight lately.")]);
+      case "library":
+      case "flyer":
+        return ctx.say([say("aiden", "Closed. Everything’s closed but us.")]);
+      case "lectern":
+        return ctx.say([say("proctor", "Back to your seat, please.")]);
+      default:
+        return ctx.say([say("aiden", "Hm.")]);
+    }
+  },
+  end: {
+    title: "The Tutor",
+    tbc: true,
+    stats: [
+      ["Co-founders", "2"],
+      ["Final rounds", "1"],
+      ["Applications", "2, sent"],
+      ["Handsome", "Max"],
+    ],
+    next: { number: "Chapter 5", title: "To be continued", line: "This is where life is, right now. The next chapter is still happening." },
+  },
+};
