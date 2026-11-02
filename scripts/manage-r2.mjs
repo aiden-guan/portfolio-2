@@ -183,10 +183,14 @@ async function main() {
   for (const obj of objects) {
     totalBytes += obj.size;
     const filename = obj.key.split("/").pop() ?? obj.key;
+    // the content database and the identity page's visitor count (see
+    // lib/egoists.ts) are never media to clean up
     const isRef =
       referenced.has(obj.key) ||
       referenced.has(filename) ||
-      obj.key === "portfolio/content.json";
+      obj.key === "portfolio/content.json" ||
+      obj.key === "portfolio/egoists.json" ||
+      obj.key === "portfolio/egoists.dev.json";
 
     if (isRef) {
       activeBytes += obj.size;

@@ -1,10 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ROLES, type Role } from "@/content/worlds";
+import { Egoists } from "./egoists";
 import { identityFonts } from "./fonts";
 import { cover, uncoverWhenReady } from "./leave";
+import { Striker } from "./striker";
 import styles from "./identity.module.css";
 
 const HOLD = 2600;
@@ -26,6 +29,7 @@ export function Identity() {
   const [widths, setWidths] = useState<number[] | null>(null);
   const [hint, setHint] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [playing, setPlaying] = useState(false);
   const indexRef = useRef(0);
   const measure = useRef<HTMLSpanElement>(null);
   const slot = useRef<HTMLButtonElement>(null);
@@ -266,6 +270,8 @@ export function Identity() {
         </span>
       </h1>
 
+      <Striker className={styles.pitch} playing={playing} onEnd={() => setPlaying(false)} />
+
       <nav className={styles.hidden} aria-label="Pages">
         <ul>
           {ROLES.map((option) => (
@@ -277,6 +283,20 @@ export function Identity() {
           ))}
         </ul>
       </nav>
+
+      {/* squeeze the plushie and the striker plays */}
+      <div className={styles.egoist}>
+        <button
+          type="button"
+          className={styles.plushie}
+          data-playing={playing || undefined}
+          aria-label="Play the striker"
+          onClick={() => setPlaying(true)}
+        >
+          <Image src="/identity/plushie.webp" alt="" width={158} height={240} draggable={false} />
+        </button>
+        <Egoists className={styles.count} />
+      </div>
 
       <p className={styles.hint} data-shown={hint || undefined} aria-hidden="true">
         <span className={styles.fine}>hover the word to choose</span>
