@@ -40,7 +40,7 @@ const RECOVER = 11.04;
 const SLIDE_DRAG = 150;
 
 // short quick steps round the defender while the ball is up
-const AROUND: Gait = { cycle: 48, stance: 0.32, lift: 0.62, lean: 0.16, arms: 0.75, bob: 0.5, height: HIP - 0.8 };
+const AROUND: Gait = { cycle: 48, stance: 0.32, lift: 0.66, lean: 0.38, arms: 0.85, bob: 0.5, height: HIP - 0.8 };
 
 export type Ball = { x: number; y: number; z: number; spin: number; squash: number };
 

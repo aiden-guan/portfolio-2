@@ -116,7 +116,9 @@ export function createScene() {
     k = lerp(k, wide ? Math.max(0.78, Math.min(1, w / (fit * span))) : 0.9, away);
     const goal = ramp(t, play.netHit - 0.05, play.netHit + 0.45);
     cx = lerp(cx, wide ? cx : GOAL_X - reach(1) * 0.22, goal);
-    const back = ramp(t, play.netHit + 0.55, play.slideAt + 0.35);
+    // with the whole screen the view is narrower, so it comes back sooner,
+    // in time to see him go
+    const back = ramp(t, play.netHit + lerp(0.55, 0.2, open), play.slideAt + lerp(0.35, -0.25, open));
     cx = lerp(cx, hero.x + 4, back);
     k = lerp(k, 1.26, back);
     // with the whole screen, wider and to one side, so the men he beat are
@@ -412,6 +414,29 @@ export function createScene() {
     const t = play.slideAt + 0.18 + i * 0.05;
     const hero = play.heroAt(t);
     bursts.push({ t, x: hero.x + 2, y: 1, z: hero.z, n: 5, dir: Math.PI * 0.35, spread: 0.7, speed: 95 - i * 8, life: 0.5, paint: [tone(DIM), tone(INK, 6)], seed: 40 + i, size: 0.5 });
+  }
+  // turf off every push-off while he runs, thrown back behind him: found by
+  // watching each foot settle on the grass and leave it again
+  for (const [from, to] of [[0, play.flickAt - 0.05], [play.flickAt + 0.5, play.shotFrom], [play.contact + 0.5, play.slideAt]]) {
+    const step = 1 / 240;
+    const down = [0, 0];
+    let prev = play.heroAt(from);
+    for (let t = from + step; t < to; t += step) {
+      const p = play.heroAt(t);
+      const feet = [[p.near, prev.near, p.z - 2.2], [p.far, prev.far, p.z + 2.2]] as const;
+      feet.forEach(([foot, was, z], i) => {
+        const speed = (foot.x - was.x) / step;
+        if (Math.abs(speed) < 8 && foot.y < 4) {
+          down[i] += step;
+          return;
+        }
+        if (down[i] > 0.03 && speed > 40) {
+          bursts.push({ t, x: foot.x + Math.cos(foot.a) * 3.6, y: 0.6, z, n: 6, dir: Math.PI * 0.8, spread: 0.8, speed: 70, life: 0.38, paint: [tone(DIM), tone(INK, 7), tone(DIM, 10)], seed: t * 131 + i, size: 0.7 });
+        }
+        down[i] = 0;
+      });
+      prev = p;
+    }
   }
   const specks = (ink: Ink, v: View, t: number) => {
     for (const b of bursts) {

@@ -23,10 +23,11 @@ export type Gait = {
 // Contact is short, as it is for footballers at pace, so a planted foot is
 // never far out in front of him or behind: his hips can ride high, with the
 // knee giving a little under him rather than squatting, and the leg never
-// has to stretch further than it can.
-export const SPRINT: Gait = { cycle: 94, stance: 0.23, lift: 1, lean: 0.3, arms: 0.95, bob: 0.55, height: HIP - 1.8 };
-export const DRIBBLE: Gait = { cycle: 82, stance: 0.26, lift: 0.85, lean: 0.24, arms: 0.8, bob: 0.55, height: HIP - 1.7 };
-export const JOG: Gait = { cycle: 62, stance: 0.31, lift: 0.5, lean: 0.12, arms: 0.55, bob: 0.55, height: HIP - 1.4 };
+// has to stretch further than it can. At pace he leans right into it from
+// the hips, the knees and heels come up high and the arms drive hard.
+export const SPRINT: Gait = { cycle: 94, stance: 0.23, lift: 1.1, lean: 0.68, arms: 1.1, bob: 0.55, height: HIP - 1.8 };
+export const DRIBBLE: Gait = { cycle: 82, stance: 0.26, lift: 0.95, lean: 0.55, arms: 0.95, bob: 0.55, height: HIP - 1.7 };
+export const JOG: Gait = { cycle: 62, stance: 0.31, lift: 0.55, lean: 0.2, arms: 0.6, bob: 0.55, height: HIP - 1.4 };
 
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
@@ -235,7 +236,7 @@ export function run(x: number, phase: number, g: Gait, f = 1, z = 0, speed = 1):
   // the hip
   const arm = (offset: number) => {
     const at = 2 * Math.PI * (s + offset - 0.04);
-    return { s: -g.arms * Math.cos(at) + lean * 0.7, e: 1.45 - 0.42 * Math.cos(at - 0.5) };
+    return { s: -g.arms * Math.cos(at) + lean * 0.7, e: 1.5 - 0.36 * Math.cos(at - 0.5) };
   };
   return {
     x,
@@ -243,7 +244,9 @@ export function run(x: number, phase: number, g: Gait, f = 1, z = 0, speed = 1):
     z,
     f,
     lean,
-    head: -lean * 0.32 + 0.04,
+    // the head goes with the spine, a little less, chin out and eyes up on
+    // what is coming
+    head: -lean * 0.2 + 0.04,
     near: { x: x + f * near.x, y: near.y, a: near.a },
     far: { x: x + f * far.x, y: far.y, a: far.a },
     armNear: arm(0),
