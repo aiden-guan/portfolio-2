@@ -40,7 +40,7 @@ const RECOVER = 11.04;
 const SLIDE_DRAG = 150;
 
 // short quick steps round the defender while the ball is up
-const AROUND: Gait = { cycle: 48, stance: 0.3, plant: 0.32, lift: 0.66, lean: 0.32, arms: 0.85, bob: 0.5, height: HIP - 0.8 };
+const AROUND: Gait = { cycle: 48, stance: 0.3, plant: 0.32, lift: 0.66, lean: 0.32, arms: 0.85, balance: 1, bob: 0.5, height: HIP - 0.8 };
 
 export type Ball = { x: number; y: number; z: number; spin: number; squash: number };
 
@@ -578,23 +578,21 @@ export function createPlay() {
       // eyes down for each touch, up again to look at what is coming, and
       // up after the ball while it is over him
       if (t < F || t >= F + FLICK_TIME) for (const touch of [t1, tChip, tCushion, tSet, tNudge, tCollect]) p.head += 0.24 * Math.exp(-(((t - touch) / 0.11) ** 2));
-      // and the arms flare for balance as he takes each touch: the arm
-      // across from the foot on the ball comes through and out, the other
-      // goes back, both elbows open and the hands spread. Each flare is over
-      // within a fifth of a second, before anything posed by hand takes over
+      // and the arms fly out for balance as he takes each touch, as a
+      // footballer's do: the arm across from the foot on the ball swings
+      // forward and up nearly straight, the other back, the hands open. Each
+      // is over within a fifth of a second, before anything posed by hand
+      // takes over
       if (t < F || t >= F + FLICK_TIME) {
         for (const [touch, farFoot] of [[t1, false], [tChip, true], [tCushion, false], [tSet, false], [tNudge, true], [tCollect, false]] as const) {
-          const u = (t - touch - 0.03) / 0.2;
+          const u = (t - touch - 0.02) / 0.2;
           if (u <= -1 || u >= 1) continue;
-          const w = (1 - u * u) ** 2;
-          const flare = (a: Pose["armNear"], s: number, e: number) => ({ ...a, s: a.s + s * w, e: a.e - e * w, g: (a.g ?? 0) * (1 - 0.6 * w) });
-          if (farFoot) {
-            p.armNear = flare(p.armNear, 0.32, 0.4);
-            p.armFar = flare(p.armFar, -0.18, 0.25);
-          } else {
-            p.armFar = flare(p.armFar, 0.32, 0.4);
-            p.armNear = flare(p.armNear, -0.18, 0.25);
-          }
+          const w = 0.85 * (1 - u * u) ** 2;
+          const spread = (a: Pose["armNear"], upper: number, e: number) => ({ ...a, s: lerp(a.s, upper + p.lean, w), e: lerp(a.e, e, w), g: lerp(a.g ?? 0, 0, w) });
+          const lead = farFoot ? "armNear" : "armFar";
+          const trail = farFoot ? "armFar" : "armNear";
+          p[lead] = spread(p[lead], 1.15, 0.2);
+          p[trail] = spread(p[trail], -1.1, 0.35);
         }
       }
       p.head -= 0.42 * ramp(t, F + FLICK_TIME - 0.05, apexAt - 0.1) * (1 - ramp(t, apexAt + 0.15, tCollect - 0.15));

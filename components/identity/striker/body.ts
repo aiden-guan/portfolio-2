@@ -16,8 +16,14 @@ const HEAD_UP = 5.2;
 const HEAD_FWD = 0.55;
 /** the shoulder joint, under the base of the neck */
 const SHOULDER = 1.7;
-const UPPER = 9;
-const FORE = 7.4;
+/** Upper arm and forearm. His shoulders sit a little low for his height and
+ * his legs are a little short, so arms of a real man's length would hang too
+ * far down him: these put the elbow at his waist, the wrist at his crotch and
+ * the fingertips halfway down his thigh, where a real man's fall. */
+const UPPER = 8.1;
+const FORE = 6.7;
+/** the hands, kept in proportion to the forearm */
+const HAND = 0.94;
 /** how far apart the near and far hips sit in depth, and the shoulders */
 const SIDE = 2.2;
 const SHOULDERS = 2.8;
@@ -492,7 +498,7 @@ export function drawPlayer(ink: Ink, v: View, p: Pose, look: Look, between?: () 
     const ha = fa + (a.w ?? 0) - 0.28 * (1 - g) * Math.sin(fa);
     const du = [f * Math.sin(ha), -Math.cos(ha)];
     const dn = [f * Math.cos(ha), Math.sin(ha)];
-    const size = look.gloves ? 1.3 : 1;
+    const size = (look.gloves ? 1.3 : 1) * HAND;
     const inHand = (points: number[][]) => project(frame(points.map(([u, n]) => [u * size, n * size]), wx, wy, du[0], du[1], dn[0], dn[1]), z);
     parts.push({ pts: inHand(shut(HANDS, g)), fill: look.gloves ?? skin, line });
     const creases = shut(CREASES, g);

@@ -18,6 +18,9 @@ export type Gait = {
   lift: number;
   lean: number;
   arms: number;
+  /** how far the arms are out for balance rather than driving him on: most
+   * with the ball at his feet, least flat out with nothing to carry */
+  balance: number;
   bob: number;
   /** pelvis height, mid-stride */
   height: number;
@@ -31,9 +34,9 @@ export type Gait = {
 // footballers do flat out, a little less on the ball, where the head stays
 // up to see and the arms stay looser for balance; knees and heels come up,
 // and the arms drive hard when he is free of it.
-export const SPRINT: Gait = { cycle: 94, stance: 0.21, plant: 0.25, lift: 1.05, lean: 0.5, arms: 1.1, bob: 0.55, height: HIP - 1.8 };
-export const DRIBBLE: Gait = { cycle: 82, stance: 0.23, plant: 0.28, lift: 0.9, lean: 0.42, arms: 0.85, bob: 0.5, height: HIP - 1.7 };
-export const JOG: Gait = { cycle: 62, stance: 0.31, plant: 0.4, lift: 0.55, lean: 0.14, arms: 0.6, bob: 0.55, height: HIP - 1.4 };
+export const SPRINT: Gait = { cycle: 94, stance: 0.21, plant: 0.25, lift: 1.05, lean: 0.5, arms: 1.1, balance: 0.25, bob: 0.55, height: HIP - 1.8 };
+export const DRIBBLE: Gait = { cycle: 82, stance: 0.23, plant: 0.28, lift: 0.9, lean: 0.42, arms: 0.85, balance: 0.85, bob: 0.5, height: HIP - 1.7 };
+export const JOG: Gait = { cycle: 62, stance: 0.31, plant: 0.4, lift: 0.55, lean: 0.14, arms: 0.6, balance: 0.5, bob: 0.55, height: HIP - 1.4 };
 
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
@@ -52,6 +55,7 @@ export function mixGait(a: Gait, b: Gait, t: number): Gait {
     lift: lerp(a.lift, b.lift, t),
     lean: lerp(a.lean, b.lean, t),
     arms: lerp(a.arms, b.arms, t),
+    balance: lerp(a.balance, b.balance, t),
     bob: lerp(a.bob, b.bob, t),
     height: lerp(a.height, b.height, t),
   };
@@ -278,24 +282,30 @@ export function run(x: number, phase: number, g: Gait, f = 1, z = 0, speed = 1):
   // stride. The hands ride the wrist, each carried on a little past its
   // forearm at either end of the swing.
   //
-  // But a footballer is not a sprinter on a track: the arms are for balance
-  // as much as for pace, so no two swings are the same. Each arm wanders in
-  // how far it goes, where it carries, how bent it is and when it turns,
-  // the far arm a little wider and quieter than the near, and the hands run
-  // open and loose, the fingers a little apart, opening and closing as they
-  // go.
+  // That is how he drives when he is free. With the ball at his feet a
+  // footballer runs otherwise, as film of Son and Vinícius on their solo
+  // runs shows: the arms are out for balance, long rather than pumping. The
+  // arm going forward reaches, the elbow all but straight and the hand open
+  // somewhere between hip and chest; the arm going back folds, the hand by
+  // the hip. `balance` mixes the two.
+  //
+  // And no two swings are the same: each arm wanders in how far it goes,
+  // where it carries, how bent it is and when it turns, the far arm a little
+  // wider and quieter than the near, and the hands open and close as they go.
   const arm = (offset: number, seed: number, wide: number) => {
-    const k = g.arms * (1 - 0.1 * wide) * (1 + 0.32 * wander(phase, seed));
-    const at = 2 * Math.PI * (s - 0.47 - offset + 0.05 * wander(phase * 0.7, seed + 1));
+    const k = g.arms * (1 - 0.1 * wide) * (1 + 0.25 * wander(phase, seed));
+    const b = g.balance;
+    const at = 2 * Math.PI * (s - 0.47 - offset + 0.035 * wander(phase * 0.7, seed + 1));
+    const swing = Math.cos(at);
     const twice = 2 * at - 0.5;
-    const reach = 0.72 * k;
-    const bend = 0.4 * k;
-    const whip = 0.3 * k;
-    const upper = -0.24 - 0.2 * k + 0.12 * wide + reach * Math.cos(at) + 0.17 * wander(phase * 0.8, seed + 2);
+    const reach = lerp(0.72, 0.62, b) * k;
+    const bend = lerp(0.4 * k, -0.275, b);
+    const whip = lerp(0.3 * k, 0.12, b);
+    const upper = lerp(-0.24 - 0.2 * k, -0.16, b) + 0.12 * wide + reach * swing + 0.15 * wander(phase * 0.8, seed + 2);
     return {
       s: upper + lean,
-      e: 1.6 - 0.25 * k - 0.15 * wide + bend * Math.cos(at) + whip * Math.cos(twice) + 0.24 * wander(phase, seed + 3),
-      g: 0.22 + 0.2 * wander(phase, seed + 4),
+      e: Math.max(0.12, lerp(1.6 - 0.25 * k, 0.62, b) - 0.15 * wide + bend * swing + whip * Math.cos(twice) + 0.2 * wander(phase, seed + 3)),
+      g: lerp(0.3, 0.21 - 0.09 * swing, b) + 0.12 * wander(phase, seed + 4),
       w: (reach + bend) * WRIST.gain * Math.cos(at - WRIST.lag) + whip * WRIST2.gain * Math.cos(twice - WRIST2.lag),
     };
   };
