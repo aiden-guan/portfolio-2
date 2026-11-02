@@ -25,9 +25,10 @@ const SHOULDERS = 2.8;
 const SOCK_TOP = 0.13;
 
 export type Foot = { x: number; y: number; a: number };
-/** shoulder swing from hanging (forward positive), elbow bend, and how far
- * the hand is closed, 0 open to 1 a fist */
-export type Arm = { s: number; e: number; g?: number };
+/** shoulder swing from hanging (forward positive), elbow bend, how far the
+ * hand is closed (0 open, a half loosely, 1 a fist) and how far it is turned
+ * at the wrist, toward the thumb positive */
+export type Arm = { s: number; e: number; g?: number; w?: number };
 
 export type Pose = {
   /** pelvis, in the world */
@@ -388,10 +389,28 @@ const SPROUTS = [
 ];
 const CROP = [[2.5, 2.35], [1.15, 3.95], [-1.25, 4.1], [-3.15, 2.85], [-3.7, 0.65], [-3.4, -1.5], [-2.3, -1], [-1.4, 1], [0.5, 1.85]];
 const BOOT = [[-1.95, 0.7], [-1.85, -0.95], [-1.2, -1.5], [3.5, -1.5], [5.35, -1.05], [5.15, -0.1], [3, 0.75], [1.1, 1.55], [-0.65, 1.95]];
-// a hand down the line of the forearm, thumb side up: open with the fingers
-// a little curled, and the same points closed into a fist
-const OPEN = [[0, 0.62], [0.85, 0.82], [1.75, 1.2], [1.95, 0.78], [2.6, 0.72], [3.55, 0.52], [4.25, 0.12], [4.15, -0.32], [3.4, -0.62], [2.4, -0.78], [1.1, -0.74], [0, -0.6]];
-const FIST = [[0, 0.62], [0.75, 0.86], [1.5, 1.15], [1.95, 0.98], [2.4, 0.9], [2.75, 0.62], [2.92, 0.12], [2.85, -0.4], [2.5, -0.78], [1.8, -0.92], [0.9, -0.82], [0, -0.6]];
+// a hand from the wrist, along the line of the forearm and out toward the
+// thumb, seen across its back: open, the fingers together and a little
+// curled; loosely shut, as a runner carries it, the fingers curled in and
+// the thumb lying along the first of them; and clenched. The same points in
+// each, so a hand closes by degrees. Then the line under the thumb and the
+// lines between the fingers, likewise
+const HANDS = [
+  [[-0.3, 0.66], [0.6, 1], [1.45, 1.4], [2.3, 1.6], [3.05, 1.52], [2.9, 1.1], [3.95, 1], [4.65, 0.68], [4.55, 0.4], [4.95, 0.12], [4.6, -0.15], [4.78, -0.4], [4.22, -0.62], [4.3, -0.82], [3.6, -1.02], [2.65, -1.12], [1.7, -1.1], [0.9, -0.96], [0.32, -0.76], [-0.3, -0.66]],
+  [[-0.3, 0.66], [0.6, 0.98], [1.4, 1.36], [2.25, 1.48], [2.95, 1.38], [3.22, 1.1], [3.42, 0.78], [3.5, 0.42], [3.42, 0.2], [3.44, -0.02], [3.3, -0.24], [3.3, -0.45], [3.13, -0.66], [3.07, -0.85], [2.68, -1.1], [2.1, -1.15], [1.5, -1.1], [0.85, -0.95], [0.3, -0.76], [-0.3, -0.66]],
+  [[-0.3, 0.66], [0.55, 0.98], [1.3, 1.3], [2.1, 1.42], [2.75, 1.34], [3, 1.06], [3.16, 0.74], [3.22, 0.38], [3.15, 0.17], [3.18, -0.04], [3.06, -0.25], [3.06, -0.45], [2.9, -0.64], [2.86, -0.82], [2.52, -1.07], [2, -1.15], [1.42, -1.1], [0.8, -0.95], [0.28, -0.76], [-0.3, -0.66]],
+];
+const CREASES = [
+  [[1, 0.76], [2.8, 1.1], [3, 0.4], [4.55, 0.4], [3, -0.15], [4.62, -0.15], [2.9, -0.62], [4.2, -0.62]],
+  [[0.95, 0.74], [2.85, 1.06], [2.75, 0.22], [3.38, 0.22], [2.65, -0.24], [3.25, -0.24], [2.5, -0.68], [3.02, -0.68]],
+  [[0.9, 0.74], [2.65, 1.04], [2.6, 0.18], [3.12, 0.18], [2.5, -0.26], [3, -0.26], [2.36, -0.66], [2.8, -0.66]],
+];
+/** a hand's points `g` of the way from open to clenched */
+const shut = (shapes: number[][][], g: number) => {
+  const [a, b] = g < 0.5 ? [shapes[0], shapes[1]] : [shapes[1], shapes[2]];
+  const k = g < 0.5 ? g * 2 : g * 2 - 1;
+  return a.map(([u, n], i) => [u + (b[i][0] - u) * k, n + (b[i][1] - n) * k]);
+};
 
 type Part = { pts: number[]; fill: Paint; line: Paint; shade?: number[]; tone?: Paint };
 type Mark = { pts: number[]; paint: Paint; line?: Paint; r?: number };
@@ -453,7 +472,7 @@ export function drawPlayer(ink: Ink, v: View, p: Pose, look: Look, between?: () 
   };
 
   // —— an arm: in a fitted sleeve to the wrist, or bare under a short one,
-  // and a hand that is open while he runs and closes when he roars
+  // and a hand, loosely shut while he runs, that opens and clenches
   const arm = (a: Arm, z: number, far: boolean) => {
     const parts: Part[] = [];
     const marks: Mark[] = [];
@@ -467,12 +486,16 @@ export function drawPlayer(ink: Ink, v: View, p: Pose, look: Look, between?: () 
     const shade = far || long ? 0 : look.shade;
     parts.push({ pts: project(limb(sx, sy, ex, ey, UPPER_SHAPE, f), z), fill, line: edge, shade: shade ? project(limbShade(sx, sy, ex, ey, UPPER_SHAPE, f, 0.45, 1), z) : undefined, tone: shade });
     parts.push({ pts: project(limb(ex, ey, wx, wy, FORE_SHAPE, f), z), fill, line: edge, shade: shade ? project(limbShade(ex, ey, wx, wy, FORE_SHAPE, f), z) : undefined, tone: shade });
-    const du = [f * Math.sin(fa), -Math.cos(fa)];
-    const dn = [f * Math.cos(fa), Math.sin(fa)];
+    // the hand, turned at the wrist
+    const ha = fa + (a.w ?? 0);
+    const du = [f * Math.sin(ha), -Math.cos(ha)];
+    const dn = [f * Math.cos(ha), Math.sin(ha)];
     const g = Math.max(0, Math.min(1, a.g ?? 0));
     const size = look.gloves ? 1.3 : 1;
-    const hand = OPEN.map(([a1, b1], i) => [(a1 + (FIST[i][0] - a1) * g) * size, (b1 + (FIST[i][1] - b1) * g) * size]);
-    parts.push({ pts: project(frame(hand, wx - du[0] * 0.3, wy - du[1] * 0.3, du[0], du[1], dn[0], dn[1]), z), fill: look.gloves ?? skin, line });
+    const inHand = (points: number[][]) => project(frame(points.map(([u, n]) => [u * size, n * size]), wx, wy, du[0], du[1], dn[0], dn[1]), z);
+    parts.push({ pts: inHand(shut(HANDS, g)), fill: look.gloves ?? skin, line });
+    const creases = shut(CREASES, g);
+    for (let i = 0; i < creases.length; i += 2) marks.push({ pts: inHand([creases[i], creases[i + 1]]), paint: far ? look.farLine : look.farSkin, r: 0.07 });
     if (!long) parts.push({ pts: project(limb(sx, sy, ex, ey, UPPER_SHAPE, f, 0.45, 0, 0.45), z), fill: far ? look.farSleeve : look.sleeve, line: trim });
     if (long && look.stripes) {
       // the lines wind round the arm: across the upper arm from the front of

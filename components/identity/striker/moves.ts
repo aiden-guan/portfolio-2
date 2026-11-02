@@ -93,14 +93,14 @@ export function curve(times: number[], values: number[], enter = 0, leave = 0) {
 
 // —— poses as flat channels, for easing and blending
 
-const CHANNELS = 19;
+const CHANNELS = 21;
 
 export function flat(p: Pose) {
   return [
     p.x, p.y, p.z, p.lean, p.head,
     p.near.x, p.near.y, p.near.a, p.far.x, p.far.y, p.far.a,
     p.armNear.s, p.armNear.e, p.armFar.s, p.armFar.e,
-    p.face, p.hair, p.armNear.g ?? 0, p.armFar.g ?? 0,
+    p.face, p.hair, p.armNear.g ?? 0, p.armFar.g ?? 0, p.armNear.w ?? 0, p.armFar.w ?? 0,
   ];
 }
 
@@ -109,8 +109,8 @@ export function unflat(c: number[], f: number): Pose {
     x: c[0], y: c[1], z: c[2], f, lean: c[3], head: c[4],
     near: { x: c[5], y: c[6], a: c[7] },
     far: { x: c[8], y: c[9], a: c[10] },
-    armNear: { s: c[11], e: c[12], g: c[17] },
-    armFar: { s: c[13], e: c[14], g: c[18] },
+    armNear: { s: c[11], e: c[12], g: c[17], w: c[19] },
+    armFar: { s: c[13], e: c[14], g: c[18], w: c[20] },
     face: c[15], hair: c[16],
   };
 }
@@ -127,12 +127,13 @@ export type Key = { t: number; p: Partial<FlatPose> };
 type FlatPose = {
   x: number; y: number; z: number; lean: number; head: number;
   nx: number; ny: number; na: number; fx: number; fy: number; fa: number;
-  ns: number; ne: number; fs: number; fe: number; face: number; hair: number; ng: number; fg: number;
+  ns: number; ne: number; fs: number; fe: number; face: number; hair: number; ng: number; fg: number; nw: number; fw: number;
 };
-const NAMES: (keyof FlatPose)[] = ["x", "y", "z", "lean", "head", "nx", "ny", "na", "fx", "fy", "fa", "ns", "ne", "fs", "fe", "face", "hair", "ng", "fg"];
+const NAMES: (keyof FlatPose)[] = ["x", "y", "z", "lean", "head", "nx", "ny", "na", "fx", "fy", "fa", "ns", "ne", "fs", "fe", "face", "hair", "ng", "fg", "nw", "fw"];
 
 /** A hand-posed move. Each key may leave channels out, and they carry over
- * from the key before. Positions are relative to (ox, 0). `before` and
+ * from the key before, all but the wrists, which nobody holds bent: left
+ * out, they hang straight. Positions are relative to (ox, 0). `before` and
  * `after`, poses a moment either side of it, let it pick up the motion it
  * takes over from and hand its own on, instead of starting and ending still. */
 export function move(keys: Key[], f: number, before?: Key, after?: Key) {
@@ -141,7 +142,7 @@ export function move(keys: Key[], f: number, before?: Key, after?: Key) {
   const filled: number[][] = [];
   let last: number[] = new Array(CHANNELS).fill(0);
   for (const key of keys) {
-    const row = NAMES.map((name, i) => (key.p[name] ?? last[i]));
+    const row = NAMES.map((name, i) => key.p[name] ?? (name === "nw" || name === "fw" ? 0 : last[i]));
     filled.push(row);
     last = row;
   }
@@ -223,6 +224,17 @@ function swingCurves(values: number[], enter: number, leave: number) {
   return c;
 }
 
+/** A hand on a relaxed wrist is a weight on a spring that the forearm swings
+ * about: how far it carries on past the forearm, and how late, for a swing
+ * at `r` of the wrist's own rate. The stride is about a third of it, so the
+ * hand mostly keeps up, and overshoots most on the elbow's quicker beat. */
+function flop(r: number) {
+  const damping = 0.5;
+  return { gain: (r * r) / Math.hypot(1 - r * r, 2 * damping * r), lag: Math.atan2(2 * damping * r, 1 - r * r) };
+}
+const WRIST = flop(0.32);
+const WRIST2 = flop(0.64);
+
 /** The whole body at a point in its running cycle: `phase` counts cycles,
  * and at whole numbers the near foot is touching down. */
 export function run(x: number, phase: number, g: Gait, f = 1, z = 0, speed = 1): Pose {
@@ -236,14 +248,31 @@ export function run(x: number, phase: number, g: Gait, f = 1, z = 0, speed = 1):
   const sink = Math.cos(2 * Math.PI * (step - g.stance));
   const y = g.height - g.bob * sink;
   const lean = g.lean + 0.03 * sink;
-  // the arms drive against the legs, a beat behind them, swinging about
-  // straight down rather than about the leaning trunk, so they punch up in
-  // front instead of flinging out behind. The elbow follows the shoulder:
-  // it closes as the hand comes up in front and opens as it goes back past
-  // the hip
+  // the arms, measured off film of a man running flat out. Each swings
+  // against the leg on its own side, about straight down rather than about
+  // the leaning trunk and further behind him than in front: furthest
+  // forward just before the other foot lands, furthest back just before its
+  // own does. The elbow is never set at one angle. The forearm trails the
+  // upper arm and whips round on it, so the elbow closes as the hand comes
+  // up in front, opens as the arm drives down past the hip, closes again
+  // behind as the upper arm stops and the forearm swings on, and opens a
+  // little as the arm starts forward: twice bent, twice straightened a
+  // stride. The hands are loosely shut and ride the wrist, each carried on
+  // a little past its forearm at either end of the swing.
   const arm = (offset: number) => {
-    const at = 2 * Math.PI * (s + offset - 0.04);
-    return { s: -g.arms * Math.cos(at) + lean * 0.7, e: 1.5 - 0.36 * Math.cos(at - 0.5) };
+    const k = g.arms;
+    const at = 2 * Math.PI * (s - 0.47 - offset);
+    const twice = 2 * at - 0.5;
+    const reach = 0.72 * k;
+    const bend = 0.4 * k;
+    const whip = 0.3 * k;
+    const upper = -0.12 - 0.2 * k + reach * Math.cos(at);
+    return {
+      s: upper + lean,
+      e: 1.6 - 0.25 * k + bend * Math.cos(at) + whip * Math.cos(twice),
+      g: 0.5,
+      w: (reach + bend) * WRIST.gain * Math.cos(at - WRIST.lag) + whip * WRIST2.gain * Math.cos(twice - WRIST2.lag),
+    };
   };
   return {
     x,
