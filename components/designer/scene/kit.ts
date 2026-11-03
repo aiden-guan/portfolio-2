@@ -126,24 +126,6 @@ export function agent(light: number) {
   return v;
 }
 
-// Rally's player: a pale blue capsule in sunglasses.
-export function capsule() {
-  const v = new Voxels(V, 0.03);
-  const blue = 0x8fc0f2, deep = 0x5b93d6, face = 0xf7f9fc, shades = 0x15181d;
-  v.blob(0, 4, 0, 1.7, 4.2, 1.7, (x, y) => (y < 2 ? deep : blue));
-  v.box(-1, 5, 1, 1, 6, 1, face);
-  v.box(-1, 6, 2, 1, 6, 2, shades);
-  v.set(0, 5, 2, 0x262626);
-  return v;
-}
-
-export function paddle() {
-  const v = new Voxels(V * 0.7, 0.02);
-  v.blob(0, 3, 0, 1.6, 1.6, 0.5, 0xe5484d);
-  v.box(0, 0, 0, 0, 1, 0, 0x8a5a3c);
-  return v;
-}
-
 export function corgi() {
   const v = new Voxels(V, 0.04);
   const fur = 0xdf8a3c, deep = 0xb8692c, white = 0xf7f1e6, nose = 0x1d1a19;
@@ -199,22 +181,60 @@ export function wing() {
   return v;
 }
 
-export function koi(seed: number) {
-  const v = new Voxels(V * 0.9, 0.02);
-  const orange = 0xf2782d, white = 0xf6efe4, blue = 0x2e5ed6, light = 0xf7b07a;
-  const paint = (x: number, y: number, z: number) => {
-    const r = hash3(x * 3 + seed, z, seed * 7);
-    if (r < 0.22) return blue;
-    if (r < 0.45) return white;
-    return r < 0.55 ? light : orange;
+export type Variety = "kohaku" | "sanke" | "showa" | "tancho" | "ogon" | "orenji" | "asagi" | "chagoi";
+
+/** A koi about 70 cm long, head toward +x, in 4 cm voxels: a broad, round
+ * back tapering to a narrow wrist and a forked tail, pectoral fins behind
+ * the head and a low dorsal ridge, in the colours of its variety. Centred on
+ * its middle, its belly on y = 0. */
+export function koi(variety: Variety, seed: number) {
+  const v = new Voxels(0.04, 0.025);
+  const WHITE = 0xfbf8f1, RED = 0xf2552a, DEEP = 0xd8401f, BLACK = 0x1c1b20;
+  // smooth patches along the back, different on every fish
+  const wave = (x: number, z: number, salt: number) =>
+    Math.sin(x * 0.62 + seed * 1.7 + salt) + 0.55 * Math.sin(x * 1.45 + z * 1.1 + seed * 2.9 + salt * 2) + 0.25 * Math.sin(z * 1.7 + seed);
+  const coat = (x: number, y: number, z: number): number => {
+    const top = y >= 1;
+    const side = Math.abs(z) >= 2;
+    switch (variety) {
+      case "kohaku":
+        if (x >= 8) return WHITE;
+        return (x >= 5 && x <= 7 && !side) || (wave(x, z, 0) > 0.3 && !(side && y === 0)) ? (hash3(x, y, z + seed) > 0.85 ? DEEP : RED) : WHITE;
+      case "sanke":
+        if (top && wave(x, z, 3) > 1.0) return BLACK;
+        return (x >= 5 && x <= 7 && top) || (wave(x, z, 0) > 0.4 && !side) ? RED : WHITE;
+      case "showa":
+        if (x >= 8) return WHITE;
+        if (wave(x, z, 5) > 0.35 || (side && x < 5)) return BLACK;
+        return wave(x, z, 1) > 0.2 ? RED : WHITE;
+      case "tancho":
+        return x >= 5 && x <= 6 && top && Math.abs(z) <= 1 ? RED : WHITE;
+      case "ogon":
+        return hash3(x, y, z + seed) > 0.7 ? 0xffdf7e : 0xf5bf3c;
+      case "orenji":
+        return hash3(x, y, z + seed) > 0.7 ? 0xffa45a : 0xf5822e;
+      case "asagi":
+        if (x >= 7) return 0xe3e9f0;
+        if (side || (y === 0 && x >= 4)) return 0xf07a3a;
+        return (x + z) % 2 ? 0x5f86cf : 0x7fa1df;
+      case "chagoi":
+        return hash3(x, y, z + seed) > 0.7 ? 0xc08b52 : 0xa0693a;
+    }
   };
-  v.box(0, 0, 0, 4, 0, 1, paint);
-  v.box(5, 0, 0, 5, 0, 1, orange);
-  v.box(-1, 0, 0, -1, 0, 1, light);
-  v.set(-2, 0, -1, light);
-  v.set(-2, 0, 2, light);
-  v.set(2, 0, -1, light);
-  v.set(2, 0, 2, light);
+  // fins: the body's colour washed pale, as if you could see through them
+  const fin = (x: number) => mix(coat(x, 1, 0), 0xf7f1e6, 0.6);
+  // half-widths from the tip of the tail (x = -9) to the snout (x = 8)
+  const half = [3, 2, 1, 0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 0];
+  for (let x = -9; x <= 8; x += 1) {
+    const hw = half[x + 9];
+    for (let z = -hw; z <= hw; z += 1) {
+      if (x === -9 && Math.abs(z) < 2) continue; // the fork
+      v.set(x, 0, z, x <= -7 ? fin(x) : coat(x, 0, z));
+      if (x >= -3 && x <= 6 && Math.abs(z) <= 1) v.set(x, 1, z, coat(x, 1, z));
+    }
+  }
+  v.box(-1, 2, 0, 3, 2, 0, (x) => mix(coat(x, 1, 0), 0x1c1b20, 0.18));
+  for (const z of [-3, 3]) for (const x of [3, 4]) v.set(x, 0, z, fin(x));
   return v;
 }
 
