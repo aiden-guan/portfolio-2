@@ -244,7 +244,7 @@ export function dorm({ night = false }: { night?: boolean } = {}) {
     { id: "window", label: "Window", at: at(42, 18, 1), reach: 1.7 },
     { id: "photo", label: "Photo", at: at(26, 11, 2), reach: 1.4 },
     { id: "door", label: "Door", at: at(1, 10, 54.5), reach: 1.3 },
-    { id: "pennant", label: "Pennant", at: at(1, 24, 13), reach: 1.4 },
+    { id: "pennant", label: "Pennant", at: at(1, 24, 13), reach: 1.9 },
     { id: "fridge", label: "Mini fridge", at: at(6, 6, 42), reach: 1.2 },
     { id: "roommate", label: "Miles’s bed", at: at(76, 6, 24), reach: 1.4 },
     { id: "board", label: "Corkboard", at: at(20, 24, 1), reach: 1.5 },

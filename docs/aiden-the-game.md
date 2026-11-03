@@ -137,7 +137,7 @@ A project that isn't worked on doesn't wither; it just waits, the way side proje
 | :--- | :--- | :--- | :--- |
 | Walk | WASD / arrows | Click the floor (walks the shortest way round furniture) | Tap the floor |
 | Use | E / Space / Enter | Click the thing (walks to it first) | Tap the thing, or the prompt above it |
-| Talk on | E / Space / Enter | Click | Tap |
+| Talk on | E / Space / Enter (hold to run on through the lines) | Click | Tap |
 | Pause | Esc | The pause button | The pause button |
 
 Gamepad support is planned for Milestone 5 (the stick walks, A uses, Start pauses).
@@ -181,7 +181,7 @@ The in-game phone (P) has the apps a day needs:
 - **Stickers**: hackathon swag, stuck on your laptop lid, visible whenever you're at a desk.
 
 ### Saving
-**Built:** a save at every act, in `localStorage` (`aiden-game-save`: the chapter, the act, the chapters finished). Continue on the title screen picks up at the start of the last act; a finished chapter moves Continue on to the next one.
+**Built:** a save at every act, in `localStorage` (`aiden-game-save`: the chapter, the act, the chapters finished), checked on load so a broken or old save can't stop the title screen. Continue on the title screen picks up at the start of the last act; a finished chapter moves Continue on to the next one. It only ever moves forward: replaying an earlier chapter from the Chapters screen keeps your place, and New game asks once before starting over.
 **Planned:** three slots, and the day, time, wallet, skills, hearts, island state and collections once those systems exist.
 
 ---
@@ -335,7 +335,7 @@ The game is about a real person, and the people around Aiden are real too. Rules
 ## 11. Interface
 
 - **HUD:** day and time with the objective under it (top left), and under that the chapter's bar (revenue against $45,000 in Chapter 1, *Midterm prep* in Chapters 3–4); the chapter's counters (members, John's and Jerry's hearts, *1st places*, the *Waitlist*), HANDSOME and pause (top right); a prompt above whatever's in reach (*E · Laptop*); an orange diamond over wherever the objective is. Wingman has a HUD of its own.
-- **Dialogue:** a paper box at the bottom, portrait on the left, name tag (cobalt for Aiden, orange for Phoebe, ink for objects), text typed at ~45 characters a second with a voice blip per speaker; press to finish, press again to go on.
+- **Dialogue:** a paper box at the bottom, portrait on the left, name tag (cobalt for Aiden, orange for Phoebe, ink for objects), text typed at ~45 characters a second with a voice blip per speaker; press to finish, press again to go on, hold to run on through a long exchange. Answers take a beat before they'll accept a press, so mashing through lines never picks one unseen, and a click beside the box never picks one at all. Esc pauses anywhere, a screen included: its clock stops and so does the music.
 - **Menus:** title (Continue, New game, Chapters, Sound, Back to the island), pause (Resume, Sound, Title screen, Back to the island).
 - **Screens:** the laptop and phone moments open over the scene as their own interfaces: a server being created, chats and DMs (*Chatter*, *Instaglam*), the drop alert, a reel, a revenue chart, problem sets and a midterm sheet, a video call, an email, application forms, alai on an iPad. A new person gets an intro card with their name and a line; a big moment gets an impact frame (*1ST PLACE*, *91*, *CO-FOUNDERS*).
 - **The phone:** slides up from the bottom; apps as big pixel tiles.

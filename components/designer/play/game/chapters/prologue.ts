@@ -39,29 +39,37 @@ export const prologue: Chapter = {
     ctx.sound()?.select();
     await ctx.wait(950);
     stage.wakePhoebe();
-    await ctx.say([say("aiden", "7:00 AM. Saturday."), say("aiden", "Who’s calling this early…")]);
+    await ctx.say([say("aiden", "7:00 AM. Saturday."), say("aiden", "Nobody texts this early unless something’s on fire.")]);
     ctx.go("phone");
   },
   use: async (id, ctx) => {
     const step = ctx.step();
     switch (id) {
       case "phone":
-        if (step !== "phone") return ctx.say([say("aiden", "Six group chats, one question. Still a business.")]);
+        if (step !== "phone") return ctx.say([say("aiden", "Six group chats, one question. That’s not spam. That’s a market.")]);
         room(ctx).setBuzz(false);
         ctx.bubble("phone", "");
         await ctx.say([
-          say("phone", "Reminder: the drop is tomorrow, 7:00 AM."),
-          say("phone", "14 new messages in 6 group chats. All of them: “what time does it go live??”"),
-          say("aiden", "Everyone wants the shoe. Nobody knows when it actually drops."),
-          say("aiden", "…I could tell them. For a small monthly fee."),
+          say("phone", "6 group chats · 14 new messages"),
+          say("phone", "“WHAT TIME DOES IT DROP” · “7 or 10??” · “my cousin says midnight”"),
+          say("aiden", "The drop’s tomorrow. Thousands of people want the same shoe."),
+          say("aiden", "And not one of them knows when it actually goes live."),
         ]);
+        {
+          const pick = await ctx.choose(say("aiden", "…I could tell them."), [
+            { label: "For a small monthly fee.", who: "aiden" },
+            { label: "For free. Out of the goodness of my heart.", who: "aiden" },
+          ]);
+          if (pick === 1) await ctx.say([say("phoebe", "*stares*"), say("aiden", "…Kidding. Small monthly fee.")]);
+          else await ctx.say([say("aiden", "Very small. Basically a snack a month.")]);
+        }
         return ctx.go("shoebox");
       case "shoebox":
-        if (step === "phone" || step === "wake") return ctx.say([say("aiden", "My savings. Not touching them without a plan.")]);
+        if (step === "phone" || step === "wake") return ctx.say([say("aiden", "My savings. Rule one: no plan, no spending.")]);
         if (step !== "shoebox") return ctx.say([say("aiden", "Empty now. The money’s working.")]);
         await ctx.say([say("note", "A shoebox, the kind the good pairs come in. Inside: five hundred dollars.")]);
         ctx.earn(500);
-        await ctx.say([say("aiden", "Everything I’ve saved."), say("aiden", "Seed round: closed. Lead investor: me.")]);
+        await ctx.say([say("aiden", "Every dollar I’ve saved. All five hundred of them."), say("aiden", "Seed round: closed. Lead investor: me.")]);
         return ctx.go("laptop");
       case "laptop":
         if (step === "phone" || step === "wake") return ctx.say([say("aiden", "Not yet. I need an idea first.")]);
@@ -69,20 +77,20 @@ export const prologue: Chapter = {
         if (step !== "laptop") return ctx.say([say("aiden", "Members: one. Growth since launch: infinite, technically.")]);
         await ctx.open({ kind: "create", name: "AGNotify" });
         await ctx.say([
-          say("aiden", "Release alerts before anyone else. Where to cop. A group chat that never sleeps."),
-          say("aiden", "If ten people pay for it, it’s a business."),
+          say("aiden", "Drop times before anyone else. Where to cop. A group chat that never sleeps."),
+          say("aiden", "If ten strangers pay for it, it’s a business. If they don’t, it’s a group chat."),
         ]);
         return ctx.go("door");
       case "door":
         if (step !== "door") return ctx.say([say("aiden", "Can’t leave yet. There’s a business to start.")]);
-        await ctx.say([say("aiden", "Okay. Ten members by tonight.")]);
+        await ctx.say([say("aiden", "Ten members by tonight."), say("aiden", "How hard can it be?")]);
         return ctx.end();
       case "phoebe":
         ctx.stage().cheer();
         return ctx.say(
           step === "door" || step === "done"
             ? [say("phoebe", "*wag wag wag*"), say("aiden", "First believer. Zero dollars invested. Best investor I’ll ever have.")]
-            : [say("phoebe", "*wag*"), say("aiden", "Morning, Phoebe. Big day.")],
+            : [say("phoebe", "*wag*"), say("aiden", "Morning, Phoebe. Today we start a company. You’re on payroll.")],
         );
       default:
         return flavour(id, ctx);

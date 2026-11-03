@@ -95,8 +95,8 @@ export const chapter4: Chapter = {
   hud: { money: false, ready: "Midterm 2 prep", members: "Waitlist" },
   acts: [
     { stats: { money: 0, ready: 30, members: 240 }, run: roundTwo },
-    { stats: { money: 0, ready: 100, members: 620 }, run: alpha },
-    { stats: { money: 0, ready: 100, members: 900 }, run: building },
+    { stats: { money: 0, ready: 100, members: 480 }, run: alpha },
+    { stats: { money: 0, ready: 100, members: 480 }, run: building },
   ],
   objectives: {
     talkAllen: "Talk to Allen",
@@ -343,6 +343,7 @@ export const chapter4: Chapter = {
           return ctx.go("seat");
         }
         if (step === "tester") return chapter4.use("jun", ctx);
+        if (step === "seat" || step === "seat2") return ctx.say([say("aiden", "Not until pencils are down.")]);
         return ctx.say([say("aiden", "Hallway. Someone’s microwaving popcorn at 1 AM again.")]);
 
       case "jun":
@@ -357,6 +358,10 @@ export const chapter4: Chapter = {
             say("note", "Jun writes. He stops halfway down the page."),
             say("alai", "Check your second line. What happens to the minus sign when you distribute?"),
             say("jun", "…Oh."),
+          ]);
+          ctx.sound()?.sparkle();
+          await ctx.open({ kind: "impact", text: "OH.", sub: "alai’s first real student" });
+          await ctx.say([
             say("jun", "OH."),
             say("aiden", "That. That “oh.” That’s the whole company."),
             say("jun", "It’s alright, I guess."),
@@ -407,6 +412,7 @@ export const chapter4: Chapter = {
       case "miles":
         return ctx.say([say("miles", "What do you call a co-founder? …Allen. That’s his name. I don’t have a joke.")]);
       case "board":
+        if (step === "seat" || step === "seat2") return ctx.say([say("aiden", "The clock. It doesn’t care that I’m not sick this time.")]);
         return ctx.say([say("aiden", "“3 for 3.” Under it, in Allen’s writing: “now do it for real.”")]);
       case "bed":
         return ctx.say([say("aiden", "Later. Much later.")]);
@@ -416,7 +422,11 @@ export const chapter4: Chapter = {
       case "flyer":
         return ctx.say([say("aiden", "Closed. Everything’s closed but us.")]);
       case "lectern":
-        return ctx.say([say("proctor", "Back to your seat, please.")]);
+      case "proctor":
+        return ctx.say([say("proctor", "Back to your seat, please. Eyes on your own paper.")]);
+      case "bench":
+        if (step === "bench") return chapter4.use("allen", ctx);
+        return ctx.say([say("aiden", "Good bench. We should put a plaque on it. “Where alai didn’t give up.”")]);
       default:
         return ctx.say([say("aiden", "Hm.")]);
     }

@@ -1,6 +1,6 @@
 import { Scene, Vector3 } from "three";
 import { animate, animateDog, dog, LOOKS, person, type Look, type Pose, type Rig } from "./people";
-import type { Collider, Room, Spot } from "./rooms/common";
+import { disposeAll, type Collider, type Room, type Spot } from "./rooms/common";
 
 // A room, played: Aiden walking wherever the keys or a click on the floor
 // say, Phoebe close behind when she's there, and the other people in the
@@ -634,10 +634,7 @@ export function createStage(
     },
     dispose: () => {
       room.dispose();
-      scene.traverse((o) => {
-        const m = o as { isMesh?: boolean; geometry?: { dispose: () => void } };
-        if (m.isMesh) m.geometry?.dispose();
-      });
+      disposeAll(scene);
     },
   };
 }

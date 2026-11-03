@@ -1169,6 +1169,9 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
       scene.traverse((o) => {
         const m = o as Mesh;
         if (m.isMesh && ![heartBig, heartSmall, dustSand, dustStone, phoneGeom].includes(m.geometry)) m.geometry.dispose();
+        // and the sun's shadow map
+        const light = o as Mesh & { isLight?: boolean; shadow?: { map?: { dispose: () => void } | null } };
+        if (light.isLight) light.shadow?.map?.dispose();
       });
       for (const list of pools.values()) for (const b of list) b.holder.traverse((o) => (o as Mesh).isMesh && (o as Mesh).geometry.dispose());
       heartBig.dispose();

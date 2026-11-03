@@ -14,7 +14,6 @@ import { say, type Ctx } from "./types";
 export const DATA_MIDTERM_1: Question[] = [
   { q: "tbl.group('major') returns a table with…", options: ["one row per student", "one row per major, and a count", "only the first major", "the same table, sorted"], answer: 1 },
   { q: "make_array(1, 2, 3) * 2", options: ["array([1, 2, 3, 1, 2, 3])", "array([2, 4, 6])", "12", "An error"], answer: 1 },
-  { q: "tbl.where('age', are.above(20)).num_rows counts…", options: ["every row", "the rows where age is over 20", "the columns", "the ages, added up"], answer: 1 },
   { q: "A p-value of 0.01 means:", options: ["The null is 1% likely to be true", "If the null were true, data this extreme would turn up about 1% of the time", "The effect is 1% big", "Reject the alternative"], answer: 1 },
   { q: "Running a simulation more times makes the empirical distribution…", options: ["more random", "closer to the true probability distribution", "wider", "exactly normal"], answer: 1 },
 ];
@@ -23,7 +22,6 @@ export const MATH_MIDTERM_1: Question[] = [
   { q: "∫ x·eˣ dx", options: ["x·eˣ + C", "x²eˣ / 2 + C", "x·eˣ − eˣ + C", "eˣ + C"], answer: 2 },
   { q: "∫ from 1 to ∞ of 1/x² dx", options: ["∞", "1", "0", "1/2"], answer: 1 },
   { q: "∫ 1 / (1 + x²) dx", options: ["ln(1 + x²) + C", "arctan x + C", "1/x + C", "x + C"], answer: 1 },
-  { q: "∫ sin x · cos x dx", options: ["sin²x / 2 + C", "cos x + C", "sin x · cos x + C", "−sin x + C"], answer: 0 },
   { q: "Which one diverges?", options: ["∫ from 1 to ∞ of 1/x² dx", "∫ from 1 to ∞ of 1/x dx", "∫ from 0 to 1 of x dx", "∫ from 0 to 1 of eˣ dx"], answer: 1 },
 ];
 

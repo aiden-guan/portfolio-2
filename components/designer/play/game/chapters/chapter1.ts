@@ -46,7 +46,7 @@ async function scrappy(ctx: Ctx) {
     clock: 21 * 60 + 40,
   });
   ctx.go("check");
-  await ctx.say([say("aiden", "AGNotify’s been up a week."), say("aiden", "Let’s see how it’s doing.")]);
+  await ctx.say([say("aiden", "AGNotify: one week old."), say("aiden", "Time to check on the empire.")]);
 }
 
 async function comeback(ctx: Ctx) {
@@ -61,7 +61,7 @@ async function comeback(ctx: Ctx) {
     clock: 16 * 60 + 10,
   });
   ctx.go("sources");
-  await ctx.say([say("aiden", "No more copying. If I want information, I need my own.")]);
+  await ctx.say([say("aiden", "Two weeks since the ban. Twenty-eight members who didn’t leave."), say("aiden", "No more copying. I need information nobody else has.")]);
 }
 
 async function wordOfMouth(ctx: Ctx) {
@@ -138,16 +138,16 @@ export const chapter1: Chapter = {
             ],
           });
           await ctx.say([
-            say("aiden", "Four members. Zero information."),
-            say("aiden", "I don’t actually know when anything drops."),
-            say("aiden", "…But the big servers do."),
+            say("aiden", "Four members. One of them is me. One of them thinks we’re dead."),
+            say("aiden", "He’s not wrong. I don’t actually know when anything drops."),
+            say("aiden", "…The big servers do, though."),
           ]);
           return ctx.go("copy");
         }
         if (step === "copy") {
           const copied = (await ctx.open<number>({ kind: "copy" })) ?? 0;
           ctx.stat("members", 4 + Math.max(4, copied) * 3);
-          await ctx.say([say("aiden", "Copy. Paste. Members."), say("aiden", "Business is easy.")]);
+          await ctx.say([say("aiden", "Copy. Paste. Members."), say("aiden", "Wow. Business is easy.")]);
           bedroom(ctx).setBuzz(true);
           ctx.bubble("phone", "bzzt bzzt", 0);
           return ctx.go("dm");
@@ -176,7 +176,7 @@ export const chapter1: Chapter = {
           ]);
           return ctx.go("celebrate");
         }
-        return ctx.say([say("aiden", "The server runs itself now. Mostly.")]);
+        return ctx.say([say("aiden", "The server runs itself now. Mostly. Sometimes it asks me things at 3 AM.")]);
 
       case "phone":
         if (step === "dm") {
@@ -204,8 +204,8 @@ export const chapter1: Chapter = {
           ctx.stage().wakePhoebe();
           await ctx.say([
             say("aiden", "…"),
-            say("aiden", "Yeah. I’d be mad too."),
-            say("aiden", "Copying someone else’s work was never going to be a business."),
+            say("aiden", "Okay. Fair. I’d ban me too."),
+            say("aiden", "Copying someone else’s work isn’t a business. It’s a countdown."),
             say("aiden", "If I’m doing this, the information has to be mine."),
           ]);
           ctx.checkpoint(1);
@@ -248,8 +248,8 @@ export const chapter1: Chapter = {
           bedroom(ctx).show("boardFull");
           ctx.sound()?.confirm();
           await ctx.say([
-            say("aiden", "Two insiders. Our own information. Nobody to copy from."),
-            say("aiden", "Thursday. 7:00 AM. Let’s see if they’re right."),
+            say("aiden", "Two insiders. Two stockrooms. Same answer: Thursday, 7:00 AM."),
+            say("aiden", "If they’re right, we’re first. If they’re wrong, we’re done."),
           ]);
           ctx.go("line");
           return ctx.scene({
@@ -301,8 +301,8 @@ export const chapter1: Chapter = {
           ctx.sound()?.coin();
           await ctx.wait(1400);
           await ctx.say([
-            say("aiden", "Our alert went out at 7:00:00. The big servers? 7:02."),
-            say("aiden", "That’s the whole business. Be first. Be right."),
+            say("aiden", "Our alert: 7:00:00. HYPEHAUS: 7:02."),
+            say("aiden", "Two minutes. That’s the whole business. Be first, be right, every time."),
           ]);
           return ctx.go("home");
         }
@@ -339,14 +339,16 @@ export const chapter1: Chapter = {
 
       case "plaque":
         return ctx.say([say("aiden", "Framed it. Obviously.")]);
+      case "shoebox":
+        return ctx.say([say("aiden", step === "check" || step === "copy" || step === "dm" ? "Empty. The five hundred is a server now." : "Still empty. Still the best five hundred dollars I ever spent.")]);
 
       case "phoebe":
         ctx.stage().cheer();
         if (step === "celebrate") {
-          await ctx.say([say("phoebe", "*the happiest wag of all time*"), say("aiden", "We did it, Phoebe.")]);
+          await ctx.say([say("phoebe", "*the happiest wag of all time*"), say("aiden", "We did it, Phoebe."), say("aiden", "Your equity is a lifetime supply of treats. Fully vested.")]);
           return ctx.end();
         }
-        return ctx.say([say("phoebe", "*wag*"), say("aiden", step === "sources" ? "Don’t look at me like that. I said I’m doing it properly." : "Busy week, Phoebe.")]);
+        return ctx.say([say("phoebe", "*wag*"), say("aiden", step === "sources" ? "Don’t look at me like that. I said I’m doing it properly." : step === "copy" || step === "dm" ? "Don’t judge me. Everyone copies at first." : "Busy week, Phoebe. Busy, busy week.")]);
 
       case "door":
         return ctx.say([say("aiden", step === "check" || step === "copy" || step === "dm" ? "It’s late. The server needs me more than the street does." : "Not now.")]);

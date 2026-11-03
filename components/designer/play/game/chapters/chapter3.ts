@@ -27,7 +27,6 @@ const HOMEWORK: Question[] = [
 const PRACTICE: Question[] = [
   { q: "A 95% confidence interval for a mean means:", options: ["95% of the data falls inside it", "Repeat the process, and about 95% of intervals catch the true mean", "There's a 95% chance the mean is in this one", "The sample is 95% accurate"], answer: 1 },
   { q: "Bootstrapping means resampling…", options: ["from the population, without replacement", "from your sample, with replacement", "from your sample, without replacement", "until the p-value is small"], answer: 1 },
-  { q: "np.arange(0, 10, 2)", options: ["array([0, 10, 2])", "array([2, 4, 6, 8, 10])", "array([0, 2, 4, 6, 8])", "array([0, 2, 4, 6, 8, 10])"], answer: 2 },
   { q: "tbl.column('price') gives you…", options: ["a table with one column", "an array of that column’s values", "the column’s label", "the first price"], answer: 1 },
 ];
 // —— act one: week one
@@ -118,7 +117,10 @@ async function afterMidterms(ctx: Ctx) {
     lines: ["Hi all,", "Midterm 1 grades are now posted.", "Your score: 86 / 100.", "Regrade requests close next Friday."],
     tone: "good",
   });
-  await ctx.say([say("aiden", "An 86. In the class where my one question was “what is happening.”")]);
+  await ctx.say([
+    say("aiden", "An 86. In the class where my one question was “what is happening.”"),
+    ...(felt.data >= 0 && felt.data < 3 ? [say("aiden", "I walked out of that room sure I’d failed it.")] : []),
+  ]);
   await ctx.open({
     kind: "email",
     app: "Mail",
@@ -230,6 +232,8 @@ async function sanFrancisco(ctx: Ctx) {
 
 /** Who's been met in San Francisco. */
 let met = new Set<string>();
+/** How the two midterms felt, for when the grades come back. */
+const felt = { data: -1, math: -1 };
 
 export const chapter3: Chapter = {
   id: "ch3",
@@ -238,9 +242,10 @@ export const chapter3: Chapter = {
   line: "Lonely, sick twice, an 86 and a 91. Then three hackathons, three first places.",
   intro: ["Fall, 2026. Berkeley.", "A room the size of a closet.", "Four hundred miles from the group chat.", "Nothing wrong. Nothing happening."],
   hud: { money: false, ready: "Midterm prep", wins: true },
+  target: (step) => (step === "founders" ? ["founder", "founder2", "founder3"].find((id) => !met.has(id)) : undefined),
   acts: [
     { stats: { money: 0, ready: 0, wins: 0 }, run: weekOne },
-    { stats: { money: 0, ready: 5, wins: 0 }, run: lecture },
+    { stats: { money: 0, ready: 0, wins: 0 }, run: lecture },
     { stats: { money: 0, ready: 25, wins: 0 }, run: sickWeek },
     { stats: { money: 0, ready: 70, wins: 0 }, run: midtermDay },
     { stats: { money: 0, ready: 100, wins: 0 }, run: afterMidterms },
@@ -387,6 +392,7 @@ export const chapter3: Chapter = {
           return ctx.go("photo");
         }
         if (step === "window2") return chapter3.use("founder2", ctx);
+        if (step === "founders") return ctx.say([say("aiden", "The Bay Bridge, lighting up. Somebody in this room is going to build something on the other side of it.")]);
         return ctx.say([say("aiden", step === "pills" || step === "leave" ? "Too bright. Everything’s too bright." : "Still there. Still ringing.")]);
 
       case "photo":
@@ -419,6 +425,7 @@ export const chapter3: Chapter = {
           ctx.stage().pose("sick");
           return ctx.go("exam");
         }
+        if (step === "sit" || step === "exam" || step === "exam2") return ctx.say([say("aiden", step === "sit" ? "I could leave. I’d be lost faster at home, though." : "Not until pencils are down.")]);
         return ctx.say([say("aiden", step === "pills" ? "Not without the Tylenol." : "Hallway. Somebody’s microwaving popcorn at 1 AM.")]);
 
       case "miles":
@@ -442,6 +449,7 @@ export const chapter3: Chapter = {
           ctx.sound()?.click();
           return ctx.go("chat");
         }
+        if (step === "hang" || step === "flyer") return ctx.say([say("miles", "I told a girl by the fountain you got a ninety-one. She said “in what.” I said “numbers.”")]);
         return ctx.say([say("miles", step === "dms" ? "What do you call a guy with three first places? Aiden. That’s just your name." : "Knock knock. …It’s me. I live here.")]);
       case "jun":
         if (step === "hang") return chapter3.use("floormate2", ctx);
@@ -467,12 +475,14 @@ export const chapter3: Chapter = {
         }
         if (step === "exam") {
           const data = await sitExam(ctx, { title: "DATA C8 · MIDTERM 1", subject: "Data C8", questions: DATA_MIDTERM_1, sick: true, seconds: 75 });
-          await ctx.say([say("aiden", data >= 4 ? "One down. I think that went… okay?" : "One down. I can’t feel my face."), say("note", "That afternoon: Math 52.")]);
+          felt.data = data;
+          await ctx.say([say("aiden", data >= 3 ? "One down. I think that went… okay?" : "One down. I can’t feel my face."), say("note", "That afternoon: Math 52.")]);
           ctx.go("exam2");
           await examHall(ctx, { course: "Math 52", exam: "Midterm 1", seed: 610, day: "Wed · Midterms", clock: 13 * 60 + 58, seated: true });
           const math = await sitExam(ctx, { title: "MATH 52 · MIDTERM 1", subject: "Math 52", questions: MATH_MIDTERM_1, sick: true, seconds: 75 });
+          felt.math = math;
           stage.pose("stand");
-          await ctx.say([say("aiden", math >= 4 ? "Two down. The Tylenol held." : "Two down. I think I integrated my own name."), say("note", "Two days later.")]);
+          await ctx.say([say("aiden", math >= 3 ? "Two down. The Tylenol held." : "Two down. I think I integrated my own name."), say("note", "Two days later.")]);
           ctx.checkpoint(4);
           return afterMidterms(ctx);
         }
@@ -541,6 +551,7 @@ export const chapter3: Chapter = {
           await ctx.say([say("note", "Two Tylenol. A glass of water. A hoodie, hood up."), say("aiden", "Let’s go.")]);
           return ctx.go("leave");
         }
+        if (step === "study" || step === "study2" || step === "sleep") return ctx.say([say("aiden", "Tylenol. Saving them for Wednesday morning. I have a feeling.")]);
         return ctx.say([say("aiden", "Already took them. Waiting for them to work.")]);
 
       // —— after midterms: the floor, the glade, a flyer
@@ -748,9 +759,13 @@ export const chapter3: Chapter = {
       case "roommate":
         return ctx.say([say("aiden", "Miles’s bed. Made, somehow. He’s never in it before 3 AM.")]);
       case "board":
+        if (step === "exam" || step === "exam2") return ctx.say([say("aiden", "The clock. Every time I look at it, it’s later.")]);
+        if (step === "sit") return ctx.say([say("aiden", "Tables. Arrays. Somebody’s already taking a photo of it.")]);
         return ctx.say([say("aiden", step === "dms" ? "“3 for 3.” I wrote it on a sticky note. It’s the only sticky note now." : "Office hours, the Data C8 schedule, “call mom.”")]);
       case "lectern":
-        return ctx.say([say(step === "exam" ? "proctor" : "professor", step === "exam" ? "Back to your seat, please." : "Office hours are on the syllabus.")]);
+        return ctx.say([say(step === "exam" || step === "exam2" ? "proctor" : "professor", step === "exam" || step === "exam2" ? "Back to your seat, please." : "Office hours are on the syllabus.")]);
+      case "proctor":
+        return ctx.say([say("proctor", step === "exam" || step === "exam2" ? "Your seat’s the one with the paper on it. Eyes on your own." : "Phones away, please.")]);
       case "professor":
         return ctx.say([say("professor", "Read the textbook. It’s free. It’s online. Nobody reads it.")]);
       case "phoebe":

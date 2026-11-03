@@ -87,6 +87,9 @@ export type Chapter = {
   objectives: Record<string, string>;
   /** What each step points at: the marker floats over it. */
   targets?: Record<string, string>;
+  /** For a step whose target moves on as things happen (the next founder to
+   * meet): asked before `targets`. */
+  target?: (step: string) => string | undefined;
   use: (id: string, ctx: Ctx) => Promise<void> | void;
   /** Pressing use while lying in bed. */
   wake?: (ctx: Ctx) => Promise<void> | void;

@@ -366,7 +366,7 @@ function Copy({ soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kind: "co
   });
 
   return (
-    <div className={styles.scrim}>
+    <div className={styles.scrim} onClick={() => over && onDone(copiedRef.current.length)}>
       <Window title="Chatter · two servers" wide>
         <div className={styles.copy}>
           <section className={styles.theirs}>
@@ -480,7 +480,7 @@ function Drop({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kin
 
   const now = spec.rounds[Math.min(round, spec.rounds.length - 1)];
   return (
-    <div className={styles.scrim} onClick={press}>
+    <div className={styles.scrim} onPointerDown={() => !finished && press()} onClick={() => finished && press()}>
       <div className={styles.drop}>
         <header>
           <span className={styles.live} data-on={result === "perfect" || result === "good" || undefined}>
@@ -530,11 +530,12 @@ const COMMENTS = ["how do i join??", "link in bio 👀", "this server is crazy",
 
 function Reel({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kind: "reel" }>>) {
   const [t, setT] = useState(0);
+  const start = useRef(0);
   useEffect(() => {
-    const start = performance.now();
+    start.current = performance.now();
     let raf = 0;
     const frame = () => {
-      const k = Math.min(1, (performance.now() - start) / 5200);
+      const k = Math.min(1, (performance.now() - start.current) / 5200);
       setT(k);
       if (k < 1) raf = requestAnimationFrame(frame);
     };
@@ -544,10 +545,11 @@ function Reel({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kin
   }, [soundRef]);
   const e = 1 - (1 - t) ** 3;
   const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}K` : String(Math.round(n)));
-  usePress(() => (t >= 1 ? onDone() : setT(1)));
+  const skip = () => (t >= 1 ? onDone() : (start.current = performance.now() - 5200));
+  usePress(skip);
   const comments = COMMENTS.slice(0, Math.floor(t * COMMENTS.length));
   return (
-    <div className={styles.scrim} onClick={() => (t >= 1 ? onDone() : undefined)}>
+    <div className={styles.scrim} onClick={skip}>
       <div className={styles.reel}>
         <div className={styles.reelTop}>
           <span className={styles.brand}>Instaglam</span>
@@ -577,7 +579,7 @@ function Reel({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kin
           ))}
         </div>
         <p className={styles.views}>▶ {fmt(214000 * e)} views</p>
-        <footer className={styles.reelFoot}>{t >= 1 ? <Hint touch={touch} /> : null}</footer>
+        <footer className={styles.reelFoot}>{t >= 1 ? <Hint touch={touch} /> : <span className={styles.hint}>{touch ? "Tap to skip" : <><kbd>E</kbd> skip</>}</span>}</footer>
       </div>
     </div>
   );
@@ -597,11 +599,12 @@ const MILESTONES: Array<[number, string]> = [
 function Growth({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kind: "growth" }>>) {
   const [t, setT] = useState(0);
   const last = useRef(0);
+  const start = useRef(0);
   useEffect(() => {
-    const start = performance.now();
+    start.current = performance.now();
     let raf = 0;
     const frame = () => {
-      const k = Math.min(1, (performance.now() - start) / 7000);
+      const k = Math.min(1, (performance.now() - start.current) / 7000);
       setT(k);
       const hit = MILESTONES.filter(([at]) => at <= k).length;
       if (hit > last.current) {
@@ -614,7 +617,8 @@ function Growth({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { k
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
   }, [soundRef]);
-  usePress(() => (t >= 1 ? onDone() : setT(1)));
+  const skip = () => (t >= 1 ? onDone() : (start.current = performance.now() - 7000));
+  usePress(skip);
   // a curve that starts slow and then catches: word of mouth
   const curve = (x: number) => x ** 2.2 * 0.85 + x * 0.15;
   const points = Array.from({ length: 61 }, (_, i) => {
@@ -626,7 +630,7 @@ function Growth({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { k
   const value = Math.round(spec.from + (spec.to - spec.from) * Math.min(1, curve(t) / curve(0.93)));
   const shown = MILESTONES.filter(([at]) => at <= t);
   return (
-    <div className={styles.scrim} onClick={() => (t >= 1 ? onDone() : undefined)}>
+    <div className={styles.scrim} onClick={skip}>
       <Window title="AGNotify · dashboard" wide>
         <div className={styles.growth}>
           <div className={styles.big}>
@@ -651,7 +655,7 @@ function Growth({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { k
           </div>
           {t >= 1 ? <div className={styles.confetti} aria-hidden="true">{Array.from({ length: 28 }, (_, i) => <i key={i} style={{ "--i": i } as React.CSSProperties} />)}</div> : null}
         </div>
-        <footer className={styles.copyFoot}>{t >= 1 ? <Hint touch={touch} /> : <span className={styles.hint}>word of mouth, compounding</span>}</footer>
+        <footer className={styles.copyFoot}>{t >= 1 ? <Hint touch={touch} /> : <span className={styles.hint}>word of mouth, compounding · {touch ? "tap to skip" : <><kbd>E</kbd> skip</>}</span>}</footer>
       </Window>
     </div>
   );

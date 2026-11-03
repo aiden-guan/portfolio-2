@@ -23,7 +23,8 @@ import { hall } from "./rooms/hall";
 import { hallway } from "./rooms/hallway";
 import { office } from "./rooms/office";
 import { street } from "./rooms/street";
-import { loadSave, writeSave, type Save } from "./save";
+import { loadSave, reach, writeSave, type Save } from "./save";
+import { pauseScreens } from "./screen-kit";
 import { Screen, type ScreenSpec } from "./screens";
 import { createStage, type Stage } from "./stage";
 import { titleScene, type Title } from "./title";
@@ -79,6 +80,12 @@ function buildRoom(setup: SceneSetup): Room {
   }
 }
 
+/** What the current step points at: the chapter's own say, or its list. */
+function targetOf(id: ChapterId, step: string) {
+  const chapter = CHAPTERS[id];
+  return chapter.target?.(step) ?? chapter.targets?.[step];
+}
+
 /** How far the dissolve has to reach before the whole room is there. */
 function reachOf(room: Room) {
   const b = room.bounds;
@@ -103,7 +110,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
   const choiceRef = useRef(0);
   const chapterRef = useRef<ChapterId>("prologue");
   /** What the current step is about: used first when several things are in reach. */
-  const preferred = useCallback(() => CHAPTERS[chapterRef.current].targets?.[stepRef.current] ?? stepRef.current, []);
+  const preferred = useCallback(() => targetOf(chapterRef.current, stepRef.current) ?? stepRef.current, []);
   const bubblesRef = useRef<Bubble[]>([]);
   // asks for a picture of the next frame, framed on Aiden (a reel's footage)
   const shots = useRef<Array<(url: string) => void>>([]);
@@ -133,13 +140,26 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
   const [touch, setTouch] = useState(false);
   const [save, setSaveState] = useState<Save | null>(null);
   const [mini, setMini] = useState<Wingman | null>(null);
+  // a new game over a save asks once more before starting over
+  const [confirmNew, setConfirmNew] = useState(false);
+  // the controls hint stays up until you've walked somewhere
+  const [moved, setMoved] = useState(false);
   const muted = useMuted();
   const started = phase !== "off";
-  const live = useRef({ mode, paused, chaptersOpen, menu, leaving });
+  const live = useRef({ mode, paused, chaptersOpen, menu, leaving, phase });
 
   useEffect(() => {
-    live.current = { mode, paused, chaptersOpen, menu, leaving };
+    live.current = { mode, paused, chaptersOpen, menu, leaving, phase };
   });
+
+  // pausing holds the screens' clocks and keys, and the music
+  const pausedRef = useRef(false);
+  useEffect(() => {
+    pausedRef.current = paused;
+    pauseScreens(paused);
+    if (mode !== "play") return;
+    soundRef.current?.music(!paused);
+  }, [paused, mode, soundRef]);
 
   useEffect(() => {
     const coarse = matchMedia("(pointer: coarse)");
@@ -206,6 +226,8 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
     requestAnimationFrame(tick);
   }, []);
 
+  const shownAt = useRef(0);
+  const quietUntil = useRef(0);
   const advance = useCallback(() => {
     if (!typingRef.current.done) {
       typingRef.current.finish();
@@ -214,6 +236,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
     const current = talkRef.current;
     if (!current) return;
     if (current.choices) {
+      if (performance.now() - shownAt.current < 320) return;
       const pick = current.pick;
       const i = choiceRef.current;
       soundRef.current?.confirm();
@@ -228,6 +251,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       return;
     }
     setTalk(null);
+    quietUntil.current = performance.now() + 260;
     current.then?.();
   }, [setTalk, soundRef]);
 
@@ -322,8 +346,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         sound: () => soundRef.current,
         checkpoint: (act) => {
           if (!alive()) return;
-          const done = loadSave()?.done ?? [];
-          writeSave({ chapter: chapterRef.current, act, done });
+          reach(chapterRef.current, act);
           setSaveState(loadSave());
         },
         minigame: () => {
@@ -358,9 +381,8 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         end: () => {
           if (!alive()) return;
           const current = chapterRef.current;
-          const done = Array.from(new Set([...(loadSave()?.done ?? []), current]));
           const next = nextOf(current);
-          writeSave({ chapter: next ?? current, act: 0, done });
+          reach(next ?? current, next ? 0 : CHAPTERS[current].acts.length - 1, [current]);
           setSaveState(loadSave());
           soundRef.current?.sting();
           setMode("end");
@@ -386,7 +408,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
   const interact = useCallback(
     (id: string) => {
       const stage = world.current?.stage;
-      if (!stage || busy.current) return;
+      if (!stage || busy.current || performance.now() < quietUntil.current) return;
       const spot = stage.spot(id);
       if (spot) stage.faceTowards(spot.at);
       stage.stop();
@@ -406,6 +428,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
   const playAct = useCallback(
     (id: ChapterId, act: number) => {
       const chapter = CHAPTERS[id];
+      act = Math.max(0, Math.min(chapter.acts.length - 1, act));
       const stats = chapter.acts[act].stats;
       statsRef.current = { money: stats.money, members: stats.members ?? 0, revenue: stats.revenue ?? 0, ready: stats.ready ?? 0, wins: stats.wins ?? 0 };
       setStats(statsRef.current);
@@ -414,7 +437,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       setOverlay(null);
       setPaused(false);
       setIntro(null);
-      writeSave({ chapter: id, act, done: loadSave()?.done ?? [] });
+      reach(id, act);
       setSaveState(loadSave());
       run((ctx) => chapter.acts[act].run(ctx));
     },
@@ -494,8 +517,19 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
   const menuItems = (resumable ? ["continue", "new", "chapters", "sound", "island"] : ["new", "chapters", "sound", "island"]) as Array<"continue" | "new" | "chapters" | "sound" | "island">;
   const choose = useCallback(
     (item: "continue" | "new" | "chapters" | "sound" | "island") => {
-      if (item === "new") leaveTitle(() => startChapter("prologue", 0));
-      else if (item === "continue") {
+      if (item !== "new") setConfirmNew(false);
+      if (item === "new") {
+        // starting over replaces where Continue would pick up; ask first
+        const s = loadSave();
+        if (s && (s.chapter !== "prologue" || s.act > 0) && !confirmNew) {
+          soundRef.current?.select();
+          setConfirmNew(true);
+          return;
+        }
+        setConfirmNew(false);
+        if (s) writeSave({ chapter: "prologue", act: 0, done: s.done });
+        leaveTitle(() => startChapter("prologue", 0));
+      } else if (item === "continue") {
         const s = loadSave();
         if (s) leaveTitle(() => startChapter(s.chapter, s.act));
       } else if (item === "chapters") {
@@ -504,15 +538,16 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       } else if (item === "sound") setMuted(!muted);
       else onQuit();
     },
-    [leaveTitle, muted, onQuit, soundRef, startChapter],
+    [confirmNew, leaveTitle, muted, onQuit, soundRef, startChapter],
   );
 
   // —— the clock in the HUD: a minute every second and a half, while playing
+  const still = Boolean(talk) || Boolean(overlay) || Boolean(mini);
   useEffect(() => {
-    if (mode !== "play" || paused || step === "wake") return;
+    if (mode !== "play" || paused || step === "wake" || still) return;
     const id = window.setInterval(() => setClock((m) => m + 1), CLOCK_RATE);
     return () => window.clearInterval(id);
-  }, [mode, paused, step]);
+  }, [mode, paused, step, still]);
 
   useEffect(() => {
     if (!toast) return;
@@ -541,9 +576,9 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
   }, [bubbles]);
 
   // —— the world, drawn every frame, and the keys and the pointer
-  const actions = useRef({ interact, advance, wake, choose, setPaused, setMenu, setChaptersOpen, setNear, setChoice });
+  const actions = useRef({ interact, advance, wake, choose, setPaused, setMenu, setChaptersOpen, setNear, setChoice, setMoved });
   useEffect(() => {
-    actions.current = { interact, advance, wake, choose, setPaused, setMenu, setChaptersOpen, setNear, setChoice };
+    actions.current = { interact, advance, wake, choose, setPaused, setMenu, setChaptersOpen, setNear, setChoice, setMoved };
   }, [interact, advance, wake, choose]);
   const items = useRef(menuItems);
   useEffect(() => {
@@ -612,6 +647,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         if (keys.has("arrowright") || keys.has("d")) x += 1;
         if (keys.has("arrowup") || keys.has("w")) y += 1;
         if (keys.has("arrowdown") || keys.has("s")) y -= 1;
+        if ((x || y) && !frozen) actions.current.setMoved(true);
         stage.update(dt, time, { x, y }, view.axes(), frozen, () => soundRef.current?.step());
         view.render({ scene: stage.scene, ...stage.look(tall), background: room.background }, 15 + Math.round(7 * room.night));
         // a picture of this frame, while the canvas still holds it
@@ -643,7 +679,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
           actions.current.setNear(label);
         }
         // the objective's marker, over where to go, until you're there
-        const goal = CHAPTERS[chapterRef.current].targets?.[stepRef.current];
+        const goal = targetOf(chapterRef.current, stepRef.current);
         const target = goal && !frozen && arrived && !stage.lying ? stage.spot(goal) : null;
         const pin = marker.current;
         if (pin) {
@@ -690,27 +726,32 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
     raf = requestAnimationFrame(frame);
 
     const interactKey = (key: string) => key === "e" || key === " " || key === "enter";
+    const CODES: Record<string, string> = { KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d", KeyE: "e" };
+    const keyOf = (event: KeyboardEvent) => CODES[event.code] ?? event.key.toLowerCase();
+    let held = 0;
     const onKeyDown = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase();
+      const key = keyOf(event);
       const s = live.current;
       const a = actions.current;
       if (key === "escape") {
-        if (overlayRef.current) return;
         if (s.mode === "play") a.setPaused(!s.paused);
         else if (s.chaptersOpen) a.setChaptersOpen(false);
         return;
       }
       if (s.paused) return;
-      if (s.mode === "title" && !s.leaving) {
+      if (s.mode === "title") {
+        // only once the menu is up, and not under the chapters list, which
+        // the browser's own focus moves through
+        if (s.leaving || s.phase !== "ready" || s.chaptersOpen) return;
         const list = items.current;
         if (key === "arrowdown" || key === "s") a.setMenu((s.menu + 1) % list.length);
         else if (key === "arrowup" || key === "w") a.setMenu((s.menu + list.length - 1) % list.length);
-        else if (key === "enter" || key === " ") a.choose(list[s.menu]);
-        if (key.startsWith("arrow") || key === " ") event.preventDefault();
+        else if ((key === "enter" || key === " ") && !event.repeat) a.choose(list[s.menu]);
+        if (key.startsWith("arrow") || key === " " || key === "enter") event.preventDefault();
         return;
       }
       if (s.mode !== "play" || overlayRef.current) return;
-      if (key.startsWith("arrow") || key === " ") event.preventDefault();
+      if (key.startsWith("arrow") || key === " " || key === "enter") event.preventDefault();
       if (w.mini) {
         if (interactKey(key) && !event.repeat) {
           event.preventDefault();
@@ -735,6 +776,15 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         }
       }
       keys.add(key);
+      // held down through lines: on through them, quickly, but never into a choice
+      if (event.repeat && interactKey(key) && talkRef.current && !talkRef.current.choices) {
+        const now = performance.now();
+        if (now - held > 110) {
+          held = now;
+          a.advance();
+        }
+        return;
+      }
       if (!interactKey(key) || event.repeat) return;
       if (talkRef.current) a.advance();
       else if (busy.current) return;
@@ -745,7 +795,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         if (spot) a.interact(spot.id);
       }
     };
-    const onKeyUp = (event: KeyboardEvent) => keys.delete(event.key.toLowerCase());
+    const onKeyUp = (event: KeyboardEvent) => keys.delete(keyOf(event));
     const onBlur = () => keys.clear();
 
     // a click or a tap: on something, go and use it; on the floor, go there
@@ -760,7 +810,10 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       const a = actions.current;
       const stage = w.stage;
       if (!stage) return;
-      if (talkRef.current) return a.advance();
+      if (talkRef.current) {
+        if (talkRef.current.choices && typingRef.current.done) return;
+        return a.advance();
+      }
       if (busy.current) return;
       if (stage.lying) {
         if (uniforms.uReveal.value >= 1) a.wake();
@@ -770,9 +823,11 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       const px = event.clientX - rect.left, py = event.clientY - rect.top;
       let hit: ReturnType<Stage["spots"]>[number] | null = null;
       let best = 46;
+      const wanted = preferred();
       for (const spot of stage.spots()) {
         const p = view.project(spot.at);
-        const d = Math.hypot(p.x - px, p.y - py);
+        // Phoebe, always at your heels, only when you click right on her
+        const d = Math.hypot(p.x - px, p.y - py) + (spot.id === "phoebe" ? 18 : 0) - (spot.id === wanted ? 16 : 0);
         if (d < best) {
           best = d;
           hit = spot;
@@ -784,7 +839,10 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         return;
       }
       const point = view.ground(event.clientX, event.clientY);
-      if (point) stage.walkTo(point);
+      if (point) {
+        stage.walkTo(point);
+        actions.current.setMoved(true);
+      }
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -883,6 +941,8 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
                 className={styles.menuItem}
                 data-on={menu === i || undefined}
                 disabled={leaving}
+                tabIndex={-1}
+                onMouseDown={(event) => event.preventDefault()}
                 onPointerEnter={() => setMenu(i)}
                 onClick={() => choose(item)}
               >
@@ -894,7 +954,14 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
                     </small>
                   </>
                 ) : item === "new" ? (
-                  "New game"
+                  confirmNew ? (
+                    <>
+                      Start over?
+                      <small>Press again. Continue will start from the beginning</small>
+                    </>
+                  ) : (
+                    "New game"
+                  )
                 ) : item === "chapters" ? (
                   "Chapters"
                 ) : item === "sound" ? (
@@ -909,7 +976,13 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
             v1.2 · Life, so far
           </p>
           {chaptersOpen ? (
-            <div className={styles.chapters} data-ui="">
+            <div
+              className={styles.chapters}
+              data-ui=""
+              ref={(node) => {
+                if (node && !node.contains(document.activeElement)) node.querySelector<HTMLButtonElement>("ol button")?.focus();
+              }}
+            >
               <header>
                 <h2>Chapters</h2>
                 <button type="button" className={styles.close} onClick={() => setChaptersOpen(false)} aria-label="Close chapters">
@@ -1035,7 +1108,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
                 <small>Handsome</small>
                 <span aria-label="Maxed out">✦✦✦✦✦</span>
               </div>
-              <button type="button" className={styles.pause} onClick={() => setPaused(true)} aria-label="Pause">
+              <button type="button" className={styles.pause} onMouseDown={(event) => event.preventDefault()} onClick={() => setPaused(true)} aria-label="Pause">
                 <svg viewBox="0 0 10 10" aria-hidden="true" shapeRendering="crispEdges">
                   <path d="M2 2h2v6H2zM6 2h2v6H6z" />
                 </svg>
@@ -1066,7 +1139,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
           <div ref={marker} className={styles.marker} aria-hidden="true">
             <i />
           </div>
-          <button ref={prompt} type="button" className={styles.prompt} data-shown={near || undefined} onClick={tapPrompt} tabIndex={-1}>
+          <button ref={prompt} type="button" className={styles.prompt} data-shown={near || undefined} onMouseDown={(event) => event.preventDefault()} onClick={tapPrompt} tabIndex={-1}>
             {touch ? <span className={styles.tap} aria-hidden="true" /> : <kbd>E</kbd>}
             {near}
           </button>
@@ -1077,6 +1150,8 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
             <Dialogue
               key={`${talk!.list.length}-${talk!.at}-${line.text}`}
               line={line}
+              pausedRef={pausedRef}
+              onChoices={() => (shownAt.current = performance.now())}
               face={faceOf(line.who)}
               soundRef={soundRef}
               typingRef={typingRef}
@@ -1154,7 +1229,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
             <div className={styles.paused} data-ui="">
               <div className={styles.pauseCard}>
                 <h2>Paused</h2>
-                <p className={styles.saved}>Progress saves as you go. Come back any time.</p>
+                <p className={styles.saved}>Your place saves at the start of each part. Come back any time.</p>
                 <button type="button" className={styles.primary} onClick={() => setPaused(false)}>
                   Resume
                 </button>
@@ -1171,7 +1246,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
             </div>
           ) : null}
 
-          {mode === "play" && chapterId === "prologue" && step === "wake" && !talk ? (
+          {mode === "play" && chapterId === "prologue" && !moved && !talk && !overlay ? (
             <p className={styles.controls}>{touch ? "Tap to walk · tap things to use them" : "WASD or arrows to walk · E to use · or just click"}</p>
           ) : null}
         </>
@@ -1182,6 +1257,8 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
 
 function Dialogue({
   line,
+  pausedRef,
+  onChoices,
   face,
   soundRef,
   typingRef,
@@ -1193,6 +1270,8 @@ function Dialogue({
   onHover,
 }: {
   line: Line;
+  pausedRef: RefObject<boolean>;
+  onChoices: () => void;
   face?: string;
   soundRef: RefObject<Sound | null>;
   typingRef: RefObject<{ done: boolean; finish: () => void }>;
@@ -1209,6 +1288,7 @@ function Dialogue({
   useEffect(() => {
     let n = 0;
     const id = window.setInterval(() => {
+      if (pausedRef.current) return;
       n = Math.min(length, n + 1);
       setShown(n);
       if (n % 3 === 1 && line.who !== "note") soundRef.current?.blip(speaker.pitch + (n % 2));
@@ -1227,9 +1307,13 @@ function Dialogue({
       },
     };
     return () => window.clearInterval(id);
-  }, [line, length, soundRef, typingRef, speaker.pitch]);
+  }, [line, length, soundRef, typingRef, speaker.pitch, pausedRef]);
 
   const typed = shown >= length;
+  const offer = Boolean(choices) && typed;
+  useEffect(() => {
+    if (offer) onChoices();
+  }, [offer, onChoices]);
   return (
     <div
       className={styles.dialogue}
@@ -1282,6 +1366,7 @@ function Dialogue({
           ▼
         </span>
       )}
+      {choices ? null : <span className={styles.holdHint} aria-hidden="true">hold to skip</span>}
     </div>
   );
 }
@@ -1314,6 +1399,18 @@ function Intro({
     done.current();
   }, []);
   useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      const key = event.key.toLowerCase();
+      if (key === "e" || key === " " || key === "enter" || key === "escape") {
+        event.preventDefault();
+        finish();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [finish]);
+  useEffect(() => {
     const timers: number[] = [];
     const per = 1350;
     lines.forEach((_, i) => timers.push(window.setTimeout(() => setAt(i + 1), 500 + i * per)));
@@ -1336,7 +1433,7 @@ function Intro({
         <small>{resumed ? `${number} · continued` : number}</small>
         <strong>{title}</strong>
       </div>
-      <span className={styles.skip}>click to skip</span>
+      <span className={styles.skip}>click or press E to skip</span>
     </div>
   );
 }

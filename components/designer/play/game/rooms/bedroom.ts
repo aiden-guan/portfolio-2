@@ -320,7 +320,7 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
     { id: "football", label: "Football", at: at(12, 3, 62), reach: 1.1 },
     { id: "door", label: "Door", at: at(1, 12, 73.5), reach: 1.3 },
   ];
-  const boardSpot: Spot = { id: "board", label: "Sources board", at: at(1, 17, 11), reach: 1.5 };
+  const boardSpot: Spot = { id: "board", label: "Sources board", at: at(1, 17, 11), reach: 2.0 };
   const plaqueSpot: Spot = { id: "plaque", label: "Plaque", at: at(69, 19, 0), reach: 1.7 };
 
   let buzz = 0;
