@@ -457,6 +457,12 @@
 
 .hud[data-hidden] {
   opacity: 0;
+  visibility: hidden;
+  transition: opacity 300ms ease, visibility 0s 300ms;
+}
+
+.hud[data-hidden] > * {
+  pointer-events: none;
 }
 
 @keyframes drop {
@@ -857,6 +863,24 @@
 .more[data-shown] {
   opacity: 1;
   animation: bob 700ms ease-in-out infinite;
+}
+
+/* holding E or space runs on through the lines */
+.holdHint {
+  position: absolute;
+  right: 32px;
+  bottom: 9px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  opacity: 0.32;
+  pointer-events: none;
+}
+
+@media (pointer: coarse) {
+  .holdHint {
+    display: none;
+  }
 }
 
 @keyframes bob {

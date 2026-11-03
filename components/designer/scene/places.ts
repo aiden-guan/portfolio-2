@@ -1,6 +1,5 @@
 import {
   BufferGeometry,
-  CanvasTexture,
   CircleGeometry,
   Group,
   Line,
@@ -8,18 +7,14 @@ import {
   LineLoop,
   Mesh,
   MeshBasicMaterial,
-  NearestFilter,
   Object3D,
-  PlaneGeometry,
   PointLight,
-  SRGBColorSpace,
   Vector3,
 } from "three";
 import {
   agent,
   ally,
   bush,
-  capsule,
   centred,
   cloud,
   corgi,
@@ -30,17 +25,17 @@ import {
   materials,
   mesh,
   OUTFITS,
-  paddle,
   person,
   pigeon,
   reeds,
   rock,
   roundTree,
   V,
+  type Variety,
   wing,
 } from "./kit";
 import { at, BRIDGE, PADS, POND, WATER_LEVEL } from "./layout";
-import { FLAG, uniforms } from "./shared";
+import { FLAG, uniforms, worldMaterial } from "./shared";
 import { heightAt, padHeight } from "./terrain";
 import { hash3, Voxels } from "./voxels";
 
@@ -310,20 +305,159 @@ export function koiPond(): Place {
   surface.renderOrder = -1;
   group.add(surface);
 
-  const fish: Array<{ m: Object3D; rx: number; rz: number; speed: number; phase: number; wobble: number }> = [];
-  for (let i = 0; i < 7; i += 1) {
-    const m = centred(koi(i * 17 + 3), materials.soft, { shadow: false });
-    m.scale.setScalar(0.9 + random() * 0.35);
-    group.add(m);
-    fish.push({
-      m,
-      rx: POND.rx * (0.3 + random() * 0.42),
-      rz: POND.rz * (0.25 + random() * 0.45),
-      speed: (0.12 + random() * 0.12) * (random() > 0.5 ? 1 : -1),
-      phase: random() * Math.PI * 2,
-      wobble: random() * 10,
+  // a wave down the body, growing toward the tail, and a bow into each turn:
+  // 0 at the head, 1 at the tip of the tail
+  const BEND = `float back = clamp((0.26 - transformed.x) / 0.62, 0.0, 1.0);
+  transformed.z += uBend * transformed.x * transformed.x * 3.0 + sin(uBeat - back * 4.2) * (0.003 + 0.065 * back * back) * uAmp;`;
+  // the koi: a school of varieties, LedgerLens's blue among them, swimming
+  // just under the surface. Each bends as it swims, a wave running down it
+  // to the tail, curves into its turns, cruises, coasts and darts, and now
+  // and then comes up to gulp at the surface and leaves a ring.
+  const varieties: Variety[] = ["kohaku", "asagi", "ogon", "showa", "kohaku", "tancho", "chagoi", "sanke", "orenji", "asagi"];
+  const toPond = (x: number, z: number) => {
+    const dx = x - cx, dz = z - cz;
+    return { u: dx * c + dz * s, v: -dx * s + dz * c };
+  };
+  const fish = varieties.map((variety, i) => {
+    const beat = { value: random() * 10 };
+    const bend = { value: 0 };
+    const sway = { value: 1 };
+    const sink = { value: 0.4 };
+    const material = worldMaterial({
+      key: "koi",
+      flag: FLAG.soft,
+      cloud: true,
+      extraUniforms: { uBeat: beat, uBend: bend, uAmp: sway, uSink: sink },
+      vertexHead: "uniform float uBeat; uniform float uBend; uniform float uAmp;",
+      // 0 at the head, 1 at the tip of the tail: the wave grows toward the
+      // tail, and the whole body bows into a turn
+      vertex: BEND,
+      fragmentHead: "uniform float uSink;",
+      // seen through the water: deeper is bluer and dimmer
+      diffuse: "diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.3, 0.6, 0.68), uSink * 0.45);",
+      fragment: "reflectedLight.directDiffuse *= 1.0 - 0.28 * uSink;",
     });
-  }
+    const geometry = koi(variety, i * 17 + 3).geometry(i + 1);
+    geometry.translate(0, 0, -0.02);
+    const m = new Mesh(geometry, material);
+    const size = variety === "chagoi" ? 1.42 : 1.05 + random() * 0.28;
+    m.scale.setScalar(size);
+    // and its shadow on the bed of the pond, off toward the far side of the
+    // sun, bending with it; gone at night
+    const shadow = new Mesh(
+      geometry,
+      worldMaterial({
+        key: "koi-shadow",
+        flag: FLAG.soft,
+        cloud: false,
+        extraUniforms: { uBeat: beat, uBend: bend, uAmp: sway },
+        vertexHead: "uniform float uBeat; uniform float uBend; uniform float uAmp;",
+        vertex: BEND,
+        diffuse: "diffuseColor.rgb = vec3(0.15, 0.36, 0.47);",
+        fragment: "if (hash12(floor(vWorld.xz / 0.08)) < uNight * 1.2) discard; reflectedLight.directDiffuse *= 0.6;",
+      }),
+    );
+    shadow.scale.set(size, 0.05, size);
+    shadow.receiveShadow = false;
+    group.add(shadow, m);
+    const a = random() * Math.PI * 2, r = 0.15 + random() * 0.5;
+    const start = inPond(Math.cos(a) * POND.rx * r, Math.sin(a) * POND.rz * r);
+    return {
+      m, shadow, beat, bend, sway, sink, size,
+      x: start.x, z: start.z,
+      heading: random() * Math.PI * 2,
+      speed: 0.1, want: 0.1, turn: 0,
+      sinkGoal: 0.3 + random() * 0.35,
+      seed: random() * 100,
+      next: random() * 3,
+      gulp: -1,
+      leader: i % 3 === 2 ? i - 1 : -1,
+    };
+  });
+  // rings on the water where one came up
+  const rings = [0, 1, 2].map(() => {
+    const ring = new LineLoop(ripple.geometry, new LineBasicMaterial({ color: 0xe4f4ef }));
+    ring.visible = false;
+    group.add(ring);
+    return { ring, at: -9 };
+  });
+  let ringNext = 0;
+  let last = 0;
+  const swim = (time: number) => {
+    const dt = Math.min(0.1, Math.max(0, time - last));
+    last = time;
+    for (const [i, f] of fish.entries()) {
+      // a new mind every few seconds: cruise, coast, or dart; and now and
+      // then up to the surface
+      if (time > f.next) {
+        f.next = time + 2 + random() * 4;
+        const roll = random();
+        f.want = roll < 0.2 ? 0.3 + random() * 0.18 : roll < 0.45 ? 0.04 + random() * 0.04 : 0.09 + random() * 0.07;
+        f.sinkGoal = random() < 0.16 ? 0 : 0.12 + random() * 0.5;
+      }
+      const dx = Math.cos(f.heading), dz = -Math.sin(f.heading);
+      // wander, gently, a different way for each
+      let steer = Math.sin(time * 0.31 + f.seed) * 0.55 + Math.sin(time * 0.83 + f.seed * 2.1) * 0.3;
+      // and turn back before the bank, harder the closer it is
+      const ahead = 0.8 + f.speed * 2.4;
+      const p = toPond(f.x + dx * ahead, f.z + dz * ahead);
+      const out = Math.hypot(p.u / (POND.rx * 0.8), p.v / (POND.rz * 0.8));
+      if (out > 0.85) {
+        const home = Math.atan2(-(cz - f.z), cx - f.x);
+        let d = home - f.heading;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        steer += Math.sign(d) * Math.min(2.2, (out - 0.85) * 6);
+      }
+      // keep a little room, and some follow another a length behind
+      for (const [j, g] of fish.entries()) {
+        if (j === i) continue;
+        const ox = f.x - g.x, oz = f.z - g.z;
+        const d2 = ox * ox + oz * oz;
+        if (d2 < 0.3 && d2 > 1e-6) {
+          const away = Math.atan2(-oz, ox) - f.heading;
+          steer += Math.sign(Math.sin(away)) * 0.9 * (1 - d2 / 0.3);
+        }
+      }
+      if (f.leader >= 0) {
+        const g = fish[f.leader];
+        const tx = g.x - Math.cos(g.heading) * 0.75, tz = g.z + Math.sin(g.heading) * 0.75;
+        let d = Math.atan2(-(tz - f.z), tx - f.x) - f.heading;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        steer += d * 1.1;
+        if (Math.hypot(tx - f.x, tz - f.z) > 0.5) f.want = Math.max(f.want, g.speed * 1.15);
+      }
+      steer = Math.max(-1.8, Math.min(1.8, steer));
+      f.turn += (steer - f.turn) * (1 - Math.exp(-dt * 2.5));
+      f.heading += f.turn * dt;
+      const quicker = f.want > f.speed;
+      f.speed += (f.want - f.speed) * (1 - Math.exp(-dt * (quicker ? 2.2 : 0.55)));
+      f.x += Math.cos(f.heading) * f.speed * dt;
+      f.z -= Math.sin(f.heading) * f.speed * dt;
+      // the tail beats faster when it pushes, and harder when it speeds up
+      f.beat.value += dt * Math.PI * 2 * (0.6 + f.speed * 5.5);
+      f.sway.value += ((quicker ? 1.25 : 0.55 + f.speed * 2) - f.sway.value) * (1 - Math.exp(-dt * 3));
+      f.bend.value += (-f.turn * 0.32 - f.bend.value) * (1 - Math.exp(-dt * 6));
+      f.sink.value += (f.sinkGoal - f.sink.value) * (1 - Math.exp(-dt * 0.9));
+      f.m.position.set(f.x, WATER_LEVEL + 0.004, f.z);
+      f.m.rotation.y = f.heading;
+      const fall = 0.16 + f.sink.value * 0.3;
+      f.shadow.position.set(f.x - 0.82 * fall, WATER_LEVEL + 0.002, f.z + 0.57 * fall);
+      f.shadow.rotation.y = f.heading;
+      // a gulp at the top
+      if (f.sink.value < 0.06 && time - f.gulp > 2.5) {
+        f.gulp = time;
+        const ring = rings[ringNext];
+        ringNext = (ringNext + 1) % rings.length;
+        ring.at = time;
+        ring.ring.position.set(f.x + Math.cos(f.heading) * 0.3 * f.size, WATER_LEVEL + 0.012, f.z - Math.sin(f.heading) * 0.3 * f.size);
+      }
+    }
+    for (const r of rings) {
+      const age = time - r.at;
+      r.ring.visible = age >= 0 && age < 1.4;
+      if (r.ring.visible) r.ring.scale.setScalar(0.08 + age * 0.38);
+    }
+  };
 
   return {
     object: group,
@@ -335,16 +469,7 @@ export function koiPond(): Place {
       focus: centre.clone(),
     },
     update: (time) => {
-      for (const f of fish) {
-        const a = f.phase + time * f.speed;
-        const u = Math.cos(a) * f.rx + Math.sin(a * 2.3 + f.wobble) * 0.5;
-        const v = Math.sin(a) * f.rz + Math.cos(a * 1.7 + f.wobble) * 0.4;
-        const p = inPond(u, v);
-        const a2 = a + 0.02 * Math.sign(f.speed);
-        const q = inPond(Math.cos(a2) * f.rx + Math.sin(a2 * 2.3 + f.wobble) * 0.5, Math.sin(a2) * f.rz + Math.cos(a2 * 1.7 + f.wobble) * 0.4);
-        f.m.position.set(p.x, WATER_LEVEL - 0.02, p.z);
-        f.m.rotation.y = Math.atan2(-(q.z - p.z), q.x - p.x) + Math.sin(time * 6 + f.wobble) * 0.18;
-      }
+      swim(time);
       const bite = Math.sin(time * 0.9) > 0.93;
       bobber.position.set(bobberAt.x, WATER_LEVEL + (bite ? -0.04 : 0.02 + Math.sin(time * 2.2) * 0.025), bobberAt.z);
       const cycle = (time * 0.45) % 1;
@@ -525,132 +650,6 @@ export function seyrinDesk(): Place {
       const pop = clamp01((cycle - 0.58) / 0.05);
       check.scale.setScalar(shown ? 0.6 + 0.4 * pop + Math.sin(pop * Math.PI) * 0.25 : 1);
       check.position.copy(checkAt).add(new Vector3(0, Math.sin(time * 2) * 0.05, 0));
-    },
-  };
-}
-
-// ——— Rally: a ping-pong table and two capsules mid-rally —————————————————
-
-function pixelDigits(text: string) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 24;
-  canvas.height = 9;
-  const texture = new CanvasTexture(canvas);
-  texture.magFilter = NearestFilter;
-  texture.minFilter = NearestFilter;
-  texture.colorSpace = SRGBColorSpace;
-  const glyphs: Record<string, string[]> = {
-    "0": ["###", "#.#", "#.#", "#.#", "###"],
-    "1": [".#.", "##.", ".#.", ".#.", "###"],
-    "2": ["###", "..#", "###", "#..", "###"],
-    "3": ["###", "..#", ".##", "..#", "###"],
-    "4": ["#.#", "#.#", "###", "..#", "..#"],
-    "5": ["###", "#..", "###", "..#", "###"],
-    "6": ["###", "#..", "###", "#.#", "###"],
-    "7": ["###", "..#", ".#.", ".#.", ".#."],
-    "8": ["###", "#.#", "###", "#.#", "###"],
-    "9": ["###", "#.#", "###", "..#", "###"],
-  };
-  const draw = (value: string) => {
-    const g = canvas.getContext("2d")!;
-    g.fillStyle = "#151b26";
-    g.fillRect(0, 0, 24, 9);
-    g.fillStyle = "#2a3446";
-    g.fillRect(11, 1, 2, 7);
-    [...value].forEach((ch, i) => {
-      const rows = glyphs[ch];
-      if (!rows) return;
-      const ox = i === 0 ? 3 : 15;
-      g.fillStyle = i === 0 ? "#f4f6fb" : "#ff8a2a";
-      rows.forEach((row, y) => [...row].forEach((c, x) => c === "#" && g.fillRect(ox + x * 2, 2 + y, 2, 1)));
-    });
-    texture.needsUpdate = true;
-  };
-  draw(text);
-  return { texture, draw };
-}
-
-export function rallyTable(): Place {
-  const group = new Group();
-  const pad = PADS.rally;
-  const base = ground(pad.s, pad.t);
-  base.y = padHeight("rally");
-
-  const terrace = new Voxels(V, 0.04);
-  const hx = Math.round(pad.hx / V), hz = Math.round(pad.hz / V);
-  terrace.box(-hx, 0, -hz, hx, 0, hz, (x, y, z) =>
-    (x + 1000) % 6 === 0 || (z + 1000) % 6 === 0 ? 0xc6bdaa : hash3(x, y, z) > 0.9 ? 0xcfc7b6 : 0xddd6c6);
-  const slab = mesh(terrace, materials.solid, { shadow: false });
-  slab.position.set(base.x, base.y - V * 0.75, base.z);
-  group.add(slab);
-
-  const table = new Voxels(V, 0.03);
-  table.box(-8, 4, -4, 8, 4, 4, (x, y, z) => (Math.abs(x) === 8 || Math.abs(z) === 4 || z === 0 ? 0xf3f5fa : 0x2f6fe4));
-  for (const [x, z] of [[-7, -3], [7, -3], [-7, 3], [7, 3]]) table.box(x, 0, z, x, 3, z, 0x1d2430);
-  table.box(0, 5, -5, 0, 5, 5, 0x2a2f3a);
-  table.box(0, 6, -5, 0, 6, 5, 0xf3f5fa);
-  const tableMesh = mesh(table);
-  tableMesh.position.set(base.x, base.y + V * 0.25, base.z);
-  group.add(tableMesh);
-  const topY = base.y + V * 5.25;
-
-  const players = [-1, 1].map((side) => {
-    const p = new Group();
-    const body = centred(capsule());
-    const bat = centred(paddle(), materials.solid);
-    bat.position.set(0, 0.95, 0.42);
-    p.add(body, bat);
-    p.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
-    group.add(p);
-    return { p, bat, side };
-  });
-
-  const ballV = new Voxels(V * 0.55, 0);
-  ballV.set(0, 0, 0, 0xff8a2a);
-  const ball = centred(ballV, materials.solid, { shadow: true });
-  group.add(ball);
-
-  const { texture, draw } = pixelDigits("72");
-  const board = new Group();
-  const boardPost = new Voxels(V, 0.03);
-  boardPost.box(0, 0, 0, 0, 6, 0, 0x30384a);
-  board.add(mesh(boardPost));
-  const face = new Mesh(new PlaneGeometry(1.5, 0.56), new MeshBasicMaterial({ map: texture }));
-  face.position.set(0.1, 1.55, 0.12);
-  board.add(face);
-  board.position.set(base.x + 0.4, base.y, base.z - pad.hz + 0.5);
-  group.add(board);
-
-  let score = [7, 2];
-  let lastPoint = 0;
-  return {
-    object: group,
-    spot: { id: "rally", slug: "rally", object: group, anchor: base.clone().add(new Vector3(0, 2.6, 0)), focus: base.clone().add(new Vector3(0, 0.6, 0)) },
-    update: (time) => {
-      const period = 0.95;
-      const leg = Math.floor(time / period);
-      const u = (time % period) / period;
-      const dir = leg % 2 === 0 ? 1 : -1;
-      const lateral = Math.sin(leg * 1.9) * 0.55;
-      const lateralNext = Math.sin((leg + 1) * 1.9) * 0.55;
-      const x = dir * (-2.1 + 4.2 * u);
-      const z = lateral + (lateralNext - lateral) * u;
-      const bounce = 0.72;
-      const y =
-        u < bounce
-          ? topY + 0.32 + Math.sin((u / bounce) * Math.PI) * 0.55 - (u / bounce) * 0.32
-          : topY + Math.sin(((u - bounce) / (1 - bounce)) * Math.PI * 0.5) * 0.38;
-      ball.position.set(base.x + x, y, base.z + z);
-      for (const { p, bat, side } of players) {
-        const toward = side === dir ? 1 - u : u;
-        p.position.set(base.x + side * 2.45, base.y + V * 0.25, base.z + z * (side === dir ? 0.3 : 0.85));
-        bat.rotation.z = Math.sin(clamp01(1 - toward * 4) * Math.PI) * 0.9;
-      }
-      if (time - lastPoint > 9.5) {
-        lastPoint = time;
-        score = score[0] >= 11 ? [0, 0] : [score[0] + (Math.random() > 0.4 ? 1 : 0), score[1] + 1];
-        draw(`${Math.min(9, score[0] % 10)}${Math.min(9, score[1] % 10)}`);
-      }
     },
   };
 }

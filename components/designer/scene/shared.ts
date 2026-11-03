@@ -113,6 +113,10 @@ type Options = {
   fragment?: string;
   /** extra declarations for the fragment shader */
   fragmentHead?: string;
+  /** extra declarations for the vertex shader, and code that moves
+   * `transformed` (in the model's own space) after the sway */
+  vertexHead?: string;
+  vertex?: string;
   /** replaces the diffuse colour after <color_fragment> */
   diffuse?: string;
   emissive?: string;
@@ -137,7 +141,8 @@ export function worldMaterial(options: Options, base: ConstructorParameters<type
 ${GLSL_COMMON}
 uniform float uSway;
 uniform float uSwayFrom;
-varying vec3 vWorld;`,
+varying vec3 vWorld;
+${options.vertexHead ?? ""}`,
       )
       .replace(
         "#include <begin_vertex>",
@@ -150,7 +155,8 @@ varying vec3 vWorld;`,
   float swayLift = max(0.0, transformed.y - uSwayFrom);
   float gust = sin(uTime * 1.3 + swayOrigin.x * 0.21 + swayOrigin.z * 0.17);
   transformed.x += uSway * swayLift * (sin(uTime * 2.1 + transformed.y * 1.7 + swayOrigin.z) * 0.6 + gust * 0.8);
-  transformed.z += uSway * swayLift * 0.5 * sin(uTime * 1.7 + transformed.x * 1.3 + swayOrigin.x);`,
+  transformed.z += uSway * swayLift * 0.5 * sin(uTime * 1.7 + transformed.x * 1.3 + swayOrigin.x);
+${options.vertex ?? ""}`,
       )
       .replace(
         "#include <project_vertex>",

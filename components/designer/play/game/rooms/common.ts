@@ -52,6 +52,12 @@ export function disposeAll(object: Object3D) {
   object.traverse((o) => {
     const m = o as Mesh;
     if (m.isMesh) m.geometry.dispose();
+    // a light's shadow map is a render target of its own, 2048² for a sun
+    const light = o as Object3D & { isLight?: boolean; shadow?: { map?: { dispose: () => void } | null }; dispose?: () => void };
+    if (light.isLight) {
+      light.shadow?.map?.dispose();
+      light.dispose?.();
+    }
   });
 }
 

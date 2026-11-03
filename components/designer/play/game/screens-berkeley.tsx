@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { face } from "./faces";
-import { Hint, useArrows, usePress, Window, type Props } from "./screen-kit";
+import { Hint, screensPaused, useArrows, usePress, Window, type Props } from "./screen-kit";
 import kit from "./screens.module.css";
 import styles from "./screens-berkeley.module.css";
 
@@ -106,6 +106,7 @@ function Study({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec, { 
   const [score, setScore] = useState(0);
   const [left, setLeft] = useState(spec.exam ?? 0);
   const [cough, setCough] = useState(0);
+  const jolt = useRef<HTMLDivElement>(null);
   const total = spec.questions.length;
   // in an exam, time running out ends it too
   const timeUp = Boolean(spec.exam) && left === 0;
@@ -115,7 +116,7 @@ function Study({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec, { 
   // the clock, in an exam
   useEffect(() => {
     if (!spec.exam || finished) return;
-    const id = window.setInterval(() => setLeft((s) => Math.max(0, s - 1)), 1000);
+    const id = window.setInterval(() => !screensPaused() && setLeft((s) => Math.max(0, s - 1)), 1000);
     return () => window.clearInterval(id);
   }, [spec.exam, finished]);
   useEffect(() => {
@@ -128,8 +129,14 @@ function Study({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec, { 
     let id = 0;
     const next = () => {
       id = window.setTimeout(() => {
-        setCough((n) => n + 1);
-        soundRef.current?.cough();
+        if (!screensPaused()) {
+          setCough((n) => n + 1);
+          soundRef.current?.cough();
+          jolt.current?.animate(
+            [{ transform: "none" }, { transform: "translate(-6px, 3px) rotate(-0.8deg)" }, { transform: "translate(5px, -2px) rotate(0.5deg)" }, { transform: "none" }],
+            { duration: 340, easing: "ease-out" },
+          );
+        }
         next();
       }, 3800 + Math.random() * 3200);
     };
@@ -193,14 +200,15 @@ function Study({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec, { 
           <i key={i} data-done={i < at || undefined} data-now={i === at || undefined} />
         ))}
       </div>
+      <span className={kit.hint}>{touch ? "Tap an answer" : <>arrows to choose · <kbd>E</kbd> answer</>}</span>
     </>
   );
 
   return (
-    <div className={kit.scrim} data-sick={spec.sick || undefined}>
+    <div className={kit.scrim} data-sick={spec.sick || undefined} onClick={() => finished && onDone(score)}>
       {spec.sick ? <div className={styles.fever} aria-hidden="true" /> : null}
       <div className={styles.sway} data-sick={spec.sick || undefined}>
-        <div className={styles.jolt} key={cough} data-cough={cough > 0 || undefined}>
+        <div className={styles.jolt} ref={jolt}>
           {spec.exam ? (
             <div className={styles.paper}>
               <header>
@@ -254,7 +262,7 @@ function Bark({ spec, soundRef, onDone, touch, photo }: Props<Extract<BerkeleySp
     let raf = 0;
     const frame = () => {
       const t = (performance.now() - start) / 1000;
-      pos.current = Math.abs(((t * speed) % 2) - 1);
+      pos.current = Math.abs(((t * speed + 1) % 2) - 1);
       if (needle.current) needle.current.style.left = `${(pos.current * 100).toFixed(1)}%`;
       raf = requestAnimationFrame(frame);
     };
@@ -285,7 +293,7 @@ function Bark({ spec, soundRef, onDone, touch, photo }: Props<Extract<BerkeleySp
 
   const challenger = face("judge");
   return (
-    <div className={kit.scrim} onClick={bark}>
+    <div className={kit.scrim} onPointerDown={() => !finished && bark()} onClick={() => finished && bark()}>
       <Window title="BarkOff · live" wide>
         <div className={styles.bark}>
           <div className={styles.cams}>
@@ -380,7 +388,7 @@ function WrongStep({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec
   });
 
   return (
-    <div className={kit.scrim}>
+    <div className={kit.scrim} onClick={() => (finished || found) && check(selected)}>
       <div className={styles.ipad}>
         <div className={styles.ipadScreen}>
           <header className={styles.alaiBar}>
@@ -406,7 +414,10 @@ function WrongStep({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec
                     data-on={selected === i || undefined}
                     data-wrong={(found && i === p.wrong) || undefined}
                     onPointerEnter={() => !found && setSelected(i)}
-                    onClick={() => check(i)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      check(i);
+                    }}
                     style={{ "--tilt": `${((i * 37) % 5) - 2}` } as React.CSSProperties}
                   >
                     {s}
@@ -459,7 +470,7 @@ function Thread({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec, {
   });
 
   return (
-    <div className={kit.scrim}>
+    <div className={kit.scrim} onClick={() => finished && onDone(score)}>
       <Window title="Continuity · thread memory" wide>
         <div className={styles.thread}>
           <section className={styles.mails}>
@@ -495,6 +506,7 @@ function Thread({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec, {
                   onPick={pick}
                   onHover={(i) => picked === null && setSelected(i)}
                 />
+                <span className={kit.hint}>{touch ? "Tap the answer the thread backs up" : <>arrows to choose · <kbd>E</kbd> pin it</>}</span>
               </>
             )}
           </section>
@@ -658,6 +670,9 @@ function Call({ spec, soundRef, onDone, touch, photo }: Props<Extract<BerkeleySp
                   }}
                   onHover={setSelected}
                 />
+              ) : null}
+              {phase === "answer" ? (
+                <span className={kit.hint}>{touch ? "Tap who answers" : <>arrows to choose · <kbd>E</kbd> answer</>}</span>
               ) : full ? (
                 <span className={kit.hint}>{touch ? "Tap to go on" : <><kbd>E</kbd> go on</>}</span>
               ) : null}
@@ -756,12 +771,13 @@ function Bugs({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec, { k
 
   useEffect(() => {
     if (finished) return;
-    const id = window.setInterval(() => setLeft((s) => s - 1), 1000);
+    const id = window.setInterval(() => !screensPaused() && setLeft((s) => s - 1), 1000);
     return () => window.clearInterval(id);
   }, [finished]);
   useEffect(() => {
     if (finished) return;
     const id = window.setInterval(() => {
+      if (screensPaused()) return;
       // the ones nobody caught crawl off; a new one turns up where there's room
       const now = performance.now();
       const alive = live.current.filter((b) => now - b.born < 2600);
@@ -790,12 +806,19 @@ function Bugs({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec, { k
     setSquashed((list) => [...list, { id: bug.id, label: bug.label }]);
   };
   usePress(() => squash(cursor));
-  useArrows((step) => {
-    setCursor((c) => (c + step + TILES.length) % TILES.length);
-    soundRef.current?.select();
-  });
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (screensPaused() || event.repeat) return;
+      // three across, two down
+      const key = event.key.toLowerCase();
+      const move = key === "arrowleft" || key === "a" ? -1 : key === "arrowright" || key === "d" ? 1 : key === "arrowup" || key === "w" ? -3 : key === "arrowdown" || key === "s" ? 3 : 0;
+      if (move) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setCursor((c) => (c + move + TILES.length) % TILES.length);
+        soundRef.current?.select();
+        return;
+      }
       const n = Number(event.key);
       if (n >= 1 && n <= TILES.length) {
         event.preventDefault();
@@ -808,7 +831,7 @@ function Bugs({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec, { k
   });
 
   return (
-    <div className={kit.scrim}>
+    <div className={kit.scrim} onClick={() => finished && onDone(squashed.length)}>
       <div className={styles.ipad} data-wide="">
         <div className={styles.ipadScreen}>
           <header className={styles.alaiBar}>
@@ -830,7 +853,7 @@ function Bugs({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec, { k
                 {TILES.map((name, i) => {
                   const bug = bugs.find((b) => b.tile === i);
                   return (
-                    <button key={name} type="button" className={styles.tile} data-on={cursor === i || undefined} onClick={() => squash(i)} onPointerEnter={() => setCursor(i)}>
+                    <button key={name} type="button" className={styles.tile} data-on={cursor === i || undefined} onPointerDown={() => squash(i)} onPointerEnter={() => setCursor(i)}>
                       <small>
                         {touch ? null : <kbd>{i + 1}</kbd>} {name}
                       </small>

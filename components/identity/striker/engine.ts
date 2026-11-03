@@ -67,8 +67,8 @@ export function startStriker(canvas: HTMLCanvasElement, wide: HTMLCanvasElement,
         delete holder.dataset.stage;
         opened = false;
       }
-      const { mode, shown, split } = scene.frame(strip.ink, t);
-      strip.ink.blit(strip.pixels, mode, EDGE, reduced ? 1 : shown, split);
+      const { mode, shown, split, tilt } = scene.frame(strip.ink, t);
+      strip.ink.blit(strip.pixels, mode, EDGE, reduced ? 1 : shown, split, null, tilt);
       strip.context.putImageData(strip.image, 0, 0);
       return;
     }
@@ -82,8 +82,8 @@ export function startStriker(canvas: HTMLCanvasElement, wide: HTMLCanvasElement,
       w: lerp(box.width / per, ink.w, open),
       h: lerp(box.height / per, ink.h, open),
     };
-    const { mode, shown, split } = scene.frame(ink, t, win, open);
-    ink.blit(screen.pixels, mode, (EDGE / per) * (1 - open), shown, split, win);
+    const { mode, shown, split, tilt } = scene.frame(ink, t, win, open);
+    ink.blit(screen.pixels, mode, (EDGE / per) * (1 - open), shown, split, win, tilt);
     screen.context.putImageData(screen.image, 0, 0);
     const right = ink.w - win.x - win.w;
     const bottom = ink.h - win.y - win.h;

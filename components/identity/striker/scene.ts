@@ -1,6 +1,6 @@
 import { bones, DEFENDER, drawPlayer, DX, headOf, KEEPER, type Look, type Pose, px, py, STRIKER, type View } from "./body";
-import { crumble, grid, type Grid, jigsaw, piece, ring, tile } from "./fx";
-import { BLACK, BLUE, BLUEPRINT, CYAN, DEEP, DIM, FAINT, INK, type Ink, MINT, NEGATIVE, type Paint, SILHOUETTE, type Split, tone } from "./ink";
+import { crumble, grid, type Grid, jigsaw, outline, piece, ring, tile } from "./fx";
+import { BLACK, BLUE, BLUEPRINT, CYAN, DEEP, DIM, FAINT, INK, type Ink, MINT, NEGATIVE, type Paint, ROYAL, SILHOUETTE, type Split, tone } from "./ink";
 import { lerp, ramp } from "./moves";
 import { type Ball, BALL_R, clock, createPlay, GOAL_H, GOAL_X, GOAL_Z, NET_DEPTH } from "./play";
 
@@ -59,7 +59,9 @@ export function createScene() {
   const play = createPlay();
   const time = clock(play);
   const loop = time.duration + FADE_OUT + REST;
-  const [snap, backswing, strike, net, air, drop, roar, pump] = time.holds;
+  const { backswing, strike, net, roar } = time.holds;
+  // the fists coming down land without a freeze
+  const pump = time.moment(play.pumpAt);
   // as he slows at the end of the slide he gathers himself, and roars
   const gatherFrom = play.roarAt - 0.5;
   const lockAt = play.roarAt + 0.2;
@@ -80,78 +82,151 @@ export function createScene() {
   // to the end of the loop
   const openFrom = time.realAt(play.passedAt + 0.02);
   const openAt = (real: number) => 1 - (1 - Math.min(1, Math.max(0, (real - openFrom) / 0.6))) ** 3;
-  // and from just before he punches the air to the end, the celebration has
-  // the whole stage: the sentence steps back and he is framed big
-  const stageAt = (t: number) => ramp(t, play.airAt - 0.5, play.airAt - 0.2) * (1 - ramp(t, play.end - 0.6, play.end - 0.3));
-  const punches: [typeof strike, number][] = [[strike, 0.06], [net, 0.05], [air, 0.09], [drop, 0.06], [roar, 0.2], [pump, 0.1]];
+  // once it has the whole screen, the play has the stage: the sentence steps
+  // back until it's over
+  const stageAt = (t: number) => ramp(t, play.passedAt + 0.1, play.passedAt + 0.45) * (1 - ramp(t, play.end - 0.6, play.end - 0.3));
+  // three loud beats and no more: the strike, the net, the roar
+  const punches: [typeof strike, number][] = [[strike, 0.07], [net, 0.05], [roar, 0.16]];
 
-  // —— the camera follows him, pulls back while the ball is up over the
-  // defender, leans in as he sets himself, with room ahead of him for the
-  // shot, pulls wide for it, finds the net, then comes back to him and in
-  // close as he gathers himself to roar, and punches in on every big hit
-  const camera = (t: number, real: number, hero: Pose, ball: Ball, win: { x: number; y: number; w: number; h: number }, open: number): View => {
-    // players about two thirds of the height of the strip, unless it is
-    // narrow; with the whole screen, low down in it and under half its
-    // height even close up, clear of the sentence over the middle
+  // —— the shots. It's cut the way a sports anime cuts its big play: one
+  // long take for the dribble; the flick seen close, the ball rolled up the
+  // back of his calf; low under the ball as it goes over the man; a held
+  // breath for the backswing; the boot on the ball, huge, on impact; a whip
+  // after the ball to the goal; the net close; then back out wide as he
+  // wheels away, low on the grass for the slide and the roar, and level and
+  // wide for the fist in the air. Every cut is on a hit or a landing.
+  const R = (story: number) => time.realAt(story);
+  const cuts = {
+    insert: R(play.flickAt + 0.1),
+    rainbow: R(play.tLaunch + 0.02),
+    set: R(play.tCollect + 0.28),
+    contact: strike ? strike.from : R(play.contact),
+    flight: strike ? strike.to + 0.07 : R(play.contact + 0.08),
+    net: net ? net.from : R(play.netHit),
+    away: net ? net.to + 0.55 : R(play.netHit + 0.5),
+    slide: R(play.kneel - 0.03),
+    glory: R(play.riseAt + 0.2),
+  };
+  /** which shot a moment of real time is in */
+  const shotAt = (real: number) =>
+    real < cuts.insert ? "run" : real < cuts.rainbow ? "insert" : real < cuts.set ? "rainbow" : real < cuts.contact ? "set" : real < cuts.flight ? "contact" : real < cuts.net ? "flight" : real < cuts.away ? "net" : real < cuts.slide ? "away" : real < cuts.glory ? "slide" : "glory";
+  type Win = { x: number; y: number; w: number; h: number };
+  /** a view with world point (X, Y) at (sx, sy) on the screen, `zoom` pixels to a unit */
+  const aim = (win: Win, X: number, Y: number, sx: number, sy: number, zoom: number, extra: { dy?: number; tilt?: number } = {}): View => {
+    const ox = win.x + win.w / 2;
+    return { cx: X - (sx - ox) / zoom, cy: Y, zoom, w: win.w, h: win.h, base: sy, ox, ...extra };
+  };
+  /** how tall he stands, in world units, for sizing him against the frame */
+  const TALL = 50;
+  const strikeBall = play.ballAt(play.contact);
+  const restAt = play.heroAt(play.stopAt + 0.2);
+  const camera = (t: number, real: number, hero: Pose, ball: Ball, win: Win, open: number): View => {
     const { w, h } = win;
-    const stage = stageAt(t) * open;
-    const fit = Math.min(h / lerp(lerp(76, 125, open), 96, stage), w / 150);
-    const base = win.y + h * lerp(lerp(0.87, 0.94, open), 0.9, stage);
-    const reach = (k: number) => w / (fit * k);
-    // where to look to have him `at` of the way across, at a zoom of k
-    const place = (k: number, at: number) => hero.x + (0.5 - at) * reach(k);
-    let cx = place(1, 0.34);
+    const shot = shotAt(real);
+    // where he'll be a beat from now, so a following camera trails him a
+    // little and leads into his run
+    const lagged = (by: number) => play.heroAt(t - by).x;
+    let v: View;
+    switch (shot) {
+      case "run": {
+        // in the strip: big in it, a third of the way across. As it opens,
+        // the same framing but for the whole screen, bigger, and leaning in
+        // as he reads the flick, rolling a few degrees
+        const stripZoom = Math.min(h / 76, w / 150);
+        const fullZoom = Math.min((0.5 * h) / TALL, w / 120);
+        const read = ramp(t, play.flickAt - 0.65, play.flickAt - 0.05);
+        const zoom = lerp(stripZoom, fullZoom * (1 + 0.14 * read), open);
+        const at = lerp(0.34, 0.36, open);
+        v = aim(win, lagged(0.06), 0, win.x + w * at, win.y + h * lerp(0.87, 0.86, open), zoom, { tilt: 0.07 * read * open });
+        break;
+      }
+      case "insert": {
+        // down at his feet: the ball rolling up the back of the planted leg
+        // on the other boot's laces, the heel about to snap it up
+        const zoom = (0.72 * h) / 24;
+        const near = play.heroAt(play.flickAt + 0.12).near;
+        v = aim(win, near.x - 2, 9, win.x + w * 0.52, win.y + h * 0.66, zoom);
+        break;
+      }
+      case "rainbow": {
+        // low, under it: the camera rides with the ball and looks up after
+        // it, so it rises out of the top of the frame and comes down again
+        const zoom = (0.44 * h) / TALL;
+        const lift = Math.max(0, ball.y - 0.62 * (h / zoom));
+        v = aim(win, lerp(hero.x + 18, ball.x, 0.55), lift, win.x + w * 0.46, win.y + h * 0.88, zoom, { dy: 0.07 });
+        break;
+      }
+      case "set": {
+        // the held breath: in close, still, the ball and the room ahead
+        // of him for the strike
+        const zoom = (0.5 * h) / TALL;
+        const settle = ramp(t, play.tCollect + 0.2, play.contact - 0.35);
+        const x = lerp(hero.x + 12, strikeBall.x - 6, settle);
+        v = aim(win, x, 0, win.x + w * 0.42, win.y + h * 0.86, zoom, { tilt: 0.05 * settle });
+        break;
+      }
+      case "contact": {
+        // the boot on the ball, filling the frame
+        const zoom = (0.58 * h) / 15;
+        v = aim(win, strikeBall.x - 2.6, strikeBall.y + 0.8, win.x + w * 0.5, win.y + h * 0.57, zoom);
+        break;
+      }
+      case "flight": {
+        // whipped round after it, lagging, then the goal and the keeper
+        const zoom = (0.3 * h) / TALL;
+        const u = ramp(real, cuts.flight, cuts.flight + 0.22);
+        const x = lerp(strikeBall.x + 30, Math.min(ball.x - 20, GOAL_X - 12), u);
+        v = aim(win, x, 0, win.x + w * 0.5, win.y + h * 0.86, zoom);
+        break;
+      }
+      case "net": {
+        // the top corner, close: the net bellying out
+        const zoom = (0.62 * h) / 38;
+        v = aim(win, GOAL_X + NET_DEPTH * 0.45, GOAL_H - 13, win.x + w * 0.46, win.y + h * 0.5, zoom);
+        break;
+      }
+      case "away": {
+        // out wide: the keeper on the grass, and him wheeling away, the
+        // camera trailing him
+        const zoom = (0.44 * h) / TALL;
+        v = aim(win, lagged(0.18) + 8, 0, win.x + w * 0.4, win.y + h * 0.86, zoom);
+        break;
+      }
+      case "slide": {
+        // low on the grass, riding the slide and easing to a stop with
+        // him; in on him as he gathers himself, the world rolling on the roar
+        const gather = ramp(t, gatherFrom, lockAt);
+        const zoom = ((0.56 + 0.1 * gather) * h) / TALL;
+        const roll = roar && real >= roar.from ? 0.087 + 0.05 * Math.exp(-(real - roar.from) / 0.35) : 0.03 * gather;
+        const x = lerp(lagged(0.12) + 10, restAt.x + 4, ramp(t, play.kneel + 0.1, play.stopAt + 0.1));
+        v = aim(win, x, 0, win.x + w * 0.44, win.y + h * 0.9, zoom, { dy: 0.05, tilt: roll });
+        break;
+      }
+      default: {
+        // up, fist to the sky: level again, wide, pulling slowly back
+        const back = ramp(real, cuts.glory, cuts.glory + 2.4);
+        const zoom = ((0.5 - 0.08 * back) * h) / TALL;
+        v = aim(win, hero.x + 2, 0, win.x + w * 0.5, win.y + h * 0.88, zoom, { tilt: 0.087 * (1 - ramp(real, cuts.glory, cuts.glory + 0.5)) });
+      }
+    }
+    // a punch in on each of the three big hits, and a kick of shake that
+    // dies away, the biggest on the roar
     let k = 1;
-    const up = ramp(t, play.flickAt - 0.25, play.tLaunch + 0.1) * (1 - ramp(t, play.tCollect - 0.1, play.tCollect + 0.35));
-    cx = lerp(cx, hero.x + 30, up);
-    k = lerp(k, 0.86, up);
-    const set = ramp(t, play.contact - 0.62, play.contact - 0.22);
-    cx = lerp(cx, place(1.3, 0.4), set);
-    k = lerp(k, 1.3, set);
-    const away = ramp(t, play.contact + 0.01, play.contact + 0.24);
-    const span = GOAL_X + 60 - (play.B - 70);
-    const wide = reach(0.86) >= span;
-    const follow = wide ? (play.B - 70 + GOAL_X + 60) / 2 : Math.min(ball.x, GOAL_X - reach(0.9) * 0.3);
-    cx = lerp(cx, follow, away);
-    k = lerp(k, wide ? Math.max(0.78, Math.min(1, w / (fit * span))) : 0.9, away);
-    const goal = ramp(t, play.netHit - 0.05, play.netHit + 0.45);
-    cx = lerp(cx, wide ? cx : GOAL_X - reach(1) * 0.22, goal);
-    // with the whole screen the view is narrower, so it comes back sooner,
-    // in time to see him go
-    const back = ramp(t, play.netHit + lerp(0.55, 0.2, open), play.slideAt + lerp(0.35, -0.25, open));
-    cx = lerp(cx, hero.x + 4, back);
-    k = lerp(k, 1.26, back);
-    // with the whole screen, wider and to one side, so the men he beat are
-    // in it with him
-    const close = ramp(t, gatherFrom, lockAt);
-    cx = lerp(cx, place(lerp(1.35, 1.12, open), lerp(0.5, lerp(0.4, 0.36, stage), open)), close);
-    k = lerp(k, lerp(1.35, 1.12, open) + 0.12 * ramp(t, lockAt + 0.2, play.end + 0.6), close);
-    // out a little to keep his fists in it as he leaps
-    const leap = ramp(t, play.slideAt - 0.1, play.airAt) * (1 - ramp(t, play.airAt + 0.05, play.kneel));
-    k = lerp(k, k * 0.8, leap * stage);
-    // and, once he is up with his fist in the air, him in the middle of it
-    const glory = ramp(t, play.riseAt + 0.2, play.riseAt + 1);
-    cx = lerp(cx, place(k, 0.5), glory * stage);
     for (const [hold, amount] of punches) if (hold && real >= hold.from) k *= 1 + amount * Math.exp(-(real - hold.from) / 0.13);
-    // a kick of shake as the heel snaps, on contact, a bigger one at the net
-    // and as his knees land, a rumble building as he gathers himself, then
-    // the roar and his fists coming down
     let shake = 0;
-    if (snap && real >= snap.from) shake += 1.3 * Math.exp(-(real - snap.from) / 0.09);
-    if (strike && real >= strike.from) shake += 2.2 * Math.exp(-(real - strike.from) / 0.12);
-    if (net && real >= net.from) shake += 3.6 * Math.exp(-(real - net.from) / 0.16);
-    if (air && real >= air.from) shake += 2.2 * Math.exp(-(real - air.from) / 0.12);
-    if (drop && real >= drop.from) shake += 2.4 * Math.exp(-(real - drop.from) / 0.12);
-    if (t >= gatherFrom && t < lockAt) shake += 1.3 * ramp(t, gatherFrom, lockAt);
-    if (roar && real >= roar.from) shake += 4 * Math.exp(-(real - roar.from) / 0.22);
-    if (pump && real >= pump.from) shake += 3 * Math.exp(-(real - pump.from) / 0.16);
+    if (strike && real >= strike.from) shake += 1.6 * Math.exp(-(real - strike.from) / 0.1);
+    if (net && real >= net.from) shake += 2.6 * Math.exp(-(real - net.from) / 0.14);
+    if (t >= gatherFrom && t < lockAt) shake += 0.9 * ramp(t, gatherFrom, lockAt);
+    if (roar && real >= roar.from) shake += 3.4 * Math.exp(-(real - roar.from) / 0.2);
     const jx = shake ? (hash(Math.floor(real * 60)) - 0.5) * 2 * shake : 0;
     const jy = shake ? (hash(Math.floor(real * 60) + 0.5) - 0.5) * 2 * shake : 0;
-    const zoom = fit * k;
-    // and tilts up a little after the ball while it is up over the
-    // defender, when there is no sky above to see it in
-    const tilt = up * Math.max(0, ball.y - 18) * 0.16 * (1 - open);
-    return { cx: cx - jx / zoom, cy: jy / zoom + tilt, zoom, w, h, base, ox: win.x + w / 2 };
+    const zoom = v.zoom * k;
+    // zoomed about the middle of the window, so the punch lands on what's there
+    const mx = v.ox;
+    const my = win.y + h / 2;
+    const cx = v.cx + (mx - v.ox) / v.zoom - (mx - v.ox) / zoom;
+    const cy = v.cy + (v.base - my) / v.zoom - (v.base - my) / zoom;
+    return { ...v, cx: cx - jx / zoom, cy: cy + jy / zoom, zoom };
   };
 
   // —— the pitch: a faint print of its lines, and grass as sparse dots
@@ -475,22 +550,46 @@ export function createScene() {
       prev = point;
     }
   };
-  const sweep = (ink: Ink, v: View, t: number) => {
-    if (t < play.contact - 0.045 || t >= play.contact) return;
-    let prev: number[] | null = null;
-    const n = 8;
-    for (let k = n; k >= 0; k -= 1) {
-      const p = play.heroAt(t - k * 0.006);
-      const toe = [p.near.x + Math.cos(p.near.a) * 5.2, p.near.y + Math.sin(p.near.a) * 5.2];
-      const point = [px(v, toe[0], p.z - 2.2), py(v, toe[1], p.z - 2.2)];
-      if (prev) {
-        const r = Math.max(0.6, 1.9 * v.zoom * (1 - k / n));
-        ink.cap(prev[0], prev[1], r * 0.75, point[0], point[1], r, tone(BLUE));
-        ink.cap(prev[0], prev[1], r * 0.35, point[0], point[1], r * 0.55, tone(CYAN));
-        ink.cap(prev[0], prev[1], r * 0.12, point[0], point[1], r * 0.22, tone(INK));
-      }
-      prev = point;
+  // —— the swing as a smear: for the last frames before contact the kicking
+  // boot is drawn as the whole band it sweeps through, solid and
+  // straight-edged, the way a key animator would bridge the two poses
+  const smear = (ink: Ink, v: View, t: number) => {
+    if (t < play.contact - 0.026 || t >= play.contact) return;
+    const n = 6;
+    const front: number[] = [];
+    const back: number[] = [];
+    for (let k = 0; k <= n; k += 1) {
+      const p = play.heroAt(t - (n - k) * 0.007);
+      const ca = Math.cos(p.near.a);
+      const sa = Math.sin(p.near.a);
+      front.push(px(v, p.near.x + ca * 5.3, p.z - 2.2), py(v, p.near.y + sa * 5.3, p.z - 2.2));
+      back.push(px(v, p.near.x - sa * 1.6, p.z - 2.2), py(v, p.near.y + ca * 1.6, p.z - 2.2));
     }
+    const band = [...front];
+    for (let k = n; k >= 0; k -= 1) band.push(back[k * 2], back[k * 2 + 1]);
+    ink.who = 1;
+    ink.poly(band, tone(ROYAL));
+    // its leading edge, straight and bright
+    ink.cap(front[0], front[1], 0.5, front[n * 2], front[n * 2 + 1], Math.max(1, 0.5 * v.zoom), tone(CYAN));
+    ink.who = 0;
+  };
+
+  // —— a rim of light down his back and over his shoulders, from the
+  // floodlights behind him: a grey edge until he finds the flow, and then,
+  // all at once, electric
+  const rim = (ink: Ink, box: { x0: number; y0: number; x1: number; y1: number }, flow: boolean) => {
+    const { w, h, owner, color } = ink;
+    const lit: number[] = [];
+    for (let y = Math.max(1, box.y0); y <= Math.min(h - 2, box.y1); y += 1) {
+      for (let x = Math.max(1, box.x0); x <= Math.min(w - 2, box.x1); x += 1) {
+        const i = y * w + x;
+        if (owner[i] !== 1) continue;
+        const open = (j: number) => owner[j] !== 1 && color[j] === BLACK;
+        if (open(i - w) || open(i - 1)) lit.push(i);
+      }
+    }
+    const paint = flow ? CYAN : DIM;
+    for (const i of lit) color[i] = paint;
   };
 
   // —— on contact: rings of air pushed out along the line of the shot, which
@@ -557,13 +656,13 @@ export function createScene() {
 
   // off him the whole time he is in the flow, more the deeper he is, from
   // just off his bones: the trunk and head most, then the legs, then the arms
-  const RATE = 72;
+  const RATE = 30;
   const WEIGHTS = [3, 2.2, 1.1, 0.8, 1, 0.7, 0.9, 0.7, 0.7, 0.5];
   const WEIGHT = WEIGHTS.reduce((a, b) => a + b, 0);
   for (let k = 0; k < play.end * RATE; k += 1) {
     const t = k / RATE;
     const r = (j: number) => hash(k * 1.913 + j * 0.377);
-    if (r(0) >= play.auraAt(t)) continue;
+    if (r(0) >= play.auraAt(t) - 0.25) continue;
     const p = play.heroAt(t);
     const run = (play.heroAt(t + 0.02).x - p.x) / 0.02;
     const list = bones(p);
@@ -827,7 +926,7 @@ export function createScene() {
     const away = ramp(t, play.netHit + 0.15, play.netHit + 0.45) * (1 - ramp(t, play.kneel + 0.15, play.kneel + 0.5));
     if (round < 0.3 && away < 0.05) return;
     ink.who = 3;
-    const shown = round >= 0.3 ? GHOSTS.slice(1) : GHOSTS.slice(0, Math.ceil(away * GHOSTS.length));
+    const shown = round >= 0.3 ? GHOSTS.slice(2) : GHOSTS.slice(0, Math.ceil(away * GHOSTS.length));
     for (let i = shown.length - 1; i >= 0; i -= 1) drawPlayer(ink, v, play.heroAt(t - shown[i][0]), shown[i][1]);
     ink.who = 0;
   };
@@ -867,22 +966,15 @@ export function createScene() {
     ink.who = 0;
   };
 
-  // rings of air knocked out across the grass by the landing, the roar and
-  // the fists, which keep going through the freeze
+  // a ring of air knocked out across the grass by the roar, which keeps
+  // going through the freeze
   const RINGS: [number, Paint][] = [[0, tone(INK)], [0.08, tone(CYAN, 12)], [0.16, tone(MINT, 7)]];
-  const flying = play.heroAt(play.airAt);
-  const fists = middleOf(flying);
-  const shockwaves = [
-    { hold: air, x: fists.x, y: fists.y + 12, z: fists.z, reach: 110, squash: 1 },
-    { hold: drop, x: landed[0].x, y: 0, z: landed[0].z, reach: 60, squash: 0.22 },
-    { hold: roar, x: roaring.x, y: 0, z: roaring.z, reach: 130, squash: 0.22 },
-    { hold: pump, x: pumping.x, y: 0, z: pumping.z, reach: 95, squash: 0.22 },
-  ];
+  const shockwaves = [{ hold: roar, x: roaring.x, y: 0, z: roaring.z, reach: 130, squash: 0.22 }];
   const groundRings = (ink: Ink, v: View, real: number) => {
     ink.clip = behind(ink);
     for (const s of shockwaves) {
       if (!s.hold) continue;
-      for (const [delay, paint] of RINGS) {
+      for (const [delay, paint] of RINGS.slice(0, 2)) {
         const a = real - s.hold.from - delay;
         if (a < 0 || a > 0.5) continue;
         ring(ink, px(v, s.x, s.z), py(v, s.y, s.z), v.zoom * (5 + a * s.reach * 2), Math.max(1, 3 * (1 - a / 0.5)), paint, s.squash);
@@ -998,12 +1090,8 @@ export function createScene() {
   // prints another way while strokes burst out of the hit, and some cut it
   // in two along a slash through the hit, printed one way either side
   const hits: { hold: typeof strike; x: number; y: number; z: number; size: number; slash: number; seed: number; frames: [number, number, number][] }[] = [
-    { hold: strike, ...contactBall, size: 1, slash: 0.5, seed: 1, frames: [[0.035, NEGATIVE, 0], [0.035, NEGATIVE, SILHOUETTE], [0.035, BLUEPRINT, 0]] },
-    { hold: net, ...netBall, size: 0.8, slash: -0.7, seed: 2, frames: [[0.04, BLUEPRINT, 0], [0.04, SILHOUETTE, 0]] },
-    { hold: air, x: fists.x, y: fists.y + 12, z: fists.z, size: 0.9, slash: 0, seed: 6, frames: [[0.08, 0, 0]] },
-    { hold: drop, x: landed[0].x, y: 2, z: landed[0].z, size: 0.6, slash: 0, seed: 3, frames: [[0.05, SILHOUETTE, 0]] },
-    { hold: roar, ...middleOf(roaring), size: 1.2, slash: 1.1, seed: 4, frames: [[0.04, NEGATIVE, 0], [0.05, SILHOUETTE, NEGATIVE], [0.05, SILHOUETTE, 0]] },
-    { hold: pump, x: pumping.x, y: 4, z: pumping.z, size: 0.9, slash: 2.4, seed: 5, frames: [[0.04, BLUEPRINT, 0], [0.045, SILHOUETTE, 0]] },
+    { hold: strike, ...contactBall, size: 0.8, slash: 0.45, seed: 1, frames: [[0.042, SILHOUETTE, 0], [0.042, NEGATIVE, 0], [0.042, BLUEPRINT, SILHOUETTE]] },
+    { hold: roar, ...middleOf(roaring), size: 1.1, slash: 1.1, seed: 4, frames: [[0.05, NEGATIVE, 0], [0.06, SILHOUETTE, 0]] },
   ];
   const printing = (real: number) => {
     for (const hit of hits) {
@@ -1032,56 +1120,6 @@ export function createScene() {
   // sits behind whatever is already drawn.
   type Window = { x: number; y: number; w: number; h: number };
   const dark = (ink: Ink) => (x: number, y: number) => ink.color[y * ink.w + x] === BLACK;
-
-  // the rain: puzzle pieces coming down through it, slowly, turning and
-  // drifting, a few already falling as it opens and more coming in, the far
-  // ones small and dim and a few near ones big and bright in front of
-  // everything. The big hits blow them back off him a moment.
-  const drops = Array.from({ length: 130 }, (_, k) => {
-    const r = (j: number) => hash(k * 3.17 + j * 0.71 + 900);
-    const depth = r(1) ** 1.5;
-    return { x: r(2), enter: r(3) < 0.2 ? -1.1 * r(8) : r(3) - 0.2, speed: 0.045 + 0.075 * depth + 0.02 * r(4), size: 0.012 + 0.03 * depth, turn: r(5) * Math.PI * 2, spin: (r(6) - 0.5) * 1.4, sway: r(7) * Math.PI * 2, depth, sides: sidesOf(k * 7.7 + 3) };
-  });
-  const blasts: [typeof strike, number][] = [[air, 0.45], [roar, 1], [pump, 0.7]];
-  const rain = (ink: Ink, v: View, win: Window, t: number, real: number, front: boolean) => {
-    const since = real - openFrom;
-    if (since <= 0) return;
-    const chest = middleOf(play.heroAt(t));
-    const hx = px(v, chest.x, chest.z);
-    const hy = py(v, chest.y, chest.z);
-    ink.who = 3;
-    ink.clip = front ? behind(ink) : dark(ink);
-    for (const d of drops) {
-      if (front !== d.depth > 0.85) continue;
-      const fallen = since * d.speed - d.enter;
-      if (fallen < 0) continue;
-      const across = d.x + 0.012 * Math.sin(since * 0.7 + d.sway) - v.cx * 0.0005 * d.depth;
-      let x = win.x + (across - Math.floor(across)) * win.w;
-      let y = win.y + ((fallen % 1.2) - 0.1) * win.h;
-      for (const [hold, strength] of blasts) {
-        if (!hold || real < hold.from) continue;
-        const a = real - hold.from;
-        const dx = x - hx;
-        const dy = y - hy;
-        const dd = Math.hypot(dx, dy) || 1;
-        const push = strength * win.h * 0.3 * (1 - Math.exp(-a / 0.05)) * Math.exp(-a / 0.8) * Math.exp(-dd / (win.h * 0.9));
-        x += (dx / dd) * push;
-        y += (dy / dd) * push;
-      }
-      const size = d.size * win.h;
-      if (size < 2.5) {
-        ink.put(Math.floor(x), Math.floor(y), tone(BLUE, 10));
-        continue;
-      }
-      const pts = piece(x, y, size, d.turn + d.spin * since, d.sides);
-      if (front) tile(ink, pts, tone(CYAN, 6), tone(CYAN, 12), tone(INK, 12));
-      else if (d.depth > 0.6) tile(ink, pts, tone(BLUE), tone(CYAN, 14), tone(INK, 12));
-      else if (d.depth > 0.3) tile(ink, pts, tone(DEEP), tone(BLUE), tone(CYAN, 12));
-      else tile(ink, pts, tone(DEEP, 10), tone(DEEP), tone(BLUE, 10));
-    }
-    ink.clip = null;
-    ink.who = 0;
-  };
 
   // the crowd: from the goal on, cameras going off all round the ground,
   // points of white that flash and are gone, more of them as he roars
@@ -1113,32 +1151,50 @@ export function createScene() {
   };
 
   // glory: as he gets up a light comes down onto him from above, and stays
-  const beam = (ink: Ink, v: View, win: Window, t: number, real: number) => {
+  const clickAt = time.realAt(readAt);
+  const seams = (ink: Ink, win: Window, t: number, real: number, v: View) => {
+    const since = real - clickAt;
+    if (since < 0 || t > play.roarAt - 0.5) return;
+    const cut = prepare(ink);
+    const head = headOf(play.heroAt(t));
+    const hx = px(v, head.x, 0);
+    const hy = py(v, head.y, 0);
+    const front = since * 1400;
+    const fade = 1 - ramp(t, play.roarAt - 1.2, play.roarAt - 0.5);
+    ink.clip = dark(ink);
+    for (const c of cut.grid.cells) {
+      if (c.x < win.x - cut.grid.s || c.x > win.x + win.w + cut.grid.s) continue;
+      const d = Math.hypot(c.x - hx, c.y - hy);
+      if (d > front) continue;
+      // bright as the front passes, then settling to a faint print
+      const passed = (front - d) / 1400;
+      const level = Math.round((1.2 + 6 * Math.exp(-passed / 0.05) + 1.5 * Math.exp(-since / 0.5)) * fade);
+      if (level < 1) continue;
+      outline(ink, piece(c.x, c.y, cut.grid.s, 0, c.sides), tone(passed < 0.1 ? CYAN : BLUE, Math.min(16, level)));
+    }
+    ink.clip = null;
+  };
+
+  const beam = (ink: Ink, v: View, win: Window, t: number) => {
     const on = ramp(t, play.riseAt + 0.1, play.riseAt + 0.6);
     if (on <= 0) return;
     const p = play.heroAt(t);
     const cx = px(v, p.x + 2, p.z);
     const ground = py(v, 0, p.z);
     const top = win.y;
-    const narrow = win.w * 0.035;
-    const wide = win.w * 0.14;
+    const narrow = win.w * 0.03;
+    const wide = win.w * 0.11;
     ink.clip = dark(ink);
-    for (let y = Math.max(0, Math.floor(top)); y < Math.min(ink.h, ground + 3); y += 1) {
+    for (let y = Math.max(0, Math.floor(top)); y < Math.min(ink.h, ground + 2); y += 1) {
       const u = (y - top) / Math.max(1, ground - top);
       const half = lerp(narrow, wide, u);
-      for (let x = Math.max(0, Math.floor(cx - half)); x <= Math.min(ink.w - 1, cx + half); x += 1) {
-        const d = Math.abs(x + 0.5 - cx) / half;
-        const level = Math.round(on * 15 * (1 - d * d) * (0.5 + 0.5 * u));
-        if (level >= 1) ink.put(x, y, tone(d < 0.22 ? INK : CYAN, level));
+      const core = half * 0.18;
+      for (let x = Math.max(0, Math.ceil(cx - half)); x <= Math.min(ink.w - 1, Math.floor(cx + half)); x += 1) {
+        const d = Math.abs(x + 0.5 - cx);
+        ink.put(x, y, d < core ? tone(INK, Math.round(on * 9)) : d > half - 1 ? tone(CYAN, Math.round(on * 12)) : tone(CYAN, Math.round(on * 4)));
       }
     }
-    // a pool of it on the grass round his feet
-    for (let r = 0; r < 3; r += 1) ring(ink, cx, ground, wide * (0.75 + r * 0.22), 1.5, tone(r ? CYAN : INK, Math.round(on * (14 - r * 4))), 0.2);
-    // and the rays in it, shifting
-    for (let i = 0; i < 7; i += 1) {
-      const a = (i / 6 - 0.5) * 0.9 + 0.08 * Math.sin(real * 1.3 + i * 2.1);
-      ink.line(cx + a * narrow, top, cx + a * wide, ground, tone(INK, Math.round(on * (6 + 6 * hash(i + Math.floor(real * 8))))));
-    }
+    ring(ink, cx, ground, wide * 0.8, 1.5, tone(CYAN, Math.round(on * 12)), 0.2);
     ink.clip = null;
   };
 
@@ -1151,9 +1207,11 @@ export function createScene() {
     // the world, until the roar breaks it up and blows it away
     const since = roar ? real - roar.from : -9;
     const world = since < 1.5;
+    const shot = shotAt(real);
+    const whipping = shot === "flight" ? 1 - ramp(real, cuts.flight + 0.12, cuts.flight + 0.3) : 0;
     if (world) {
       pitch(ink, v);
-      speedLines(ink, m.speed, real);
+      speedLines(ink, Math.max(m.speed * (open > 0 ? 0.5 : 1), whipping), real);
       goal(ink, v, m.net, false);
       afterimages(ink, v, t);
     }
@@ -1191,6 +1249,7 @@ export function createScene() {
       }
     }
     actors.sort((a, b) => b.z - a.z);
+    smear(ink, v, t);
     for (const actor of actors) actor.draw();
     if (world) goal(ink, v, m.net, true);
     if (world && since > -0.5) {
@@ -1201,14 +1260,13 @@ export function createScene() {
     }
     if (open > 0) {
       flashes(ink, win, t, real);
-      rain(ink, v, win, t, real, false);
-      beam(ink, v, win, t, real);
+      seams(ink, win, t, real, v);
+      beam(ink, v, win, t);
     }
     groove(ink, v, t);
     groundRings(ink, v, real);
     fissures(ink, v, t, real);
     streak(ink, v, t);
-    sweep(ink, v, t);
     whip(ink, v, t);
     impact(ink, v, real);
     trail(ink, v, t);
@@ -1225,12 +1283,15 @@ export function createScene() {
         around.y1 = Math.max(around.y1, Math.ceil(py(v, y, z) + r));
       }
     }
+    rim(ink, around, m.aura > 0.3 || (t > play.flickAt - 0.1 && t < play.contact + 0.3));
     aura(ink, m.aura, real, v.zoom, around);
     pieces(ink, v, t, real);
     figuring(ink, v, t);
     const head = headOf(m.hero);
-    focusLines(ink, px(v, head.x, m.hero.z), py(v, head.y, m.hero.z), m.focus, real, 1.2 * v.h, 0.575 * v.h);
-    if (open > 0) rain(ink, v, win, t, real, true);
+    // the lines that stare at him stop short of him: well clear in the strip,
+    // closer in once he fills the screen
+    const stare = lerp(1.2, 0.5, open);
+    focusLines(ink, px(v, head.x, m.hero.z), py(v, head.y, m.hero.z), m.focus, real, stare * v.h, stare * 0.48 * v.h);
 
     let mode = 0;
     let split: Split | null = null;
@@ -1243,7 +1304,7 @@ export function createScene() {
       if (now.other) split = { x: cx, y: cy, dx: Math.cos(now.hit.slash), dy: Math.sin(now.hit.slash), mode: now.other };
     }
     const shown = Math.min(ramp(real, 0, FADE_IN), 1 - ramp(real, time.duration, time.duration + FADE_OUT));
-    return { mode, shown, split };
+    return { mode, shown, split, tilt: v.tilt ?? 0 };
   };
 
   // with reduced motion, one still: him at the top of the backswing, the

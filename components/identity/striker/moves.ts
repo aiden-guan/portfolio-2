@@ -1,4 +1,4 @@
-import { ANKLE, HIP, type Pose } from "./body";
+import { ANKLE, HIP, type Pose, SHIN, THIGH } from "./body";
 
 // How the players move. Running is generated: each ankle follows a sprint
 // path relative to the hips, a stance that sweeps back exactly as fast as the
@@ -34,9 +34,14 @@ export type Gait = {
 // footballers do flat out, a little less on the ball, where the head stays
 // up to see and the arms stay looser for balance; knees and heels come up,
 // and the arms drive hard when he is free of it.
-export const SPRINT: Gait = { cycle: 94, stance: 0.21, plant: 0.25, lift: 1.05, lean: 0.5, arms: 1.1, balance: 0.25, bob: 0.55, height: HIP - 1.8 };
-export const DRIBBLE: Gait = { cycle: 82, stance: 0.23, plant: 0.28, lift: 0.9, lean: 0.42, arms: 0.85, balance: 0.85, bob: 0.5, height: HIP - 1.7 };
-export const JOG: Gait = { cycle: 62, stance: 0.31, plant: 0.4, lift: 0.55, lean: 0.14, arms: 0.6, balance: 0.5, bob: 0.55, height: HIP - 1.4 };
+// Paced off measured running at 6.5 to 8 m/s (Clark 2020: about 4 steps a
+// second and a quarter of the cycle on the ground; COM rising and falling
+// some 4 to 6 cm; trunk 10 to 13° forward in team-sport athletes, a few
+// degrees more on the ball). On the ball the hips ride a little lower and
+// the knees and thighs swing through a little less (Zago 2016).
+export const SPRINT: Gait = { cycle: 100, stance: 0.24, plant: 0.27, lift: 1.06, lean: 0.24, arms: 1.1, balance: 0.25, bob: 0.5, height: HIP - 0.3 };
+export const DRIBBLE: Gait = { cycle: 90, stance: 0.25, plant: 0.27, lift: 0.94, lean: 0.3, arms: 0.85, balance: 0.85, bob: 0.45, height: HIP - 0.45 };
+export const JOG: Gait = { cycle: 68, stance: 0.33, plant: 0.36, lift: 0.7, lean: 0.12, arms: 0.6, balance: 0.5, bob: 0.6, height: HIP - 0.4 };
 
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
@@ -173,7 +178,37 @@ export function move(keys: Key[], f: number, before?: Key, after?: Key) {
 
 // —— running
 
-const SWING_U = [0, 0.17, 0.4, 0.63, 0.84, 1];
+// One leg through a cycle of running at pace, from its touchdown: the
+// thigh's angle from upright (forward positive) and the knee's bend, in
+// degrees, every twentieth of the cycle, with toe-off at a quarter. The
+// swing is Lin et al. 2023's, measured at 7.09 m/s, its toe-off remapped
+// from the treadmill's 33% to the 26% of running over ground; the stance is
+// footballers' at 7.5 m/s (knee 26° at touchdown, 40° at its deepest, about
+// 20° as the foot leaves), and the thigh's drive forward is held to a team
+// sport athlete's 64° rather than a sprinter's 72°. So: the foot lands a
+// little ahead of the hips on a nearly straight leg, the knee gives as he
+// passes over it, and he leaves the grass on his toes with the leg nearly
+// straight again and the thigh well behind him; then the heel folds up
+// toward the seat (the knee most bent, 125°, at 55 to 60%), the knee drives
+// forward and up to its highest at about 75%, and the shin unfolds so the
+// foot paws back down under him.
+const LEG_T = Array.from({ length: 21 }, (_, i) => i / 20);
+const THIGH_DEG = [33, 24, 13, 1, -12, -25, -26, -17, -6, 5, 16, 29, 43, 55, 62, 64, 62, 55, 46, 38, 33];
+const KNEE_DEG = [26, 33, 39, 39, 31, 22, 42, 63, 84, 104, 118, 125, 125, 118, 104, 86, 65, 48, 35, 29, 26];
+/** the foot, pointed past square to the shin: most as it leaves the grass,
+ * none by the middle of the swing, cocked up a touch before it lands */
+const POINT_DEG = [0, 0, 0, 0, 8, 26, 22, 16, 10, 6, 3, 0, 0, 0, 0, -2, -4, -5, -4, -2, 0];
+const legCurves = [THIGH_DEG, KNEE_DEG, POINT_DEG].map((deg) => curve(LEG_T, deg.map((d) => (d * Math.PI) / 180)));
+
+/** The ankle, relative to the hips, and the foot's pitch, with the leg at
+ * `c` of the way through the canonical cycle and the hips at `hip`. */
+function legAt(c: number, hip: number) {
+  const [thigh, knee, point] = legCurves.map((f) => f(c));
+  const shin = thigh - knee;
+  return { x: THIGH * Math.sin(thigh) + SHIN * Math.sin(shin), y: hip - THIGH * Math.cos(thigh) - SHIN * Math.cos(shin), a: shin - point };
+}
+
+const SWING_U = [0, 0.1, 0.24, 0.38, 0.52, 0.66, 0.8, 0.92, 1];
 /** from the ankle to the ball of the foot, which the foot rolls over as the
  * heel comes up */
 const BALL = 3.6;
@@ -184,8 +219,11 @@ const BALL = 3.6;
  * where it is on the grass. */
 function planted(u: number, g: Gait) {
   const reach = g.cycle * g.stance;
+  // he leaves on his toes, the foot pitched some 70° from the grass (Lin et
+  // al.'s 69° just after toe-off): rolling over the ball of the foot is how
+  // a stride gets its length behind him
   const k = Math.max(0, (u - 0.45) / 0.55);
-  const a = -0.75 * Math.max(0.5, g.lift) * k * k;
+  const a = -1.3 * Math.max(0.5, g.lift) * k * k;
   return { x: reach * g.plant - u * reach + BALL * (1 - Math.cos(a)), y: ANKLE - BALL * Math.sin(a), a };
 }
 
@@ -204,9 +242,14 @@ export function stride(s: number, g: Gait) {
   const last = planted(1 - 1e-3, g);
   const rate = (1 - g.stance) / g.stance / 1e-3;
   const back = (-reach * (1 - g.stance)) / g.stance;
-  const xs = [off.x, off.x - 3 * L, -4.5 * L, reach * 0.18 + 3.5 * L, land + 4.5 * L, land];
-  const ys = [off.y, ANKLE + 7 * L, ANKLE + 14.5 * L, ANKLE + 11.5 * L, ANKLE + 4 * L, ANKLE];
-  const as = [off.a, -1.05 * L, -0.95 * L, -0.25 * L, 0.12 * L, 0];
+  // the measured path through the air, its shape scaled by how hard he's
+  // running and pinned to where this foot leaves the grass and lands
+  const path = SWING_U.map((k) => legAt(0.25 + 0.75 * k, g.height));
+  const first = path[0];
+  const end = path[path.length - 1];
+  const xs = path.map((p, i) => lerp(off.x, land, SWING_U[i]) + (p.x - lerp(first.x, end.x, SWING_U[i])) * L);
+  const ys = path.map((p, i) => lerp(off.y, ANKLE, SWING_U[i]) + (p.y - lerp(first.y, end.y, SWING_U[i])) * L);
+  const as = path.map((p, i) => (i === 0 ? off.a : i === path.length - 1 ? 0 : p.a * (0.55 + 0.45 * L)));
   return {
     x: swingCurves(xs, (off.x - last.x) * rate, back)(u),
     y: swingCurves(ys, (off.y - last.y) * rate, 0)(u),

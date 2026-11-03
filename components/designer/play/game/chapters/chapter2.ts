@@ -30,7 +30,7 @@ async function denim(ctx: Ctx) {
   await ctx.scene({
     id: "hallway",
     actors: [
-      JOHN(new Vector3(1.1, 0, 0.55), { pose: "sit", seat: 0.45, heading: Math.PI * 0.15, behaviour: "idle" }),
+      JOHN(new Vector3(1.05, 0, 1.55), { pose: "sit", seat: 0.45, heading: Math.PI * 0.15, behaviour: "idle" }),
       JERRY(new Vector3(-6.4, 0, -0.6), { heading: Math.PI / 2 }),
       ...STUDENTS(101, { x0: -4.8, x1: 4.8, z0: -1.9, z1: -0.9 }, 6),
     ],
@@ -87,6 +87,9 @@ async function seniorYear(ctx: Ctx) {
     day: "Fri · Senior year",
     clock: 15 * 60 + 20,
   });
+  // the same doors, but this time they're the way out
+  const doors = ctx.stage().room.spots.find((s) => s.id === "door");
+  if (doors) doors.label = "Front doors";
   ctx.go("case");
 }
 
@@ -120,7 +123,7 @@ async function graduation(ctx: Ctx) {
     clock: 16 * 60 + 30,
   });
   ctx.go("walk");
-  await ctx.say([say("aiden", "Cap. Gown. Forty-five thousand dollars and two best friends ago, I was in a bedroom.")]);
+  await ctx.say([say("aiden", "Cap. Gown. It started with a bedroom, a shoebox and a group chat."), say("aiden", "Now it’s two best friends and a shelf of trophies. Same group chat.")]);
 }
 
 export const chapter2: Chapter = {
@@ -248,7 +251,7 @@ export const chapter2: Chapter = {
             await ctx.say([say("john", "Absolutely not."), say("aiden", "You asked for names."), say("john", "…One summer. That’s it.")]);
             const summer = await ctx.minigame("wingman");
             await ctx.say([
-              say("note", `${summer.rizzed} baddies rizzed. ${summer.best} meters down the coast. Peak: ${summer.top}.`),
+              say("note", `${summer.rizzed} ${summer.rizzed === 1 ? "baddie" : "baddies"} rizzed. ${summer.best} meters down the coast. Peak: ${summer.top}.`),
               say("john", "Okay. It was a busy summer."),
               say("aiden", "I was the launch platform. That’s leadership."),
               say("jerry", "Can I go next time?"),
@@ -297,12 +300,14 @@ export const chapter2: Chapter = {
         stage.faceTowards(new Vector3(0, 0, 2));
         await ctx.say([say("judge", "Event: Entrepreneurship. You have five minutes. Go.")]);
         let score = 0;
+        let jerrys = 0;
         const q1 = await ctx.choose(say("judge", "Who’s your customer, and how do you reach them?"), [
           { label: "Sneakerheads. They find us through referrals: every member brings two more.", who: "aiden" },
           { label: "Anyone who wants jeans cheaper. We find them with ads.", who: "john" },
           { label: "Everyone. Literally everyone. Babies, even.", who: "jerry" },
         ]);
         score += [3, 2, 0][q1];
+        if (q1 === 2) jerrys += 1;
         await ctx.say([q1 === 0 ? say("judge", "Specific. Good.") : q1 === 1 ? say("judge", "Hm. Fine.") : say("judge", "…Babies.")]);
         if (q1 === 2) ctx.bubble("seat0-1", "haha", 1600);
         const q2 = await ctx.choose(say("judge", "How do you keep costs down?"), [
@@ -311,6 +316,7 @@ export const chapter2: Chapter = {
           { label: "Jerry works for pizza.", who: "jerry" },
         ]);
         score += [3, 2, 2][q2];
+        if (q2 === 2) jerrys += 1;
         await ctx.say([q2 === 2 ? say("judge", "…That is very efficient, actually.") : say("judge", q2 === 0 ? "Smart." : "Good.")]);
         const q3 = await ctx.choose(say("judge", "Last one. Why should we believe you’ll pull this off?"), [
           { label: "Because we already have. $45,000 in revenue.", who: "aiden" },
@@ -318,17 +324,19 @@ export const chapter2: Chapter = {
           { label: "Because we’re best friends and we never lose.", who: "jerry" },
         ]);
         score += [3, 1, 3][q3];
+        if (q3 === 2) jerrys += 1;
         await ctx.say([q3 === 2 ? say("judge", "…I believe him.") : q3 === 0 ? say("judge", "That’ll do it.") : say("judge", "Everyone says that.")]);
         await ctx.wait(400);
         for (const who of [john, jerry]) who?.pose("cheer", 2600);
         stage.pose("cheer", 2600);
-        await ctx.open({ kind: "impact", text: "1ST PLACE", sub: score >= 8 ? "A clean sweep" : "Somehow, Jerry’s answer won it" });
+        await ctx.open({ kind: "impact", text: "1ST PLACE", sub: score === 9 ? "A clean sweep" : jerrys > 0 ? "Somehow, Jerry’s answer won it" : score >= 7 ? "Specific, and it showed" : "By a nose" });
         ctx.hearts("john", 3);
         ctx.hearts("jerry", 3);
         await ctx.say([
           say("jerry", "WE WON?"),
           say("john", "We won."),
-          say("aiden", "Regionals. Now state."),
+          say("jerry", "Is there pizza for winning?"),
+          say("aiden", "There’s state. Then there’s pizza."),
           say("note", "Then state. Then again. Then again."),
         ]);
         ctx.checkpoint(2);

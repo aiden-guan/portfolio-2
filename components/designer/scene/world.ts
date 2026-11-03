@@ -10,12 +10,12 @@ import {
   koiPond,
   ledgerTree,
   nightLights,
-  rallyTable,
   scenery,
   seyrinDesk,
   type Place,
   type Spot,
 } from "./places";
+import { rallyTable } from "./rally";
 import { buildTerrain } from "./terrain";
 import { buildWater } from "./water";
 

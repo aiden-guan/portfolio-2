@@ -109,14 +109,16 @@ export type Look = {
 
 /** Where the camera is: world point (cx, cy) sits `ox` pixels across and
  * `base` pixels down, the middle of the window the play is seen through,
- * which is w by h, and one world unit is `zoom` pixels. */
-export type View = { cx: number; cy: number; zoom: number; w: number; h: number; base: number; ox: number };
+ * which is w by h, and one world unit is `zoom` pixels. A lower camera sees
+ * depth run less far up the screen (`dy`), and the whole picture can be
+ * rolled for a Dutch angle (`tilt`, applied when it's printed). */
+export type View = { cx: number; cy: number; zoom: number; w: number; h: number; base: number; ox: number; dy?: number; tilt?: number };
 
 // a slightly raised side view: depth runs up and to the right
 export const DX = 0.34;
 export const DY = 0.16;
 export const px = (v: View, x: number, z: number) => v.ox + (x + z * DX - v.cx) * v.zoom;
-export const py = (v: View, y: number, z: number) => v.base - (y + z * DY - v.cy) * v.zoom;
+export const py = (v: View, y: number, z: number) => v.base - (y + z * (v.dy ?? DY) - v.cy) * v.zoom;
 
 /** how much of the lean his pelvis takes. A runner leans from the ankles,
  * hips kept under him; the lean that shows in his chest comes up through
@@ -395,6 +397,12 @@ const SPROUTS = [
 ];
 const CROP = [[2.5, 2.35], [1.15, 3.95], [-1.25, 4.1], [-3.15, 2.85], [-3.7, 0.65], [-3.4, -1.5], [-2.3, -1], [-1.4, 1], [0.5, 1.85]];
 const BOOT = [[-1.95, 0.7], [-1.85, -0.95], [-1.2, -1.5], [3.5, -1.5], [5.35, -1.05], [5.15, -0.1], [3, 0.75], [1.1, 1.55], [-0.65, 1.95]];
+// what a boot shows up close: the sole and its studs, the laces across the
+// instep, and a line along the side
+const SOLE = [[-1.85, -0.95], [-1.2, -1.5], [3.5, -1.5], [5.35, -1.05], [5.22, -0.68], [3.45, -1.06], [-1.02, -1.06], [-1.6, -0.62]];
+const STUDS = [[[-0.75, -1.5], [-0.75, -1.98]], [[1.25, -1.5], [1.25, -1.98]], [[3.15, -1.5], [3.15, -1.98]], [[4.45, -1.36], [4.45, -1.82]]];
+const LACES = [[[2.62, 0.62], [3.0, 0.16]], [[2.02, 0.9], [2.38, 0.42]], [[1.42, 1.16], [1.76, 0.7]]];
+const FLASH = [[-0.9, -0.2], [1.6, -0.62], [3.9, -0.72]];
 // a hand from the wrist, along the line of the forearm and out toward the
 // thumb, seen across its back: open, the fingers together and a little
 // curled; loosely shut, as a runner carries it, the fingers curled in and
@@ -472,9 +480,18 @@ export function drawPlayer(ink: Ink, v: View, p: Pose, look: Look, between?: () 
     if (look.band && !far) parts.push({ pts: project(limb(kx, ky, ax, ay, SHIN_SHAPE, f, 0.2, SOCK_TOP, SOCK_TOP + 0.085), z), fill: look.band, line: trim });
     const da = [f * Math.cos(foot.a), Math.sin(foot.a)];
     const na = [-f * Math.sin(foot.a), Math.cos(foot.a)];
-    parts.push({ pts: project(frame(BOOT, ax, ay, da[0], da[1], na[0], na[1]), z), fill: far ? look.farBoots : look.boots, line });
+    const inBoot = (points: number[][]) => project(frame(points, ax, ay, da[0], da[1], na[0], na[1]), z);
+    parts.push({ pts: inBoot(BOOT), fill: far ? look.farBoots : look.boots, line });
     parts.push({ pts: project(limb(p.x, p.y, kx, ky, THIGH_SHAPE, f, 0.6, 0, 0.5), z), fill: look.shorts, line: trim });
-    return { parts, ax, ay };
+    // close enough to see it: the sole, studs, laces and a flash down the side
+    const marks: Mark[] = [];
+    if (zoom > 4.5) {
+      marks.push({ pts: inBoot(SOLE), paint: far ? tone(BLACK) : tone(DEEP), line: line });
+      for (const stud of STUDS) marks.push({ pts: inBoot(stud), paint: far ? tone(BLACK) : tone(DEEP), r: 0.22 });
+      for (const lace of LACES) marks.push({ pts: inBoot(lace), paint: far ? tone(FAINT) : tone(INK), r: 0.13 });
+      if (!far) marks.push({ pts: inBoot(FLASH), paint: tone(CYAN, 12), r: 0.12 });
+    }
+    return { parts, marks, ax, ay };
   };
 
   // —— an arm: in a fitted sleeve to the wrist, or bare under a short one,
@@ -595,6 +612,7 @@ export function drawPlayer(ink: Ink, v: View, p: Pose, look: Look, between?: () 
   paint(ink, farArm.parts, width);
   strokes(ink, farArm.marks, zoom);
   paint(ink, farLeg.parts, width);
+  strokes(ink, farLeg.marks, zoom);
   paint(ink, body, width);
   edging(NECKLINE, 0.15);
   paint(ink, skin, width);
@@ -605,6 +623,7 @@ export function drawPlayer(ink: Ink, v: View, p: Pose, look: Look, between?: () 
   if (shout) strokes(ink, [{ pts: project(inHead([[2.52, -1.64], [2.94, -1.58]]), z), paint: tone(INK), r: 0.12 }], zoom);
   between?.();
   paint(ink, nearLeg.parts, width);
+  strokes(ink, nearLeg.marks, zoom);
   paint(ink, [{ pts: project(inTorso(billow(HEM)), z), fill: look.shirt, line: 0 }], width);
   edging(billow(HEM_EDGE), 0.13);
   paint(ink, nearArm.parts, width);

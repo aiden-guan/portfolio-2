@@ -10,6 +10,13 @@ import styles from "./screens.module.css";
 
 export type Props<T> = { spec: T; soundRef: RefObject<Sound | null>; onDone: (result?: unknown) => void; touch: boolean };
 
+// While the game is paused a screen hears no keys and its clocks stand still.
+let paused = false;
+export const pauseScreens = (on: boolean) => {
+  paused = on;
+};
+export const screensPaused = () => paused;
+
 /** Calls `fn` on E, space or enter. */
 export function usePress(fn: () => void) {
   const ref = useRef(fn);
@@ -19,7 +26,7 @@ export function usePress(fn: () => void) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
-      if (event.repeat || (key !== "e" && key !== " " && key !== "enter")) return;
+      if (paused || event.repeat || (key !== "e" && key !== " " && key !== "enter")) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       ref.current();
@@ -37,6 +44,7 @@ export function useArrows(fn: (step: number) => void) {
   });
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (paused) return;
       const key = event.key.toLowerCase();
       const step = key === "arrowup" || key === "arrowleft" || key === "w" || key === "a" ? -1 : key === "arrowdown" || key === "arrowright" || key === "s" || key === "d" ? 1 : 0;
       if (!step) return;
