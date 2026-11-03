@@ -622,9 +622,11 @@ export function createPlay() {
   // with the goal
   const auraAt = (t: number) =>
     Math.max(
-      0.58 * ramp(t, F - 0.14, F + 0.08) * (1 - ramp(t, contact - 0.3, contact)),
-      ramp(t, contact - 0.62, contact - 0.2) * (1 - 0.45 * ramp(t, contact + 0.05, contact + 0.5)),
-      0.9 * ramp(t, netHit, netHit + 0.15),
+      // it comes on as he reads the flick, flares as the ball goes up, and
+      // settles low while it's in the air
+      0.62 * ramp(t, F - 0.14, F + 0.08) * (1 - 0.5 * ramp(t, F + 0.5, F + 0.9)) * (1 - ramp(t, contact - 0.3, contact)),
+      ramp(t, contact - 0.62, contact - 0.2) * (1 - 0.55 * ramp(t, contact + 0.05, contact + 0.5)),
+      0.55 * ramp(t, netHit, netHit + 0.15),
       // and burns hotter than ever as he roars
       ramp(t, roarAt, roarAt + 0.2) * (1 + 0.3 * (1 - ramp(t, roarAt + 0.4, pumpAt + 0.3))),
     ) * (1 - ramp(t, end - 0.5, end + 0.2));
@@ -695,45 +697,40 @@ function fromPose(p: Pose) {
 }
 
 /** Story time runs slower than the clock in places: a breath as he reads
- * the flick, a beat held as his heel snaps the ball up, the ball going over
- * the defender's head, slowest at the top, then into the strike, where
- * it eases into slow motion as he sets himself, holds at the top of the
- * backswing, holds again on contact (the hit-stop) and once more as the
- * ball hits the net. In the celebration it holds on his fists up in the air
- * and as his knees hit the grass, goes slow as he gathers himself at the end
- * of the slide, and holds on the roar and as his fists come down. */
+ * the flick, slower still for the flick itself (seen close, the ball rolled
+ * up the back of his leg), back up to speed through the snap of the heel,
+ * and nearly still at the top of the ball's arc over the defender. Into the
+ * strike it eases into slow motion as he sets himself, holds a long breath
+ * at the top of the backswing, and holds again on contact (the hit-stop),
+ * briefly at the net, at the top of the leap, and on the roar. */
 export function clock(play: Play) {
-  const { contact, netHit, end, flickAt, tLaunch, apexAt, airAt, kneel, roarAt, pumpAt } = play;
+  const { contact, netHit, end, flickAt, tLaunch, apexAt, airAt, roarAt } = play;
   // [story time, rate until the next one] and holds, in real seconds
-  const marks: { story: number; rate: number; hold?: number }[] = [
+  const marks: { story: number; rate: number; hold?: number; name?: string }[] = [
     { story: 0, rate: 1 },
     { story: flickAt - 0.6, rate: 0.62 },
-    { story: flickAt - 0.08, rate: 1 },
-    { story: tLaunch, rate: 0, hold: 0.06 },
-    { story: tLaunch, rate: 0.8 },
+    { story: flickAt - 0.08, rate: 0.8 },
+    { story: flickAt + 0.1, rate: 0.42 },
+    { story: tLaunch - 0.02, rate: 0.9 },
     { story: tLaunch + 0.12, rate: 0.5 },
-    { story: apexAt - 0.18, rate: 0.32 },
+    { story: apexAt - 0.18, rate: 0.24 },
     { story: apexAt + 0.12, rate: 0.5 },
     { story: apexAt + 0.3, rate: 1 },
     { story: contact - 0.62, rate: 0.62 },
     { story: contact - 0.5, rate: 0.26 },
-    { story: contact - 0.08, rate: 0, hold: 0.18 },
+    { story: contact - 0.08, rate: 0, hold: 0.46, name: "backswing" },
     { story: contact - 0.08, rate: 0.5 },
-    { story: contact, rate: 0, hold: 0.22 },
+    { story: contact, rate: 0, hold: 0.25, name: "strike" },
     { story: contact, rate: 0.7 },
     { story: contact + 0.08, rate: 1 },
-    { story: netHit, rate: 0, hold: 0.12 },
+    { story: netHit, rate: 0, hold: 0.09, name: "net" },
     { story: netHit, rate: 1 },
-    { story: airAt, rate: 0, hold: 0.12 },
+    { story: airAt, rate: 0, hold: 0.12, name: "air" },
     { story: airAt, rate: 1 },
-    { story: kneel, rate: 0, hold: 0.09 },
-    { story: kneel, rate: 1 },
     { story: roarAt - 0.5, rate: 0.55 },
-    { story: roarAt + 0.2, rate: 0, hold: 0.24 },
+    { story: roarAt + 0.2, rate: 0, hold: 0.17, name: "roar" },
     { story: roarAt + 0.2, rate: 0.75 },
     { story: roarAt + 0.45, rate: 1 },
-    { story: pumpAt, rate: 0, hold: 0.11 },
-    { story: pumpAt, rate: 1 },
     { story: end, rate: 1 },
   ];
   const real: number[] = [0];
@@ -763,9 +760,14 @@ export function clock(play: Play) {
     }
     return duration + (s - end);
   };
-  /** the freezes, in real time: the snap of the heel, the top of the
-   * backswing, contact, the net, the fists up in the air, his knees landing,
-   * the roar and the fists coming down */
-  const holds = marks.flatMap((mark, i) => (mark.hold ? [{ story: mark.story, from: real[i], to: real[i + 1] }] : []));
-  return { duration, story, realAt, holds };
+  /** the freezes, by name, in real time: the top of the backswing, contact,
+   * the net, his fists up in the air, and the roar */
+  type Hold = { story: number; from: number; to: number };
+  const holds: Record<string, Hold> = {};
+  marks.forEach((mark, i) => {
+    if (mark.hold && mark.name) holds[mark.name] = { story: mark.story, from: real[i], to: real[i + 1] };
+  });
+  /** a moment with no freeze, in the same shape, for effects keyed to it */
+  const moment = (s: number): Hold => ({ story: s, from: realAt(s), to: realAt(s) });
+  return { duration, story, realAt, holds, moment };
 }

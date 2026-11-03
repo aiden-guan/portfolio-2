@@ -250,7 +250,7 @@ export class Ink {
    * right edges of the window it is seen through away into the page, and
    * dissolving the whole picture in or out as `shown` goes between 0 and 1.
    * In a silhouette he prints solid white. */
-  blit(out: Uint32Array, mode: number, fade: number, shown = 1, split: Split | null = null, win: { x: number; w: number } | null = null) {
+  blit(out: Uint32Array, mode: number, fade: number, shown = 1, split: Split | null = null, win: { x: number; w: number } | null = null, tilt = 0) {
     const { w, h, color, owner } = this;
     const tables = [mode, split ? split.mode : mode].map((m) => {
       const map = MODES[m] ?? MODES[0];
@@ -266,11 +266,17 @@ export class Ink {
     const page = 255 << 24;
     const left = win ? win.x : 0;
     const right = win ? win.x + win.w - 1 : w - 1;
-    if (shown >= 1 && fade <= 0 && !split && !tables[0][PALETTE.length]) {
+    if (shown >= 1 && fade <= 0 && !split && !tables[0][PALETTE.length] && !tilt) {
       const table = tables[0];
       for (let i = 0; i < w * h; i += 1) out[i] = table[color[i]];
       return;
     }
+    // rolled about the middle of the window: each pixel printed from where
+    // it was before the roll
+    const ca = Math.cos(tilt);
+    const sa = Math.sin(tilt);
+    const mx = (left + right + 1) / 2;
+    const my = h / 2;
     for (let y = 0; y < h; y += 1) {
       for (let x = 0; x < w; x += 1) {
         const i = y * w + x;
@@ -280,8 +286,20 @@ export class Ink {
           out[i] = page;
           continue;
         }
+        let at = i;
+        if (tilt) {
+          const dx = x + 0.5 - mx;
+          const dy = y + 0.5 - my;
+          const sx = Math.floor(mx + dx * ca + dy * sa);
+          const sy = Math.floor(my - dx * sa + dy * ca);
+          if (sx < 0 || sy < 0 || sx >= w || sy >= h) {
+            out[i] = page;
+            continue;
+          }
+          at = sy * w + sx;
+        }
         const table = split && (x - split.x) * split.dx + (y - split.y) * split.dy > 0 ? tables[1] : tables[0];
-        out[i] = owner[i] === 1 && table[PALETTE.length] ? table[PALETTE.length] : table[color[i]];
+        out[i] = owner[at] === 1 && table[PALETTE.length] ? table[PALETTE.length] : table[color[at]];
       }
     }
   }
