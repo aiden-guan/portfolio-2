@@ -39,6 +39,7 @@ type Lit = {
 };
 
 type Pending = { id: number; x: number; y: number; timer: number };
+type Shockwave = { x: number; y: number; at: number; angle: number };
 
 // a scorch on the mat: where, how big, how much heat it took, how hot it
 // still is, when it was last heated, and when Tidy began wiping it away
@@ -69,6 +70,10 @@ type Particle = {
 const ANGLE = (36 * Math.PI) / 180;
 const LEAN = (8 * Math.PI) / 180;
 const STANDOFF = 25;
+const NORMAL_RADIUS = 6.5;
+const BOOST_RADIUS = 52;
+const NORMAL_POWER = 4.2;
+const BOOST_POWER = 80;
 const HOLD_TO_LIGHT = 260;
 const MAX_PARTICLES = 900;
 const MAX_SCORCHES = 240;
@@ -114,6 +119,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   const torch = mat.querySelector<HTMLElement>(".torch");
   const fire = mat.querySelector<HTMLCanvasElement>(".mat-fire");
   const scorchCanvas = mat.querySelector<HTMLCanvasElement>(".mat-scorch");
+  const overdriveControl = mat.querySelector<HTMLButtonElement>(".torch-guide-key");
   const fx = fire?.getContext("2d");
   const sx = scorchCanvas?.getContext("2d");
   if (!torch || !fire || !scorchCanvas || !fx || !sx) return () => {};
@@ -125,9 +131,13 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   const blueBloom = sprite("#209eff", 128);
   const warmBloom = sprite("#ff8c30", 128);
   const sparkBloom = sprite("#ffc36a", 32);
+  const plasmaBloom = sprite("#8260ff", 128);
+  const ionBloom = sprite("#9cf7ff", 32);
 
   let lit: Lit | null = null;
   let pending: Pending | null = null;
+  let overdriveEnabled = false;
+  let shiftHeld = false;
   let raf = 0;
   // while only cooled scorches are left, the frames come on a timer instead
   let timer = 0;
@@ -135,6 +145,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
   let mm = 4;
   const particles: Particle[] = [];
   const scorches: Scorch[] = [];
+  const shockwaves: Shockwave[] = [];
 
   // the fire canvas covers the window
   let fireW = 0;
@@ -235,8 +246,11 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     const angle = ANGLE + l.lean;
     const ux = Math.cos(angle);
     const uy = Math.sin(angle);
-    const nozzle = { x: target.x + ux * STANDOFF * mm, y: target.y + uy * STANDOFF * mm };
-    return { target, nozzle, ux, uy, angle };
+    // Pressure pushes the hand back; the hot spot stays exactly on the pointer.
+    const recoil = still ? 0 : l.boost * mm * 16;
+    const hand = { x: target.x + ux * recoil, y: target.y + uy * recoil };
+    const nozzle = { x: hand.x + ux * STANDOFF * mm, y: hand.y + uy * STANDOFF * mm };
+    return { target, hand, nozzle, ux, uy, angle };
   }
 
   function burn(l: Lit, dt: number, box: DOMRect, now: number) {
@@ -251,48 +265,73 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     const pull = Math.cos(ANGLE) * l.vy - Math.sin(ANGLE) * l.vx;
     const want = still ? 0 : Math.max(-LEAN, Math.min(LEAN, pull * 0.00008));
     l.lean += (want - l.lean) * Math.min(1, dt * 10);
-    const { target, ux, uy, angle } = aim(l, box);
-    torch!.style.transform = `translate3d(${target.x.toFixed(2)}px, ${target.y.toFixed(2)}px, 0) rotate(${angle.toFixed(4)}rad)`;
+    const { target, hand, ux, uy, angle } = aim(l, box);
+    torch!.style.transform = `translate3d(${hand.x.toFixed(2)}px, ${hand.y.toFixed(2)}px, 0) rotate(${angle.toFixed(4)}rad)`;
 
     // the heat, on whatever's under it
     const sweep = Math.hypot(l.vx, l.vy);
     // a flame moved quickly over something has less time to burn it
-    const power = (4.2 + l.boost * 5.8) / (1 + sweep / 1100);
+    const power = (NORMAL_POWER + l.boost * (BOOST_POWER - NORMAL_POWER)) / (1 + sweep / (1100 + l.boost * 2200));
+    const radius = mm * (NORMAL_RADIUS + l.boost * (BOOST_RADIUS - NORMAL_RADIUS));
     // the heat, laid all along the way the flame went since the last frame,
     // so a quick sweep leaves a line rather than a row of dots
     const from = l.last ?? target;
-    const steps = Math.max(1, Math.min(16, Math.ceil(Math.hypot(target.x - from.x, target.y - from.y) / (mm * 1.5))));
+    // The broad field needs fewer samples along a sweep. At full boost this
+    // caps damage work at 36 surface queries per frame, even on a fast drag.
+    const steps = Math.max(1, Math.min(Math.round(16 - l.boost * 12), Math.ceil(Math.hypot(target.x - from.x, target.y - from.y) / (mm * (1.5 + l.boost * 16)))));
     let hit = { on: "mat" as "paper" | "mat", char: 0, kind: "" };
+    let paperChar = -1;
+    const heatAt = (x: number, y: number, reach: number, strength: number, dose: number) => {
+      const contact = surface.heat(x, y, reach, strength, dose);
+      if (contact.on === "mat") scorch(x, y, dose * (1 + l.boost * 3), now, l.boost > 0.1 ? reach : undefined);
+      else if (contact.char > paperChar) {
+        paperChar = contact.char;
+        hit = contact;
+      }
+      return contact;
+    };
     for (let k = 1; k <= steps; k++) {
       const x = from.x + ((target.x - from.x) * k) / steps;
       const y = from.y + ((target.y - from.y) * k) / steps;
-      hit = surface.heat(x, y, mm * (6.5 + l.boost * 3), power, dt / steps);
-      if (hit.on === "mat") scorch(x, y, (dt / steps) * (1 + l.boost), now);
+      const center = heatAt(x, y, radius * (1 - l.boost * 0.4), power, dt / steps);
+      if (paperChar < 0) hit = center;
+      if (l.boost > 0.1) {
+        // Independent contact points let the blast hit several topmost sheets
+        // and the exposed mat around them, even with the pointer in a gap.
+        for (let i = 0; i < 8; i++) {
+          const a = (i * Math.PI) / 4;
+          const reach = radius * 0.6;
+          heatAt(x + Math.cos(a) * reach, y + Math.sin(a) * reach,
+            radius * 0.4, power * l.boost * 0.8, dt / steps);
+        }
+      }
     }
     l.last = target;
     l.on = hit.on;
     l.char = hit.char;
-    l.burner.level((hit.on === "paper" ? Math.min(1, hit.char) : 0.25) + l.boost);
+    l.burner.level((hit.on === "paper" ? Math.min(1, hit.char) : 0.25) + l.boost * 1.7);
     if (hit.on === "paper" && !still) crackle(Math.min(1, hit.char * 1.2));
 
     if (still) return;
     // where the jet lands it fans out across the surface, onward
     const paper = hit.on === "paper";
-    const ramp = paper && hit.char > 0.25 ? 0 : paper ? 1 : 2;
+    const ramp = paper && hit.char > 0.25 ? 0 : l.boost > 0.5 ? 1 : paper ? 1 : 2;
     const count = Math.round(dt * (paper ? 420 : 480) * (1 + l.boost * 0.45) + Math.random());
     for (let i = 0; i < count; i++) {
       const spread = (Math.random() - 0.5) * Math.PI * 1.5;
       const a = Math.atan2(-uy, -ux) + spread;
       const speed = mm * (16 + Math.random() * 34) * (1 + l.boost * 0.8) * (1 - Math.abs(spread) / 3.2);
+      const landing = Math.random() * Math.PI * 2;
+      const footprint = radius * l.boost * Math.sqrt(Math.random()) * 0.86;
       emit({
         kind: Kind.Lick,
-        x: target.x + (Math.random() - 0.5) * mm,
-        y: target.y + (Math.random() - 0.5) * mm,
+        x: target.x + Math.cos(landing) * footprint + (Math.random() - 0.5) * mm,
+        y: target.y + Math.sin(landing) * footprint + (Math.random() - 0.5) * mm,
         vx: Math.cos(a) * speed,
         vy: Math.sin(a) * speed - mm * 4,
         life: 0.12 + Math.random() * (paper ? 0.28 : 0.18),
-        size: mm * (1.4 + Math.random() * 1.6),
-        grow: mm * (paper ? 5 : 3.5),
+        size: mm * (1.4 + Math.random() * 1.6) * (1 + l.boost * 1.7),
+        grow: mm * (paper ? 5 : 3.5) * (1 + l.boost),
         ramp,
       });
     }
@@ -300,26 +339,41 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     if (paper && hit.char > 0.45) {
       const n = Math.round(dt * 90 * Math.min(1, hit.char));
       for (let i = 0; i < n; i++) {
-        const r = mm * 5 * Math.sqrt(Math.random());
+        const r = (mm * 5 + radius * l.boost * 0.85) * Math.sqrt(Math.random());
         const a = Math.random() * Math.PI * 2;
         emit({
           kind: Kind.Lick,
           x: target.x + Math.cos(a) * r,
           y: target.y + Math.sin(a) * r,
           vx: (Math.random() - 0.5) * mm * 6,
-          vy: -mm * (10 + Math.random() * 14),
+          vy: -mm * (10 + Math.random() * 14) * (1 + l.boost),
           life: 0.25 + Math.random() * 0.35,
-          size: mm * (1.6 + Math.random() * 2.2),
+          size: mm * (1.6 + Math.random() * 2.2) * (1 + l.boost),
           grow: mm * 2,
           ramp: 0,
         });
       }
     }
     const smoke = dt * (paper ? 26 * Math.min(1, hit.char + 0.2) : 9);
-    for (let i = 0; i < smoke + Math.random() - 0.5; i++) puff(target.x, target.y, paper ? 1 : 0.6);
+    for (let i = 0; i < smoke + Math.random() - 0.5; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = radius * l.boost * Math.sqrt(Math.random());
+      puff(target.x + Math.cos(a) * r, target.y + Math.sin(a) * r, paper ? 1 : 0.6);
+    }
     // Hot fragments spray in the jet's direction, then arc down under gravity.
     if (Math.random() < dt * (paper ? 24 : 14) * (1 + l.boost * 2)) {
       sparks(target.x, target.y, 2 + Math.floor(Math.random() * (3 + l.boost * 4)), Math.atan2(-uy, -ux));
+    }
+    if (l.boost > 0.1) {
+      const n = Math.round(dt * 110 * l.boost + Math.random());
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const speed = mm * (25 + Math.random() * 65);
+        const r = radius * l.boost * Math.random() * 0.8;
+        emit({ kind: Kind.Spark, x: target.x + Math.cos(a) * r, y: target.y + Math.sin(a) * r,
+          vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+          life: 0.16 + Math.random() * 0.22, size: mm * 0.28, grow: 0, ramp: 1 });
+      }
     }
   }
 
@@ -337,7 +391,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     });
   }
 
-  function sparks(x: number, y: number, n: number, direction?: number) {
+  function sparks(x: number, y: number, n: number, direction?: number, ramp = 0) {
     for (let i = 0; i < n; i++) {
       const a = direction === undefined ? Math.random() * Math.PI * 2 : direction + (Math.random() - 0.5) * 2.6;
       const speed = mm * (40 + Math.random() * 95);
@@ -350,14 +404,23 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
         life: 0.3 + Math.random() * 0.55,
         size: mm * (0.15 + Math.random() * 0.2),
         grow: 0,
-        ramp: 0,
+        ramp,
       });
     }
   }
 
+  function boostBurst(l: Lit) {
+    if (still) return;
+    const { target, angle } = aim(l, mat.getBoundingClientRect());
+    // A small fixed pool, even if Shift is tapped repeatedly.
+    if (shockwaves.length >= 6) shockwaves.shift();
+    shockwaves.push({ ...target, angle, at: performance.now() });
+    sparks(target.x, target.y, 38, undefined, 1);
+  }
+
   // The bare mat under the flame: it scorches, a little more the longer it's
   // held there.
-  function scorch(x: number, y: number, dt: number, now: number) {
+  function scorch(x: number, y: number, dt: number, now: number, radius = 0) {
     let near: Scorch | null = null;
     let nearD = Infinity;
     for (const s of scorches) {
@@ -369,7 +432,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     }
     if (near && nearD < near.r * 0.42) {
       near.dose = Math.min(1.6, near.dose + dt * 2.4);
-      near.r = Math.min(mm * 8, near.r + mm * dt * 1.5);
+      near.r = Math.min(Math.max(mm * 8, near.r, radius), Math.max(near.r, radius * 0.9) + mm * dt * 1.5);
       near.hot = 1;
       near.at = now;
       return;
@@ -381,7 +444,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
       });
       scorches.splice(weakest, 1);
     }
-    scorches.push({ x, y, r: mm * (3.8 + Math.random() * 1.6), dose: 0.22 + dt * 2.4, hot: 1, at: now, clear: 0 });
+    scorches.push({ x, y, r: Math.max(radius * 0.9, mm * (3.8 + Math.random() * 1.6)), dose: 0.22 + dt * 2.4, hot: 1, at: now, clear: 0 });
   }
 
   // ---- drawing
@@ -397,8 +460,8 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     const time = still ? 0 : now * 0.001;
     const flicker = still ? 1 : 0.97 + Math.sin(time * 53) * 0.02 + Math.sin(time * 97) * 0.015;
     const ignition = still ? 0 : Math.max(0, 1 - (now - l.at) / 260);
-    const length = STANDOFF * mm;
-    const strength = 1 + boost * 0.55 + ignition * 0.3;
+    const length = Math.hypot(nx - tx, ny - ty);
+    const strength = 1 + boost * 2.1 + ignition * 0.3;
 
     // Cached blooms keep the large pools of light cheap. A cool light at
     // the barrel mixes with the warm light of paper actually catching fire.
@@ -473,10 +536,11 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     fx!.fillStyle = "#e8ffff";
     fx!.globalAlpha = 0.8;
     ribbon(0.36 + boost * 0.12, mm * 0.65, mm * 0.2, 0);
+    if (boost > 0.01) drawPlasma(length, boost, time);
     fx!.restore();
 
     // A grounded ellipse of heat at contact; never a detached cursor halo.
-    const spotR = mm * (5 + boost * 2) * flicker;
+    const spotR = mm * (5 + boost * 47) * flicker;
     fx!.save();
     fx!.translate(tx, ty);
     fx!.scale(1, 0.6);
@@ -489,7 +553,159 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     fx!.fillStyle = spot;
     fx!.fillRect(-spotR, -spotR, spotR * 2, spotR * 2);
     fx!.restore();
+    if (boost > 0.01) {
+      drawImpact(tx, ty, mm * (NORMAL_RADIUS + boost * (BOOST_RADIUS - NORMAL_RADIUS)), boost, time);
+      // A luminous contact star anchors the long beam to the actual burn.
+      fx!.save();
+      fx!.translate(tx, ty);
+      fx!.rotate(angle);
+      fx!.globalCompositeOperation = "lighter";
+      const flare = mm * (18 + boost * 45);
+      fx!.globalAlpha = boost * 0.45;
+      fx!.drawImage(plasmaBloom, -flare, -flare, flare * 2, flare * 2);
+      fx!.fillStyle = "#c3faff";
+      for (let i = 0; i < 6; i++) {
+        fx!.rotate(Math.PI / 3);
+        fx!.globalAlpha = boost * (i % 2 ? 0.24 : 0.45);
+        fx!.beginPath();
+        fx!.moveTo(0, -mm * 0.7);
+        fx!.quadraticCurveTo(mm * 4, -mm * 0.3, mm * (i % 2 ? 12 + boost * 16 : 19 + boost * 23), 0);
+        fx!.quadraticCurveTo(mm * 4, mm * 0.3, 0, mm * 0.7);
+        fx!.fill();
+      }
+      fx!.globalAlpha = boost * 0.95;
+      fx!.drawImage(ionBloom, -mm * 5, -mm * 5, mm * 10, mm * 10);
+      fx!.restore();
+    }
     fx!.globalAlpha = 1;
+  }
+
+  // The footprint and damage share a radius: the corona shows which nearby
+  // sheets are being heated. Eight fixed filaments keep drawing work bounded.
+  function drawImpact(x: number, y: number, radius: number, boost: number, time: number) {
+    const ctx = fx!;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.globalCompositeOperation = "lighter";
+    const glow = radius * 1.3;
+    ctx.globalAlpha = boost * 0.32;
+    ctx.drawImage(plasmaBloom, -glow, -glow, glow * 2, glow * 2);
+    ctx.globalAlpha = boost * 0.25;
+    ctx.drawImage(blueBloom, -radius, -radius, radius * 2, radius * 2);
+    ctx.lineCap = "round";
+    for (let i = 0; i < 8; i++) {
+      ctx.beginPath();
+      for (let j = 0; j <= 20; j++) {
+        const t = j / 20;
+        const a = i * Math.PI / 4 + time * 0.45 + t * 0.8;
+        const r = radius * (0.14 + t * 0.8);
+        const px = Math.cos(a) * r;
+        const py = Math.sin(a) * r;
+        if (!j) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.strokeStyle = i % 2 ? "#b291ff" : "#66eaff";
+      ctx.lineWidth = mm * 2.2;
+      ctx.globalAlpha = boost * 0.12;
+      ctx.stroke();
+      ctx.lineWidth = mm * 0.3;
+      ctx.globalAlpha = boost * 0.48;
+      ctx.stroke();
+    }
+    for (let i = 0; i < 3; i++) {
+      const a = time * 0.65 + i * Math.PI * 2 / 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.94, a, a + Math.PI * 0.4);
+      ctx.strokeStyle = "#8cddff";
+      ctx.lineWidth = mm * 0.35;
+      ctx.globalAlpha = boost * 0.3;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // A coherent white core and counter-wound ion filaments. Fixed segment
+  // counts and cached sprites keep the effect independent of particle density.
+  function drawPlasma(length: number, boost: number, time: number) {
+    const ctx = fx!;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    const pulse = still ? 1 : 0.94 + Math.sin(time * 8) * 0.06;
+    ctx.globalAlpha = boost * 0.14;
+    ctx.strokeStyle = "#8050ff";
+    ctx.lineWidth = mm * 11;
+    ctx.beginPath();
+    ctx.moveTo(mm, 0);
+    ctx.lineTo(length, 0);
+    ctx.stroke();
+    for (let coil = 0; coil < 2; coil++) {
+      ctx.beginPath();
+      for (let i = 0; i <= 36; i++) {
+        const t = i / 36;
+        const envelope = Math.sin(t * Math.PI) ** 0.7;
+        const phase = t * Math.PI * 5 - time * 10 + coil * Math.PI;
+        const y = Math.sin(phase) * mm * 4 * envelope;
+        if (i === 0) ctx.moveTo(0, y);
+        else ctx.lineTo(length * t, y);
+      }
+      ctx.strokeStyle = coil ? "#b295ff" : "#69eeff";
+      ctx.globalAlpha = boost * 0.2;
+      ctx.lineWidth = mm * 2.5;
+      ctx.stroke();
+      ctx.globalAlpha = boost * 0.85;
+      ctx.lineWidth = mm * 0.42;
+      ctx.stroke();
+    }
+    // The white line makes this read as a different mode, even in a still.
+    ctx.beginPath();
+    ctx.moveTo(mm, 0);
+    ctx.lineTo(length, 0);
+    ctx.globalAlpha = boost * 0.38 * pulse;
+    ctx.strokeStyle = "#7cecff";
+    ctx.lineWidth = mm * 3.2;
+    ctx.stroke();
+    ctx.globalAlpha = boost * 0.9;
+    ctx.strokeStyle = "#edffff";
+    ctx.lineWidth = mm * 0.65;
+    ctx.stroke();
+    // Compressed gas rings travel from the nozzle toward the work.
+    for (let i = 0; i < 4; i++) {
+      const t = ((time * 0.85 + i / 4) % 1);
+      const radius = mm * (2 + Math.sin(t * Math.PI) * 2.8);
+      ctx.globalAlpha = Math.sin(t * Math.PI) * boost * 0.55;
+      ctx.strokeStyle = i % 2 ? "#bba3ff" : "#a6f8ff";
+      ctx.lineWidth = mm * 0.28;
+      ctx.beginPath();
+      ctx.ellipse(length * t, 0, radius * 0.32, radius, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawShockwaves(box: DOMRect, now: number) {
+    const ctx = fx!;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const wave of shockwaves) {
+      // An input event can arrive after this RAF timestamp was sampled.
+      const t = Math.max(0, Math.min(1, (now - wave.at) / 650));
+      const reach = 1 - (1 - t) ** 3;
+      const radius = mm * (3 + reach * 80);
+      ctx.save();
+      ctx.translate(wave.x + box.left, wave.y + box.top);
+      ctx.rotate(wave.angle);
+      for (let ring = 0; ring < 2; ring++) {
+        ctx.globalAlpha = (1 - t) ** 2 * (ring ? 0.42 : 0.7);
+        ctx.strokeStyle = ring ? "#b18aff" : "#b8fbff";
+        ctx.lineWidth = mm * (0.25 + (1 - t) * 0.65);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, radius * (ring ? 0.72 : 1), radius * (ring ? 0.36 : 0.6), 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.restore();
   }
 
   function drawParticles(box: DOMRect) {
@@ -547,9 +763,9 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
       } else if (p.kind === Kind.Spark) {
         const radius = mm * 1.6 * (1 - t);
         fx!.globalAlpha = 0.5 * (1 - t);
-        fx!.drawImage(sparkBloom, p.x + ox - radius, p.y + oy - radius, radius * 2, radius * 2);
+        fx!.drawImage(p.ramp ? ionBloom : sparkBloom, p.x + ox - radius, p.y + oy - radius, radius * 2, radius * 2);
         fx!.globalAlpha = 1 - t;
-        fx!.strokeStyle = t < 0.4 ? "#fff1c4" : "#ffab4a";
+        fx!.strokeStyle = p.ramp ? (t < 0.4 ? "#d9ffff" : "#9b87ff") : t < 0.4 ? "#fff1c4" : "#ffab4a";
         fx!.lineWidth = Math.max(0.8, p.size);
         fx!.beginPath();
         fx!.moveTo(p.x + ox - p.vx * 0.045, p.y + oy - p.vy * 0.045);
@@ -681,27 +897,31 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
       p.y += p.vy * dt;
     }
 
-    const showing = lit || particles.length;
+    for (let i = shockwaves.length - 1; i >= 0; i--) {
+      if (now - shockwaves[i]!.at >= 650) shockwaves.splice(i, 1);
+    }
+    const showing = lit || particles.length || shockwaves.length;
     if (showing) {
       sizeFire();
       fx!.setTransform(fireRatio, 0, 0, fireRatio, 0, 0);
       fx!.clearRect(0, 0, fireW, fireH);
       if (lit) drawFlame(lit, box, now);
       drawParticles(box);
+      if (shockwaves.length) drawShockwaves(box, now);
     } else if (fireLive) {
       letGo();
     }
     if (scorches.length) drawScorches(box, now, elapsed);
     else if (scorchLive) letGo();
     signal();
-    if (lit || particles.length || embers.length || scorches.some((s) => s.hot > 0 || s.clear)) raf = requestAnimationFrame(frame);
+    if (lit || particles.length || shockwaves.length || embers.length || scorches.some((s) => s.hot > 0 || s.clear)) raf = requestAnimationFrame(frame);
     else if (scorches.length) timer = window.setTimeout(() => frame(performance.now()), SCORCH_IDLE);
     else letGo();
   }
 
   // ---- lighting it and putting it out
 
-  function light(id: number, cx: number, cy: number, touch: boolean, overdrive = false) {
+  function light(id: number, cx: number, cy: number, touch: boolean) {
     measure();
     unlockSound();
     lit = {
@@ -717,7 +937,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
       py: cy,
       at: performance.now(),
       boost: 0,
-      overdrive,
+      overdrive: overdriveEnabled || shiftHeld,
       on: "mat",
       char: 0,
       last: null,
@@ -727,11 +947,12 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     torch!.style.transform = `translate3d(${target.x.toFixed(2)}px, ${target.y.toFixed(2)}px, 0) rotate(${angle.toFixed(4)}rad)`;
     torch!.dataset.down = "";
     html.dataset.torching = "";
-    html.toggleAttribute("data-torch-boost", overdrive);
+    html.toggleAttribute("data-torch-boost", lit.overdrive);
     if (!still) {
       sparks(target.x, target.y, 18, angle + Math.PI);
       puff(target.x, target.y, 0.5);
     }
+    if (lit.overdrive) boostBurst(lit);
     wake();
   }
 
@@ -759,6 +980,8 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
 
   const onPointerDown = (event: PointerEvent) => {
     if (lit || pending || !usable(event)) return;
+    shiftHeld = event.shiftKey;
+    syncOverdrive();
     if (event.pointerType === "touch") {
       const id = event.pointerId;
       const x = event.clientX;
@@ -780,7 +1003,7 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     try {
       mat.setPointerCapture(event.pointerId);
     } catch {}
-    light(event.pointerId, event.clientX, event.clientY, false, event.shiftKey);
+    light(event.pointerId, event.clientX, event.clientY, false);
   };
 
   const onPointerMove = (event: PointerEvent) => {
@@ -794,7 +1017,8 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     if (!lit || lit.id !== event.pointerId) return;
     lit.cx = event.clientX;
     lit.cy = event.clientY;
-    setOverdrive(event.shiftKey);
+    shiftHeld = event.shiftKey;
+    syncOverdrive();
   };
 
   const onPointerUp = (event: PointerEvent) => {
@@ -858,31 +1082,44 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     wake();
   };
 
-  function setOverdrive(active: boolean) {
+  function syncOverdrive() {
+    const active = overdriveEnabled || shiftHeld;
+    overdriveControl?.setAttribute("aria-pressed", String(active));
     if (!lit || lit.overdrive === active) return;
     lit.overdrive = active;
     html.toggleAttribute("data-torch-boost", active);
-    if (active && !still) {
-      const { target, angle } = aim(lit, mat.getBoundingClientRect());
-      sparks(target.x, target.y, 14, angle + Math.PI);
-    }
+    if (active) boostBurst(lit);
   }
 
+  const onOverdriveClick = () => {
+    overdriveEnabled = !overdriveEnabled;
+    syncOverdrive();
+  };
+
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "Shift" && !event.repeat) setOverdrive(true);
+    if (event.key === "Shift") {
+      shiftHeld = true;
+      syncOverdrive();
+    }
     if (event.key === "Escape" || event.key.toLowerCase() === "k") onBlur();
   };
   const onKeyUp = (event: KeyboardEvent) => {
-    if (event.key === "Shift") setOverdrive(false);
+    if (event.key === "Shift") {
+      shiftHeld = event.shiftKey;
+      syncOverdrive();
+    }
   };
   const onBlur = () => {
     if (pending) window.clearTimeout(pending.timer);
     pending = null;
+    shiftHeld = false;
+    syncOverdrive();
     out();
   };
   const onVisibility = () => { if (document.hidden) onBlur(); };
 
   measure();
+  overdriveControl?.addEventListener("click", onOverdriveClick);
   mat.addEventListener("pointerdown", onPointerDown);
   window.addEventListener("pointermove", onPointerMove, { passive: true });
   window.addEventListener("pointerup", onPointerUp);
@@ -905,7 +1142,10 @@ export function mountTorch(mat: HTMLElement, surface: Surface) {
     window.clearTimeout(timer);
     scorches.length = 0;
     particles.length = 0;
+    shockwaves.length = 0;
     letGo();
+    overdriveControl?.removeEventListener("click", onOverdriveClick);
+    overdriveControl?.setAttribute("aria-pressed", "false");
     mat.removeEventListener("pointerdown", onPointerDown);
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);

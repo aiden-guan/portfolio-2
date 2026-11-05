@@ -57,6 +57,7 @@ export function Torch() {
           <path className="torch-mouth" d="M25 -2.5 V2.5" stroke="#87eeff" strokeWidth=".5" />
           <path d="M29 -2.4 H43" stroke="#d7e7f1" strokeWidth=".35" opacity=".6" />
           {[33, 36.2, 39.4].map((x) => <rect key={x} x={x} y="-.8" width="1.5" height="1.6" rx=".65" fill="#16222e" stroke="#a3afb6" strokeWidth=".15" />)}
+          <path className="torch-plasma-coils" d="M29 -3.2 V3.2 M33 -3.2 V3.2 M37 -3.2 V3.2 M41 -3.2 V3.2" fill="none" stroke="#b0faff" strokeWidth=".65" />
           <rect x="46" y="-4.5" width="9" height="9" rx=".6" fill="url(#torch-titanium)" stroke="#1c242c" strokeWidth=".25" />
           {[47, 49, 51, 53].map((x) => <path key={x} d={`M${x} -4.4 V4.4`} stroke="#1b242c" strokeWidth=".65" />)}
           {/* Knurled regulator, ignition paddle, and a tiny live indicator. */}
@@ -96,14 +97,22 @@ export function TorchLayer() {
       <canvas className="mat-scorch" aria-hidden="true" />
       <Torch />
       <canvas className="mat-fire" aria-hidden="true" />
-      <div className="torch-guide" aria-hidden="true">
-        <span className="torch-guide-light" />
-        <span className="torch-guide-id">JET—01</span>
-        <span className="torch-guide-idle">Hold to ignite</span>
-        <span className="torch-guide-live">Burning</span>
-        <span className="torch-guide-boost">Overdrive</span>
-        <span className="torch-guide-key"><kbd>⇧</kbd> overdrive</span>
-        <span className="torch-guide-touch">Hold &amp; drag to burn</span>
+      <div className="torch-guide" role="group" aria-label="Torch controls" data-no-drag>
+        <span className="torch-guide-light" aria-hidden="true" />
+        <span className="torch-guide-id" aria-hidden="true">JET—01</span>
+        <span className="torch-guide-idle" aria-hidden="true">Hold to ignite</span>
+        <span className="torch-guide-live" aria-hidden="true">Burning</span>
+        <span className="torch-guide-boost" aria-hidden="true">Full power</span>
+        <span className="torch-guide-touch" aria-hidden="true">Hold &amp; drag to burn</span>
+        <button
+          type="button"
+          className="torch-guide-key"
+          aria-label="Overdrive"
+          aria-pressed={false}
+          title="Toggle overdrive, or hold Shift while burning"
+        >
+          <kbd aria-hidden="true">Shift</kbd> Overdrive
+        </button>
       </div>
     </>
   );

@@ -1319,6 +1319,8 @@ export function Table({ children }: { children: ReactNode }) {
 
     // A drag ends in a click on whatever is under it; that click isn't one.
     const onClickCapture = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("[data-no-drag]")) return;
       if (html.dataset.tool === "torch" && event.detail > 0) {
         event.preventDefault();
         event.stopPropagation();

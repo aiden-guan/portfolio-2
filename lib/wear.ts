@@ -492,7 +492,7 @@ export class Wear {
     this.fieldDirty = true;
     this.marksDirty = true;
     const here = this.charAt(q.x, q.y);
-    if (here >= THROUGH) this.burnThrough(q, dt);
+    if (here >= THROUGH) this.burnThrough(q, dt, r, power);
     return here;
   }
 
@@ -501,8 +501,12 @@ export class Wear {
     return this.char[i] ?? 0;
   }
 
-  private burnThrough(q: Pt, dt: number) {
+  private burnThrough(q: Pt, dt: number, radius: number, power: number) {
     const mm = this.mm;
+    // A concentrated flame eats a small hole; the high-energy blast opens
+    // its whole heated patch quickly instead of only darkening a large area.
+    const blast = Math.max(0, Math.min(1, (power - 12) / 48));
+    const reach = Math.max(mm * 4, Math.min(mm * 64, radius * 0.92));
     let near: Hole | null = null;
     let nearD = Infinity;
     for (const h of this.holes) {
@@ -515,11 +519,11 @@ export class Wear {
     if (near && (nearD < mm * 1.4 || this.holes.length >= MAX_HOLES)) {
       if (nearD > 0 && this.holes.length >= MAX_HOLES) near.max = Math.max(near.max, near.r + nearD + mm);
       // held there, the flame keeps eating the hole wider
-      near.max = Math.min(mm * 24, near.max + mm * 1.6 * dt);
-      near.r = Math.min(near.max, near.r + mm * 7 * dt);
+      near.max = Math.min(Math.max(mm * 24, near.r, reach * blast), near.max + mm * (1.6 + blast * 70) * dt);
+      near.r = Math.min(near.max, near.r + mm * (7 + blast * 110) * dt);
       near.hot = 1;
     } else {
-      this.holes.push({ x: q.x, y: q.y, r: mm * 0.9, max: mm * (4 + Math.random() * 3.5), edge: raggedEdge(), hot: 1 });
+      this.holes.push({ x: q.x, y: q.y, r: mm * (0.9 + blast * 3), max: Math.max(mm * (4 + Math.random() * 3.5), reach * blast), edge: raggedEdge(), hot: 1 });
     }
     this.shapeDirty = true;
   }

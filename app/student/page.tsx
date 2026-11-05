@@ -35,7 +35,7 @@ export default async function Home() {
             {profile.mark ? <span className="masthead-mark">{profile.mark}</span> : null}
             <span>{profile.name}</span>
           </a>
-          <WorldSwitch current="student" bare className="masthead-world" />
+          <WorldSwitch current="student" bare align="right" className="masthead-world" />
         </div>
         <MatNavigation navigation={navigation} />
         <div className="masthead-tools">

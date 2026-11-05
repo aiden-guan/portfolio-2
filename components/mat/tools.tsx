@@ -57,7 +57,7 @@ export function ToolSwitch() {
         type="button"
         aria-pressed={tool === "torch"}
         aria-keyshortcuts="T"
-        title="Torch (T): hold to burn; hold Shift for overdrive; Escape to put away"
+        title="Torch (T): hold to burn; hold Shift or toggle Overdrive for more heat; Escape to put away"
         onClick={() => setTool("torch")}
       >
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
