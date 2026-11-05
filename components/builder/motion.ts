@@ -74,13 +74,6 @@ export function fadeAway(copy: HTMLElement, keyframes: Keyframe[], options: Keyf
   copy.animate(keyframes, { fill: "forwards", ...options }).finished.then(remove, remove);
 }
 
-// Resolves once a picture can be painted, or after `wait` ms, whichever is
-// first, so a morph never starts on an empty frame.
-export function painted(image: HTMLImageElement | null | undefined, wait: number) {
-  if (!image) return Promise.resolve();
-  return Promise.race([image.decode().catch(() => undefined), new Promise((resolve) => window.setTimeout(resolve, wait))]);
-}
-
 // "2026-10-26T10:59:31Z" → "4d ago"
 export function ago(iso: string, now: number) {
   const minutes = Math.round((now - Date.parse(iso)) / 60_000);

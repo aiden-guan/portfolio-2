@@ -3,7 +3,8 @@ import { gowned, LOOKS, someone } from "../people";
 import type { Field } from "../rooms/field";
 import type { Hallway } from "../rooms/hallway";
 import type { ActorSpec } from "../stage";
-import { say, type Chapter, type Ctx } from "./types";
+import { again, mirror, noticing, nth } from "./notice";
+import { say, type Chapter, type Ctx, type Line } from "./types";
 
 // High school, after the cook group: John (who sells jeans he has never
 // touched), then Jerry (who joins for the pizza), then FBLA, and winning it
@@ -26,7 +27,36 @@ const STUDENTS = (seed: number, area: { x0: number; x1: number; z0: number; z1: 
 const JOHN = (at: Vector3, extra: Partial<ActorSpec> = {}): ActorSpec => ({ id: "john", look: LOOKS.john, at, label: "John", behaviour: "watch", ...extra });
 const JERRY = (at: Vector3, extra: Partial<ActorSpec> = {}): ActorSpec => ({ id: "jerry", look: LOOKS.jerry, at, label: "Jerry", behaviour: "watch", ...extra });
 
+// what the chapter remembers, for later in it
+/** Aiden took Jerry's side about the pizza. */
+let sided = false;
+/** How many of the judges' questions Jerry answered, and whether one was the babies. */
+let jerrys = 0;
+let babies = false;
+/** The summer, proved off John's shoulders. */
+let thrown = false;
+
+// what John and Jerry say between the things that happen, by step
+const JOHN_SAYS: Record<string, Line[][]> = {
+  jerry: [[say("john", "He does this. Let him finish.")]],
+  club: [[say("john", "Room 204’s down the hall. Follow the smell of pizza.")], [say("john", "Jerry’s already walking. Jerry’s never walked this fast.")]],
+  present: [[say("john", "Focus. We’re winning this.")], [say("john", "Stop looking at me. Look at the judges.")]],
+  case: [[say("john", "We should frame the group chat too.")], [say("john", "One more month of this hallway. Then real money.")]],
+  grad: [[say("john", "Front doors. Last time.")]],
+  walk: [[say("john", "Go. Walk the stage. Don’t trip, everyone’s filming.")], [say("john", "Aiden. The stage. It’s the big thing with the principal on it.")]],
+  goodbye: [[say("john", "Signpost. Don’t make it weird.")]],
+};
+const JERRY_SAYS: Record<string, Line[][]> = {
+  club: [[say("jerry", "Pizza’s on me. By which I mean you.")], [say("jerry", "If there’s pineapple on it, I’m joining forever.")]],
+  present: [[say("jerry", "If they ask about margins, I’m pointing at John.")], [say("jerry", "I practiced in the mirror. The mirror said I’m ready.")]],
+  case: [[say("jerry", "Four trophies. I’ve touched all of them. That counts.")], [say("jerry", "John says I can’t hold one at graduation. I’m holding one at graduation.")]],
+  grad: [[say("jerry", "Last time through these doors. I’m not crying. You’re crying.")]],
+  walk: [[say("jerry", "If you trip, I’m not helping. I’m filming.")]],
+  goodbye: [[say("jerry", "Is this the part where we hug? Is it? It is.")]],
+};
+
 async function denim(ctx: Ctx) {
+  sided = false;
   await ctx.scene({
     id: "hallway",
     actors: [
@@ -46,6 +76,8 @@ async function denim(ctx: Ctx) {
 }
 
 async function conference(ctx: Ctx) {
+  jerrys = 0;
+  babies = false;
   const audience: ActorSpec[] = [];
   const rows = [1.1, 1.9, 2.7];
   rows.forEach((z, r) =>
@@ -94,6 +126,7 @@ async function seniorYear(ctx: Ctx) {
 }
 
 async function graduation(ctx: Ctx) {
+  thrown = false;
   const grads: ActorSpec[] = [];
   [0.6, 1.4].forEach((z, r) =>
     [-3.6, -2.8, -2.0, -1.2, 0.8, 1.6, 2.4, 3.2].forEach((x, i) => {
@@ -162,7 +195,7 @@ export const chapter2: Chapter = {
     friends: "john",
     goodbye: "signs",
   },
-  use: async (id, ctx) => {
+  use: noticing(async function respond(id, ctx): Promise<void> {
     const step = ctx.step();
     const stage = ctx.stage();
     switch (id) {
@@ -195,13 +228,14 @@ export const chapter2: Chapter = {
             jerry.show(true);
             ctx.bubble("jerry", "GUYS!", 1800);
             ctx.sound()?.whoosh(0.6, true, 0.1);
-            await jerry.walkTo(new Vector3(-1.2, 0, -1.2));
+            // he runs in: it's urgent, there's pizza
+            await jerry.walkTo(new Vector3(-1.2, 0, -1.2), true);
             jerry.face(stage.position);
           }
           return ctx.go("jerry");
         }
-        if (step === "walk" || step === "friends") return chapter2.use("jerry", ctx);
-        return ctx.say([say("john", step === "case" ? "We should frame the group chat too." : "Focus. We’re winning this.")]);
+        if (step === "friends") return respond("jerry", ctx);
+        return ctx.say(again(ctx, `john:${step}`, JOHN_SAYS[step] ?? JOHN_SAYS.present));
 
       case "jerry":
         if (step === "jerry") {
@@ -210,13 +244,24 @@ export const chapter2: Chapter = {
             say("jerry", "FBLA. Future Business Leaders of America."),
             say("jerry", "First meeting Tuesday. FREE PIZZA."),
             say("john", "We’re not joining a club for pizza."),
-            say("jerry", "I am."),
-            say("aiden", "…Business competitions, though. We could win those. All of them."),
-            say("john", "Fine. But Jerry’s carrying the pizza."),
-            say("jerry", "Deal!"),
           ]);
+          const pick = await ctx.choose(say("jerry", "I am. Who’s with me?"), [
+            { label: "…Business competitions, though. We could win those. All of them.", who: "aiden" },
+            { label: "I’m with Jerry.", who: "aiden" },
+          ]);
+          sided = pick === 1;
+          if (sided) {
+            ctx.emote("jerry", "heart");
+            await ctx.say([
+              say("jerry", "…Really? Nobody’s ever with Jerry."),
+              say("aiden", "Business competitions, then pizza. We win all of them."),
+              say("john", "Fine. But Jerry’s carrying the pizza."),
+              say("jerry", "Best. Day. Ever."),
+            ]);
+            ctx.feat("jerry");
+          } else await ctx.say([say("john", "Fine. But Jerry’s carrying the pizza."), say("jerry", "Deal!")]);
           await ctx.open({ kind: "intro", who: "jerry", name: "Jerry", line: "The third founder. Load-bearing comic relief.", colour: "#4f9a5c" });
-          ctx.hearts("jerry", 2);
+          ctx.hearts("jerry", sided ? 3 : 2);
           stage.actor("jerry")?.behave("follow", 1);
           return ctx.go("club");
         }
@@ -250,6 +295,7 @@ export const chapter2: Chapter = {
           if (prove === 0) {
             await ctx.say([say("john", "Absolutely not."), say("aiden", "You asked for names."), say("john", "…One summer. That’s it.")]);
             const summer = await ctx.minigame("wingman");
+            thrown = true;
             await ctx.say([
               say("note", `${summer.rizzed} ${summer.rizzed === 1 ? "baddie" : "baddies"} rizzed. ${summer.best} meters down the coast. Peak: ${summer.top}.`),
               say("john", "Okay. It was a busy summer."),
@@ -266,11 +312,16 @@ export const chapter2: Chapter = {
           stage.actor("jerry")?.behave("follow", 1);
           return ctx.go("goodbye");
         }
-        return ctx.say([say("jerry", step === "case" ? "Hey, that’s my thumb in the team photo." : step === "present" ? "If they ask about margins, I’m pointing at John." : "Pizza’s on me. By which I mean you.")]);
+        return ctx.say(again(ctx, `jerry:${step}`, JERRY_SAYS[step] ?? JERRY_SAYS.club));
 
       case "board":
-        if (step === "jerry") return chapter2.use("jerry", ctx);
-        return ctx.say([say("aiden", "FBLA: first meeting Tuesday. Free pizza. Under it, in pen: “JERRY WAS HERE.”")]);
+        if (step === "jerry") return respond("jerry", ctx);
+        return ctx.say(
+          again(ctx, "board", [
+            [say("aiden", "FBLA: first meeting Tuesday. Free pizza. Under it, in pen: “JERRY WAS HERE.”")],
+            [say("aiden", "Under that, in different pen: “JERRY WAS ALSO HERE.”")],
+          ]),
+        );
 
       case "door":
         if (step === "club") {
@@ -281,12 +332,18 @@ export const chapter2: Chapter = {
           ctx.checkpoint(3);
           return graduation(ctx);
         }
-        return ctx.say([say("aiden", step === "lunch" || step === "jerry" ? "Room 204. Somebody’s club, probably." : "Not yet.")]);
+        return ctx.say([say("aiden", step === "lunch" || step === "jerry" ? "Room 204. Somebody’s club, probably." : step === "case" ? "Trophy case first. We earned the look." : "Not yet.")]);
 
       case "lockers":
-        return ctx.say([say("aiden", "Locker 1127. Combination: the day AGNotify hit $10K.")]);
+        return ctx.say(again(ctx, "lockers", [[say("aiden", "Locker 1127. Combination: the day AGNotify hit $10K.")], [say("aiden", "Inside: two textbooks and an empty shoebox. Old habits.")]]));
       case "vending":
-        return ctx.say([say("aiden", "Out of everything except the one chip nobody likes. Classic supply and demand.")]);
+        return ctx.say(
+          again(ctx, "vending", [
+            [say("aiden", "Out of everything except the one chip nobody likes. Classic supply and demand.")],
+            [say("aiden", "Bought the chip nobody likes."), say("aiden", "…It’s fine. It’s actually fine.")],
+            [say("aiden", "Nobody likes it because nobody’s tried it. That’s a market.")],
+          ]),
+        );
 
       // —— act two: win everything
       case "stage": {
@@ -300,7 +357,7 @@ export const chapter2: Chapter = {
         stage.faceTowards(new Vector3(0, 0, 2));
         await ctx.say([say("judge", "Event: Entrepreneurship. You have five minutes. Go.")]);
         let score = 0;
-        let jerrys = 0;
+        jerrys = 0;
         const q1 = await ctx.choose(say("judge", "Who’s your customer, and how do you reach them?"), [
           { label: "Sneakerheads. They find us through referrals: every member brings two more.", who: "aiden" },
           { label: "Anyone who wants jeans cheaper. We find them with ads.", who: "john" },
@@ -308,6 +365,7 @@ export const chapter2: Chapter = {
         ]);
         score += [3, 2, 0][q1];
         if (q1 === 2) jerrys += 1;
+        babies = q1 === 2;
         await ctx.say([q1 === 0 ? say("judge", "Specific. Good.") : q1 === 1 ? say("judge", "Hm. Fine.") : say("judge", "…Babies.")]);
         if (q1 === 2) ctx.bubble("seat0-1", "haha", 1600);
         const q2 = await ctx.choose(say("judge", "How do you keep costs down?"), [
@@ -329,21 +387,44 @@ export const chapter2: Chapter = {
         await ctx.wait(400);
         for (const who of [john, jerry]) who?.pose("cheer", 2600);
         stage.pose("cheer", 2600);
-        await ctx.open({ kind: "impact", text: "1ST PLACE", sub: score === 9 ? "A clean sweep" : jerrys > 0 ? "Somehow, Jerry’s answer won it" : score >= 7 ? "Specific, and it showed" : "By a nose" });
+        ctx.shake(0.6);
+        await ctx.open({
+          kind: "impact",
+          text: "1ST PLACE",
+          sub: score === 9 ? "A clean sweep" : jerrys === 3 ? "Jerry answered all three. Somehow." : jerrys > 0 ? "Somehow, Jerry’s answer won it" : score >= 7 ? "Specific, and it showed" : "By a nose",
+        });
         ctx.hearts("john", 3);
         ctx.hearts("jerry", 3);
-        await ctx.say([
-          say("jerry", "WE WON?"),
-          say("john", "We won."),
-          say("jerry", "Is there pizza for winning?"),
-          say("aiden", "There’s state. Then there’s pizza."),
-          say("note", "Then state. Then again. Then again."),
-        ]);
+        if (jerrys === 3) {
+          await ctx.say([
+            say("jerry", "WE WON?"),
+            say("john", "Jerry won."),
+            say("jerry", "I WON?"),
+            say("aiden", "Don’t let it go to your head."),
+            say("note", "It went to his head. Then state. Then again. Then again."),
+          ]);
+          ctx.feat("alljerry");
+        } else
+          await ctx.say([
+            say("jerry", "WE WON?"),
+            say("john", "We won."),
+            say("jerry", "Is there pizza for winning?"),
+            say("aiden", "There’s state. Then there’s pizza."),
+            say("note", "Then state. Then again. Then again."),
+          ]);
         ctx.checkpoint(2);
         return seniorYear(ctx);
       }
+      case "slide":
+        return ctx.say(again(ctx, "slide", [[say("aiden", "Our slide. A chart that only goes up.")], [say("aiden", "John made the chart. The y-axis just says “up.”")]]));
       case "judges":
-        return ctx.say([say("judge", "Present to the stage, please. We can see you from here.")]);
+        return ctx.say(
+          again(ctx, "judges", [
+            [say("judge", "Present to the stage, please. We can see you from here.")],
+            [say("judge", "The stage, please. We’re very patient.")],
+            [say("judge", "We’ve started scoring this.")],
+          ]),
+        );
 
       // —— act three: the group chat
       case "trophies":
@@ -353,6 +434,12 @@ export const chapter2: Chapter = {
             say("john", "We should get a bigger case."),
             say("jerry", "That’s my thumb in the team photo."),
             say("john", "It’s in all of them, Jerry."),
+            // what the judges heard, remembered
+            ...(jerrys === 3
+              ? [say("jerry", "Regionals was all me, though."), say("john", "It was. I think about it a lot.")]
+              : babies
+                ? [say("jerry", "The judges still ask about the babies."), say("john", "One judge, Jerry. Once.")]
+                : []),
           ]);
           ctx.sound()?.blip(4);
           await ctx.open({
@@ -378,6 +465,8 @@ export const chapter2: Chapter = {
           await ctx.say([say("aiden", "Graduation’s in a month."), say("jerry", "Then what?"), say("john", "Then everything.")]);
           return ctx.go("grad");
         }
+        // the second look is at the glass, and whoever's in it
+        if (nth(ctx, "trophies") > 1) return mirror(ctx, [say("aiden", "The glass is spotless. So is the guy in it.")]);
         return ctx.say([say("aiden", hallway(ctx).trophies ? "We need a bigger case." : "Empty. For now.")]);
 
       // —— act four: class of 2026
@@ -391,9 +480,11 @@ export const chapter2: Chapter = {
           stage.actor("jerry")?.place(new Vector3(-4.6, 0, 3.4), Math.PI * 0.6);
           return ctx.go("friends");
         }
-        return ctx.say([say("principal", step === "friends" || step === "goodbye" ? "Your friends are by the goalposts." : "Congratulations, again.")]);
+        if (step === "friends" || step === "goodbye")
+          return ctx.say(again(ctx, "principal", [[say("principal", "Your friends are by the goalposts.")], [say("principal", "The goalposts. The tall yellow things. You’ll find them.")]]));
+        return ctx.say([say("principal", "Congratulations, again.")]);
       case "podium":
-        return chapter2.use("principal", ctx);
+        return respond("principal", ctx);
 
       case "signs":
         if (step !== "goodbye") return ctx.say([say("aiden", "Three signs, three directions.")]);
@@ -403,14 +494,18 @@ export const chapter2: Chapter = {
           say("jerry", "Community college. Then USC."),
           say("john", "He’ll make it."),
           say("jerry", "I’ll make it!"),
+          // Jerry, who was right about FBLA, hears it from Aiden
+          ...(sided ? [say("aiden", "You got us into FBLA, Jerry. You’ll make it."), say("jerry", "I’m putting that in the group chat.")] : []),
           say("aiden", "Group chat stays open."),
           say("john", "Obviously."),
+          ...(thrown ? [say("john", "No more shoulders, though.")] : []),
         ]);
         stage.actor("john")?.behave("idle");
         stage.actor("jerry")?.behave("idle");
         stage.actor("john")?.walkTo(new Vector3(6.2, 0, 3.9));
         stage.actor("jerry")?.walkTo(new Vector3(5.6, 0, 4.2));
         await stage.goTo(new Vector3(-6.2, 0, 3.6));
+        ctx.feat("classof");
         return ctx.end();
 
       case "phoebe":
@@ -420,7 +515,7 @@ export const chapter2: Chapter = {
       default:
         return ctx.say([say("aiden", "Hm.")]);
     }
-  },
+  }),
   end: {
     title: "Future Business Leaders",
     stats: [

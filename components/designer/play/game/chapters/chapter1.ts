@@ -3,6 +3,7 @@ import { LOOKS, someone } from "../people";
 import type { Bedroom } from "../rooms/bedroom";
 import type { Street } from "../rooms/street";
 import type { ActorSpec } from "../stage";
+import { again, mirror, noticing, pet } from "./notice";
 import { flavour } from "./prologue";
 import { say, type Chapter, type Ctx } from "./types";
 
@@ -10,7 +11,7 @@ import { say, type Chapter, type Ctx } from "./types";
 // of its own, so Aiden copies a bigger server's alerts, and its owner finds
 // out. The ban is the turn: AGNotify gets sources of its own (insiders at
 // Nike and JD Sports), proves it on a drop morning, Raymond makes the
-// reels, and referrals do the rest.
+// reels, and referrals do the rest. Phoebe is there for the worst of it.
 
 const bedroom = (ctx: Ctx) => ctx.stage().room as Bedroom;
 const street = (ctx: Ctx) => ctx.stage().room as Street;
@@ -34,6 +35,12 @@ const EDITOR: ActorSpec = {
   label: "Raymond",
   behaviour: "watch",
 };
+
+const HOOKS = ["“Hi guys, welcome to my sneaker group.”", "“POV: you knew the drop time before everyone.”", "“Shoes. Shoes. Shoes. Shoes.”"];
+/** The hooks Raymond turned down, for when he brings them up later. */
+let turnedDown = new Set<number>();
+
+const early = (step: string) => step === "check" || step === "copy" || step === "dm";
 
 async function scrappy(ctx: Ctx) {
   await ctx.scene({
@@ -65,6 +72,7 @@ async function comeback(ctx: Ctx) {
 }
 
 async function wordOfMouth(ctx: Ctx) {
+  turnedDown = new Set();
   await ctx.scene({
     id: "bedroom",
     features: ["board", "boardFull", "ringlight", "monitor", "boxes"],
@@ -117,7 +125,7 @@ export const chapter1: Chapter = {
     referrals: "laptop",
     celebrate: "phoebe",
   },
-  use: async (id, ctx) => {
+  use: noticing(async function respond(id, ctx): Promise<void> {
     const step = ctx.step();
     switch (id) {
       // —— act one: scrappy
@@ -147,12 +155,13 @@ export const chapter1: Chapter = {
         if (step === "copy") {
           const copied = (await ctx.open<number>({ kind: "copy" })) ?? 0;
           ctx.stat("members", 4 + Math.max(4, copied) * 3);
+          ctx.emote("aiden", "note");
           await ctx.say([say("aiden", "Copy. Paste. Members."), say("aiden", "Wow. Business is easy.")]);
           bedroom(ctx).setBuzz(true);
           ctx.bubble("phone", "bzzt bzzt", 0);
           return ctx.go("dm");
         }
-        if (step === "dm") return ctx.say([say("aiden", "My phone’s going off. That’s never good at this hour.")]);
+        if (step === "dm") return ctx.say(again(ctx, "laptop", [[say("aiden", "My phone’s going off. That’s never good at this hour.")], [say("aiden", "It’s still going. It’s going to keep going.")]]));
         if (step === "referrals") {
           await ctx.open({ kind: "growth", from: 6000, to: 45000 });
           ctx.stat("revenue", 45000, 600);
@@ -176,7 +185,14 @@ export const chapter1: Chapter = {
           ]);
           return ctx.go("celebrate");
         }
-        return ctx.say([say("aiden", "The server runs itself now. Mostly. Sometimes it asks me things at 3 AM.")]);
+        if (step === "sources") return ctx.say([say("aiden", "Nothing to post until I know something nobody else does.")]);
+        if (step === "editor") return ctx.say([say("aiden", "Numbers are up. Raymond says numbers aren’t a story.")]);
+        return ctx.say(
+          again(ctx, "laptop", [
+            [say("aiden", "The server runs itself now. Mostly. Sometimes it asks me things at 3 AM.")],
+            [say("aiden", "Nine hundred members, and every one of them knew first.")],
+          ]),
+        );
 
       case "phone":
         if (step === "dm") {
@@ -201,6 +217,8 @@ export const chapter1: Chapter = {
             ],
             stamp: "BANNED",
           });
+          // the stamp has hit; Phoebe gets up from her bed and comes over
+          ctx.emote("aiden", "sweat");
           ctx.stage().wakePhoebe();
           await ctx.say([
             say("aiden", "…"),
@@ -208,10 +226,16 @@ export const chapter1: Chapter = {
             say("aiden", "Copying someone else’s work isn’t a business. It’s a countdown."),
             say("aiden", "If I’m doing this, the information has to be mine."),
           ]);
+          ctx.stage().cheer();
+          ctx.emote("phoebe", "heart");
+          await ctx.say([say("phoebe", "*leans on your leg*"), say("aiden", "At least you didn’t ban me.")]);
+          ctx.feat("banned");
           ctx.checkpoint(1);
           return comeback(ctx);
         }
-        return ctx.say([say("aiden", step === "check" || step === "copy" ? "Nothing yet. Not even from the server." : "Notifications: AGNotify, AGNotify, AGNotify.")]);
+        if (step === "check" || step === "copy") return ctx.say([say("aiden", "Nothing yet. Not even from the server.")]);
+        if (step === "sources") return ctx.say([say("aiden", "Nothing from kingcop. Good. I checked twice.")]);
+        return ctx.say(again(ctx, "phone", [[say("aiden", "Notifications: AGNotify, AGNotify, AGNotify.")], [say("aiden", "Still AGNotify. I turned the sound on. Huge mistake.")]]));
 
       // —— act two: the comeback
       case "board":
@@ -261,26 +285,30 @@ export const chapter1: Chapter = {
             clock: 6 * 60 + 52,
           });
         }
-        return ctx.say([say("aiden", "Red string. Very professional.")]);
+        return ctx.say(again(ctx, "board", [[say("aiden", "Red string. Very professional.")], [say("aiden", "Every pin is somebody who knows somebody. None of them are HYPEHAUS.")]]));
 
       case "camper":
-        await ctx.say([
-          say("camper", "Been here since four. Some server called it: restock at seven."),
-          say("aiden", "…Which server?"),
-          say("camper", "AGNotify. You heard of it?"),
-          say("aiden", "Once or twice."),
-        ]);
-        ctx.glint();
-        if (step === "line") ctx.go("post");
-        return;
+        if (step === "line") {
+          await ctx.say([
+            say("camper", "Been here since four. Some server called it: restock at seven."),
+            say("aiden", "…Which server?"),
+            say("camper", "AGNotify. You heard of it?"),
+            say("aiden", "Once or twice."),
+          ]);
+          ctx.glint();
+          return ctx.go("post");
+        }
+        return ctx.say([say("camper", step === "home" ? "Told you. AGNotify. Called it to the minute." : "Seven o’clock. Any second. That server better be right.")]);
       case "camper2":
-        return ctx.say([say("camper", "If this restock’s real, I’m joining that server for life.")]);
+        if (step === "home") return ctx.say([say("camper", "Joined. For life. I don’t say that about servers.")]);
+        return ctx.say(again(ctx, "camper2", [[say("camper", "If this restock’s real, I’m joining that server for life.")], [say("camper", "My cousin said midnight. My cousin isn’t in line.")]]));
       case "camper3":
-        return ctx.say([say("camper", "Shh. I’m saving my energy for 7:00.")]);
+        if (step === "home") return ctx.say([say("camper", "I’ve been sitting since four. I don’t know if I can stand.")]);
+        return ctx.say(again(ctx, "camper3", [[say("camper", "Shh. I’m saving my energy for 7:00.")], [say("camper", "…Still saving it.")]]));
 
       case "store":
         if (step === "line") return ctx.say([say("aiden", "Shutters still down. Let’s see who’s in line first.")]);
-        if (step !== "post") return ctx.say([say("aiden", "Sold out in four minutes. Our members got theirs.")]);
+        if (step !== "post") return ctx.say(again(ctx, "store", [[say("aiden", "Sold out in four minutes. Our members got theirs.")], [say("aiden", "A guy in a tent asked how we knew. I said we have sources now.")]]));
         {
           const hits = (await ctx.open<number>({
             kind: "drop",
@@ -307,6 +335,9 @@ export const chapter1: Chapter = {
           return ctx.go("home");
         }
 
+      case "tent":
+        return ctx.say([say("aiden", step === "home" ? "They’re packing it up. Worth it, apparently." : "Somebody slept out here for a shoe. That’s not a customer. That’s a fan.")]);
+
       case "home":
         if (step !== "home") return ctx.say([say("aiden", "Not leaving before seven.")]);
         ctx.checkpoint(2);
@@ -314,17 +345,38 @@ export const chapter1: Chapter = {
 
       // —— act three: word of mouth
       case "editor": {
-        if (step !== "editor") return ctx.say([say("editor", "Posting another one tonight. The algorithm loves you.")]);
+        if (step !== "editor")
+          return ctx.say(
+            again(ctx, "editor", [
+              [
+                say(
+                  "editor",
+                  turnedDown.has(2)
+                    ? "Still thinking about “Shoes. Shoes. Shoes. Shoes.” Not in a good way."
+                    : turnedDown.has(0)
+                      ? "Never say “welcome to my sneaker group” again. Promise me."
+                      : "First try on the hook. You’ve got an eye. Don’t let it go to your head.",
+                ),
+              ],
+              [say("editor", "Posting another one tonight. The algorithm loves you.")],
+            ]),
+          );
         await ctx.open({ kind: "intro", who: "editor", name: "Raymond Wang", line: "The editor. Makes the reels that make people join.", colour: "#d74718" });
         await ctx.say([say("editor", "Okay. Reels. Short, loud, and the first second decides everything.")]);
-        const hooks = ["“Hi guys, welcome to my sneaker group.”", "“POV: you knew the drop time before everyone.”", "“Shoes. Shoes. Shoes. Shoes.”"];
-        for (;;) {
-          const pick = await ctx.choose(say("editor", "So what’s the hook?"), hooks.map((label) => ({ label, who: "aiden" })));
-          if (pick === 1) break;
-          await ctx.say([say("editor", pick === 0 ? "They scrolled. They’re gone. Next." : "That’s not a hook. That’s a cry for help.")]);
-        }
-        await ctx.say([say("editor", "…Okay. That’s the one. Stand there. Look handsome.")]);
+        await ctx.say([say("editor", "So what’s the hook?")]);
+        // a test audience watches the first second of each hook Aiden tries; Raymond answers on the phone
+        const tried = await ctx.open<number[]>({
+          kind: "hook",
+          right: 1,
+          hooks: [
+            { text: HOOKS[0], reply: "They scrolled. They’re gone. Next." },
+            { text: HOOKS[1], reply: "…Okay. That’s the one. Stand there. Look handsome." },
+            { text: HOOKS[2], reply: "That’s not a hook. That’s a cry for help." },
+          ],
+        });
+        for (const pick of tried ?? []) if (pick !== 1) turnedDown.add(pick);
         ctx.glint();
+        await ctx.say([say("editor", "And keep the dog in the shot. The dog tests well.")]);
         await ctx.open({ kind: "reel", caption: "POV: you knew the drop time before everyone 👟⏰" });
         ctx.stat("members", 420, 1600);
         ctx.stat("revenue", 6000, 1600);
@@ -338,37 +390,89 @@ export const chapter1: Chapter = {
       }
 
       case "plaque":
-        return ctx.say([say("aiden", "Framed it. Obviously.")]);
+        return ctx.say(again(ctx, "plaque", [[say("aiden", "Framed it. Obviously.")], [say("aiden", "I’d frame the ban too, but it’s a DM.")]]));
       case "shoebox":
-        return ctx.say([say("aiden", step === "check" || step === "copy" || step === "dm" ? "Empty. The five hundred is a server now." : "Still empty. Still the best five hundred dollars I ever spent.")]);
+        return ctx.say([say("aiden", early(step) ? "Empty. The five hundred is a server now." : "Still empty. Still the best five hundred dollars I ever spent.")]);
 
       case "phoebe":
-        ctx.stage().cheer();
         if (step === "celebrate") {
-          await ctx.say([say("phoebe", "*the happiest wag of all time*"), say("aiden", "We did it, Phoebe."), say("aiden", "Your equity is a lifetime supply of treats. Fully vested.")]);
+          ctx.stage().cheer();
+          ctx.emote("phoebe", "heart");
+          await ctx.say([
+            say("phoebe", "*the happiest wag of all time*"),
+            say("aiden", "We did it, Phoebe."),
+            say("aiden", "You were in before anyone paid a dollar."),
+            say("aiden", "Your equity is a lifetime supply of treats. Fully vested."),
+          ]);
+          ctx.feat("cookgroup");
           return ctx.end();
         }
-        return ctx.say([say("phoebe", "*wag*"), say("aiden", step === "sources" ? "Don’t look at me like that. I said I’m doing it properly." : step === "copy" || step === "dm" ? "Don’t judge me. Everyone copies at first." : "Busy week, Phoebe. Busy, busy week.")]);
+        if (step === "sources")
+          return pet(
+            ctx,
+            again(ctx, "phoebe", [
+              [say("phoebe", "*wag*"), say("aiden", "Don’t look at me like that. I said I’m doing it properly.")],
+              [say("phoebe", "*tilts her head*"), say("aiden", "Properly. With sources. Like a real company.")],
+              [say("phoebe", "*the full spin*"), say("aiden", "Okay. You believe me. That makes two of us.")],
+            ]),
+          );
+        if (step === "editor")
+          return pet(
+            ctx,
+            again(ctx, "phoebe", [
+              [say("phoebe", "*wag*"), say("aiden", "Raymond’s here to make reels. Be cool.")],
+              [say("phoebe", "*rolls over*"), say("aiden", "That’s not cool. That’s adorable. Different thing.")],
+              [say("phoebe", "*the full spin*"), say("aiden", "Okay, that one’s going in a reel.")],
+            ]),
+          );
+        if (step === "referrals")
+          return pet(
+            ctx,
+            again(ctx, "phoebe", [
+              [say("phoebe", "*wag*"), say("aiden", "Referrals: every member brings two friends. You brought zero. That’s fine.")],
+              [say("phoebe", "*rolls over*"), say("aiden", "You’d bring the whole dog park if they had phones.")],
+              [say("phoebe", "*the full spin*"), say("aiden", "Best member we’ve got. Doesn’t pay. Never leaves.")],
+            ]),
+          );
+        return pet(ctx, again(ctx, "phoebe", [[say("phoebe", "*wag*"), say("aiden", "Busy week, Phoebe. Busy, busy week.")], [say("phoebe", "*rolls over*"), say("aiden", "Busy. Busy, busy.")]]));
 
       case "door":
-        return ctx.say([say("aiden", step === "check" || step === "copy" || step === "dm" ? "It’s late. The server needs me more than the street does." : "Not now.")]);
+        return ctx.say([
+          say(
+            "aiden",
+            early(step)
+              ? "It’s late. The server needs me more than the street does."
+              : step === "sources"
+                ? "The answer isn’t out there. It’s on that board somewhere."
+                : step === "celebrate"
+                  ? "Not tonight. Tonight’s for Phoebe."
+                  : "Raymond’s mid-edit. If I leave, he’ll make me the hook.",
+          ),
+        ]);
 
       case "window":
-        if (step === "check" || step === "copy" || step === "dm") return ctx.say([say("aiden", "Somewhere out there, a group chat is asking when the drop is.")]);
-        return flavour(id, ctx);
+        // the same street, at whatever time it is
+        return ctx.say([
+          say(
+            "aiden",
+            early(step)
+              ? "Somewhere out there, a group chat is asking when the drop is."
+              : step === "sources"
+                ? "After school. Every kid on this street is in a group chat about shoes."
+                : step === "celebrate"
+                  ? "Midnight. The group chats are asking about tomorrow’s drop. We already know."
+                  : "Saturday. Somebody out there is scrolling. Raymond says that’s the whole plan.",
+          ),
+        ]);
 
       case "mirror":
-        if (step === "check" || step === "copy" || step === "dm") {
-          await ctx.say([say("aiden", "Still handsome. Even at 9:40 PM.")]);
-          ctx.glint();
-          return;
-        }
+        if (early(step)) return mirror(ctx, again(ctx, "mirror", [[say("aiden", "Still handsome. Even at 9:40 PM.")], [say("aiden", "The alerts are copied. The face is original.")]]));
         return flavour(id, ctx);
 
       default:
         return flavour(id, ctx);
     }
-  },
+  }),
   end: {
     title: "The Cook Group",
     stats: [

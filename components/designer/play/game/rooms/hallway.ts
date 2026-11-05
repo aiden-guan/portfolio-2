@@ -1,12 +1,13 @@
-import { Color, DirectionalLight, Group, HemisphereLight, Mesh, Vector3 } from "three";
-import { materials } from "../../../scene/kit";
+import { Color, DirectionalLight, Group, HemisphereLight, Mesh, PointLight, Vector3 } from "three";
 import { hash3, mix, Voxels } from "../../../scene/voxels";
 import { S } from "../people";
-import { blocker, disposeAll, grid, indoorFloor, letters, meshOf, type Collider, type Room, type Spot } from "./common";
+import { blinkGlow, blocker, calm, disposeAll, grid, indoorFloor, letters, meshOf, nearEdge, screenGlow, viewGlow, type Collider, type Room, type Spot } from "./common";
+import { alive, clockHands, motes, shaft, towards, type Life, type Opening } from "./life";
 
-// A high school hallway at lunch: lockers, a trophy case that fills up over
-// the chapter, the noticeboard with the FBLA flyer, Room 204, a vending
-// machine, and the sun through the windows down the side.
+// A high school hallway at lunch: lockers, a lit trophy case that fills up
+// over the chapter, the noticeboard with the FBLA flyer, a clock over it,
+// Room 204, a vending machine humming, and the noon sun coming in through
+// the windows down the side and lying in bright bars across the tiles.
 //
 // 120 × 70 voxels; the back wall at z = −3.5, the window wall at x = −6.
 
@@ -18,6 +19,7 @@ const at = grid(ORIGIN);
 const block = blocker(ORIGIN);
 
 export function hallway({ trophies = 0 }: { trophies?: number } = {}) {
+  calm();
   const group = new Group();
   const mesh = (v: Voxels, material?: Parameters<typeof meshOf>[1], shadow = true) => {
     const m = meshOf(v, material, { shadow, origin: [ORIGIN[0], 0, ORIGIN[1]] });
@@ -29,7 +31,7 @@ export function hallway({ trophies = 0 }: { trophies?: number } = {}) {
   const floor = new Voxels(S, 0.03);
   for (let i = -2; i < W; i += 1)
     for (let k = -2; k < D; k += 1) {
-      for (let j = -4; j <= -2; j += 1) floor.set(i, j, k, 0x8a8478);
+      if (nearEdge(i, k, W - 1, D - 1)) for (let j = -4; j <= -2; j += 1) floor.set(i, j, k, 0x8a8478);
       const checker = (Math.floor(i / 6) + Math.floor(k / 6)) % 2;
       let c = checker ? 0xe9e4d8 : 0xd6d1c5;
       if (k >= 58 || k <= 1) c = 0x9aa0a8;
@@ -63,11 +65,16 @@ export function hallway({ trophies = 0 }: { trophies?: number } = {}) {
   }
   mesh(walls);
 
+  // outside: the school's trees and a noon sky (drawn a little down and
+  // along, since from above through the glass that's where it shows)
   const outside = new Voxels(S, 0.02);
   for (const k0 of [6, 24, 42])
-    for (let k = k0; k <= k0 + 13; k += 1)
-      for (let j = 12; j <= 26; j += 1) outside.set(-5, j, k, j < 16 && hash3(k, j, 3) > 0.35 ? 0x5a9a3c : mix(0xbfe0f5, 0xe8f4fb, (j - 12) / 14));
-  mesh(outside, materials.glow, false).receiveShadow = false;
+    for (let k = k0 - 4; k <= k0 + 13; k += 1)
+      for (let j = 8; j <= 26; j += 1) {
+        const crown = 14 + Math.round(Math.sin(k * 0.45) * 1.6 + Math.sin(k * 1.1) * 0.7);
+        outside.set(-4, j, k, j <= crown ? (hash3(k, j, 3) > 0.62 ? 0x6faa48 : j > crown - 2 ? 0x7cb954 : 0x5a9a3c) : mix(0xeaf3f8, 0x9fcdee, Math.min(1, (j - crown) / 9)));
+      }
+  mesh(outside, viewGlow, false).receiveShadow = false;
 
   // —— along the back wall
   const f = new Voxels(S, 0.035);
@@ -93,6 +100,13 @@ export function hallway({ trophies = 0 }: { trophies?: number } = {}) {
   for (const j of [10, 17]) f.box(53, j, 1, 69, j, 4, 0xd9e6f2);
   f.box(53, 3, 5, 69, 3, 5, 0xd9e6f2);
   f.box(53, 24, 5, 69, 24, 5, 0xd9e6f2);
+  // a clock over the noticeboard, and a fire alarm by the lockers
+  for (let i = 77; i <= 83; i += 1)
+    for (let j = 23; j <= 29; j += 1) {
+      const d = Math.hypot(i - 80, j - 26);
+      if (d <= 3.4) f.set(i, j, 0, d > 2.5 ? 0x2a2f3d : 0xfbf8f1);
+    }
+  f.box(49, 11, 0, 50, 13, 0, (x, y) => (y === 12 && x === 49 ? 0xfbf8f1 : 0xd74718));
   // the noticeboard, flyers on it (the yellow one is FBLA's)
   f.box(74, 9, 0, 86, 21, 0, (x, y) => (x === 74 || x === 86 || y === 9 || y === 21 ? 0x6b4a32 : hash3(x, y, 2) > 0.5 ? 0xb07c48 : 0xc08850));
   f.box(76, 13, 1, 79, 18, 1, 0xf2c46b);
@@ -123,7 +137,12 @@ export function hallway({ trophies = 0 }: { trophies?: number } = {}) {
   const lit = new Voxels(S, 0);
   lit.box(75, 6, 51, 77, 8, 51, (x, y) => (y === 8 ? 0x4a6f9e : 0xf6f4ee));
   lit.box(104, 20, 7, 110, 20, 7, 0xfff4d6);
-  mesh(lit, materials.glow, false);
+  // the strip light inside the top of the trophy case
+  lit.box(53, 23, 1, 69, 23, 2, 0xfff6e2);
+  mesh(lit, screenGlow, false);
+  const coin = new Voxels(S, 0);
+  coin.set(110, 12, 8, 0x5fe08a);
+  mesh(coin, blinkGlow, false);
 
   // the trophies, more of them as the chapter goes on
   const cups: Mesh[] = [];
@@ -149,8 +168,21 @@ export function hallway({ trophies = 0 }: { trophies?: number } = {}) {
   Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10, near: 1, far: 40 });
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.02;
-  const hemi = new HemisphereLight(0xeef2ff, 0xc9c0b0, 1.6);
-  group.add(sun, sun.target, hemi);
+  const hemi = new HemisphereLight(0xeef2ff, 0xc9c0b0, 1.45);
+  const caseLight = new PointLight(0xfff0d0, 1.6, 2.4, 2);
+  caseLight.position.copy(at(61, 21, 3));
+  group.add(sun, sun.target, hemi, caseLight);
+
+  // the sun through each window, bars across the tiles, the dust in them; the clock
+  const light = towards(sun.position, sun.target.position);
+  const clock = clockHands(at(80.5, 26.5, 1), "z", { minutes: 12 * 60 + 5, radius: 0.3 });
+  const lives: Life[] = [clock];
+  for (const k0 of [6, 24, 42]) {
+    const opening: Opening = [at(0, 12, k0 + 14), at(0, 12, k0), at(0, 27, k0), at(0, 27, k0 + 14)];
+    lives.push(shaft(opening, light, { color: 0xffefd2, strength: 0.04, panes: [2, 1] }));
+    lives.push(motes(opening, light, { count: 10, seed: k0 }));
+  }
+  const life = alive(group, lives);
 
   const colliders: Collider[] = [
     block(3, 0, 47, 5), // lockers
@@ -189,7 +221,12 @@ export function hallway({ trophies = 0 }: { trophies?: number } = {}) {
       count = n;
       cups.forEach((m, i) => (m.visible = i < n));
     },
-    dispose: () => disposeAll(group),
+    setTime: (minutes: number) => clock.set(minutes),
+    update: (time: number, dt: number) => life.update(time, dt),
+    dispose: () => {
+      life.dispose();
+      disposeAll(group);
+    },
   } satisfies Room & Record<string, unknown>;
   return room;
 }

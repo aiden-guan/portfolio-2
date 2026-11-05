@@ -1,14 +1,27 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Vector3 } from "three";
+import { recordBest, type Best, type Rank } from "./screen-kit";
 import { ZONES, type Wingman } from "./wingman";
 import styles from "./wingman.module.css";
 
 // Wingman's own HUD: how far, how many, the throw meter, the dives left,
-// the words that pop up where things happen, and the cards between throws.
-// Discrete things come from the game's snapshot; the numbers that change
-// every frame are written straight into the page.
+// the words that pop up where things happen, a few speed lines when John
+// is really moving, and the cards between throws. Discrete things come from
+// the game's snapshot; the numbers that change every frame are written
+// straight into the page, and only when they change.
+
+// a summer, ranked by how many baddies John got to; the course caps it near forty
+const rankOf = (rizzed: number): Rank => (rizzed >= 34 ? "S" : rizzed >= 26 ? "A" : rizzed >= 14 ? "B" : "C");
+const REASON: Record<Rank, [string, string]> = {
+  S: ["A busy summer", "John has no follow-up questions."],
+  A: ["A busy summer", "John has a few questions."],
+  B: ["Busy enough", "John is unconvinced."],
+  C: ["A quiet summer", "John wants names."],
+};
+// the speed lines' strength, in steps, so the page is written only when it changes
+const LINES = ["0", "0.12", "0.24", "0.36", "0.48", "0.6"];
 
 export function WingmanHud({
   game,
@@ -25,57 +38,99 @@ export function WingmanHud({
   const distance = useRef<HTMLElement>(null);
   const needle = useRef<HTMLElement>(null);
   const layer = useRef<HTMLDivElement>(null);
+  const lines = useRef<HTMLDivElement>(null);
+  const [best, setBest] = useState<{ before: Best | null; fresh: boolean } | null>(null);
+  const kept = useRef<{ before: Best | null; fresh: boolean } | null>(null);
 
   useEffect(() => {
-    const nodes = new Map<number, HTMLElement>();
+    const nodes = new Map<number, { el: HTMLElement; seen: number }>();
+    const words = new Map<number, string>();
     let raf = 0;
-    const frame = () => {
-      raf = requestAnimationFrame(frame);
+    let frame = 0;
+    let shownDistance = -1;
+    let shownLines = -1;
+    // drop the pops that have gone, without a new set every frame
+    const sweep = (node: { el: HTMLElement; seen: number }, id: number) => {
+      if (node.seen === frame) return;
+      node.el.remove();
+      nodes.delete(id);
+    };
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      frame += 1;
       const live = game.live();
-      if (distance.current) distance.current.textContent = `${live.distance} m`;
-      if (needle.current) needle.current.style.left = `${(live.meter * 100).toFixed(1)}%`;
+      if (live.distance !== shownDistance && distance.current) {
+        shownDistance = live.distance;
+        let text = words.get(live.distance);
+        if (!text) {
+          text = `${live.distance} m`;
+          words.set(live.distance, text);
+        }
+        distance.current.textContent = text;
+      }
+      if (needle.current) needle.current.style.transform = `translate3d(${(live.meter * 100).toFixed(2)}%, 0, 0)`;
+      const level = Math.max(0, Math.min(LINES.length - 1, Math.floor((live.speed - 13) / 3)));
+      if (level !== shownLines && lines.current) {
+        shownLines = level;
+        lines.current.style.opacity = LINES[level];
+      }
       const host = layer.current;
       if (!host) return;
-      const seen = new Set<number>();
-      for (const p of live.popups) {
-        seen.add(p.id);
-        let el = nodes.get(p.id);
-        if (!el) {
-          el = document.createElement("span");
+      for (let i = 0; i < live.popups.length; i += 1) {
+        const p = live.popups[i];
+        let node = nodes.get(p.id);
+        if (!node) {
+          const el = document.createElement("span");
           el.className = styles.popup;
           el.dataset.tone = p.tone;
           const word = document.createElement("b");
           word.textContent = p.text;
           el.appendChild(word);
           host.appendChild(el);
-          nodes.set(p.id, el);
+          node = { el, seen: frame };
+          nodes.set(p.id, node);
         }
+        node.seen = frame;
         const s = project(p.at);
-        el.style.transform = `translate3d(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px, 0)`;
+        node.el.style.transform = `translate3d(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px, 0)`;
       }
-      for (const [id, el] of nodes)
-        if (!seen.has(id)) {
-          el.remove();
-          nodes.delete(id);
-        }
+      nodes.forEach(sweep);
     };
-    raf = requestAnimationFrame(frame);
+    raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
-      for (const el of nodes.values()) el.remove();
+      nodes.forEach((node) => node.el.remove());
     };
   }, [game, project]);
 
   const zone = ZONES[view.zone];
   const key = touch ? null : <kbd>E</kbd>;
-  const best = view.results.length ? Math.max(...view.results.map((r) => r.distance)) : 0;
+  const furthest = view.results.length ? Math.max(...view.results.map((r) => r.distance)) : 0;
   const top = view.results.reduce((t, r) => Math.max(t, ZONES.findIndex((z) => z.rating === r.top)), 0);
+  const over = view.phase === "results" || view.phase === "done";
+  const rank = rankOf(view.total);
+  const label = `${view.total} rizzed · ${furthest} m`;
+
+  // the best summer, kept once the results are in
+  useEffect(() => {
+    if (!over) return;
+    // once, and kept across a remount
+    kept.current ??= recordBest("wingman", { score: view.total * 1000 + furthest, rank, label });
+    const result = kept.current;
+    const id = window.setTimeout(() => setBest(result), 0);
+    return () => window.clearTimeout(id);
+  }, [over, view.total, furthest, rank, label]);
 
   return (
     <div className={styles.hud} data-phase={view.phase}>
+      <div className={styles.lines} ref={lines} aria-hidden="true">
+        {Array.from({ length: 10 }, (_, i) => (
+          <i key={i} style={{ "--i": i } as React.CSSProperties} />
+        ))}
+      </div>
       <div className={styles.popups} ref={layer} aria-hidden="true" />
 
-      {view.phase !== "title" && view.phase !== "results" && view.phase !== "done" ? (
+      {view.phase !== "title" && !over ? (
         <div className={styles.top}>
           <div className={styles.card} data-ui="">
             <span className={styles.kicker}>
@@ -87,6 +142,11 @@ export function WingmanHud({
             <span className={styles.count}>
               <i aria-hidden="true">♥</i> {view.rizzed} this throw · {view.total} in all
             </span>
+            {view.combo >= 2 && view.phase === "flight" ? (
+              <b className={styles.combo} key={view.combo} data-hot={view.combo >= 5 || undefined}>
+                ×{view.combo}
+              </b>
+            ) : null}
           </div>
           <div className={styles.right} data-ui="">
             <div className={styles.dives} title="Dives left">
@@ -114,14 +174,31 @@ export function WingmanHud({
         </div>
       ) : null}
 
-      {view.phase === "aim" ? (
-        <div className={styles.meter} data-ui="">
+      {view.phase === "aim" || view.phase === "windup" ? (
+        <div className={styles.meter} data-ui="" data-locked={view.phase === "windup" ? view.power : undefined}>
           <div className={styles.track}>
+            <i className={styles.weak} />
+            <i className={styles.good} />
             <i className={styles.sweet} />
-            <i className={styles.needle} ref={needle} />
+            <span className={styles.needleLayer} ref={needle}>
+              <i className={styles.needle} />
+            </span>
+          </div>
+          <div className={styles.meterFoot}>
+            <small>weak</small>
+            <small>good</small>
+            <small data-gold="">perfect</small>
           </div>
           <span className={styles.hint}>
-            {key} {touch ? "Tap in the gold to throw" : "throw in the gold"}
+            {view.phase === "windup" ? (
+              <b className={styles.verdict} data-power={view.power}>
+                {view.power === "PERFECT" ? "Perfect throw" : view.power === "GOOD" ? "Good throw" : "Weak throw"}
+              </b>
+            ) : (
+              <>
+                {key} {touch ? "Tap in the gold to throw" : "throw in the gold"}
+              </>
+            )}
           </span>
         </div>
       ) : null}
@@ -156,7 +233,7 @@ export function WingmanHud({
             <li>
               {key} {touch ? "Tap again" : "again"} mid-air to dive
             </li>
-            <li>Three throws: the beach, the pier, the marina</li>
+            <li>Chain them without touching the sand</li>
             <li>Watch out for boyfriends</li>
           </ul>
           <span className={styles.hint}>
@@ -165,10 +242,18 @@ export function WingmanHud({
         </div>
       ) : null}
 
-      {view.phase === "results" || view.phase === "done" ? (
+      {over ? (
         <div className={styles.results}>
           <small className={styles.kicker}>Summer stats</small>
-          <h2>A busy summer</h2>
+          <div className={styles.verdictRow}>
+            <b className={styles.rank} data-rank={rank} aria-label={`Rank ${rank}`}>
+              {rank}
+            </b>
+            <div>
+              <h2>{REASON[rank][0]}</h2>
+              <p>{REASON[rank][1]}</p>
+            </div>
+          </div>
           <ol>
             {view.results.map((r, i) => (
               <li key={i}>
@@ -182,17 +267,30 @@ export function WingmanHud({
           <dl>
             <div>
               <dt>Furthest</dt>
-              <dd>{best} m</dd>
+              <dd>{furthest} m</dd>
             </div>
             <div>
-              <dt>Baddies rizzed</dt>
+              <dt>Rizzed</dt>
               <dd>{view.total}</dd>
+            </div>
+            <div>
+              <dt>Best chain</dt>
+              <dd>×{view.bestCombo}</dd>
             </div>
             <div>
               <dt>Baddest</dt>
               <dd>{ZONES[top].rating}</dd>
             </div>
           </dl>
+          <span className={styles.best}>
+            {best?.fresh && best.before ? (
+              <em>New best</em>
+            ) : best && !best.fresh && best.before ? (
+              <>
+                Best: <b>{best.before.rank}</b> · {best.before.label}
+              </>
+            ) : null}
+          </span>
           <span className={styles.hint}>
             {key} {touch ? "Tap to go back" : "back to graduation"}
           </span>

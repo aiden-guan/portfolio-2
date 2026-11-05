@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   useEffect,
   useRef,
@@ -10,7 +11,12 @@ import {
 import { createPortal } from "react-dom";
 import type { ArcadeHandle, ArcadePhase } from "@/components/break/arcade";
 import type { BossForm } from "@/components/break/combat";
-import { SECTORS, SHIPS, type ShipId } from "@/components/break/catalog";
+import {
+  ARCADE_ASSETS,
+  SECTORS,
+  SHIPS,
+  type ShipId,
+} from "@/components/break/catalog";
 import { ShipIcon } from "@/components/break/ship-icon";
 import { mountCorruption } from "@/components/break/corrupt";
 import { breakSignal } from "@/components/break/signal";
@@ -27,6 +33,41 @@ const subscribeMotion = (notify: () => void) => {
   query.addEventListener("change", notify);
   return () => query.removeEventListener("change", notify);
 };
+const FLIGHT: readonly ArcadePhase[] = [
+  "intro",
+  "waves",
+  "boss-intro",
+  "transform",
+  "fight",
+  "sector-clear",
+];
+// The power-off: the image collapses to a line, then the case lifts away.
+const COLLAPSE_MS = 300;
+const LIFT_MS = 200;
+
+function Legend() {
+  return (
+    <div className="crt-control-legend">
+      <span>
+        <kbd>WASD</kbd>
+        <span className="crt-touch-control">Drag</span>
+        <span className="crt-desktop-control"> Move</span>
+      </span>
+      <span className="crt-focus-hint">
+        <kbd>SHIFT</kbd> Focus
+      </span>
+      <span>
+        <kbd>SPACE</kbd> Dash
+      </span>
+      <span>
+        <kbd>X</kbd> Pulse
+      </span>
+      <span className="crt-desktop-control">
+        <kbd>P</kbd> Pause
+      </span>
+    </div>
+  );
+}
 
 export function BreakRun({
   children,
@@ -54,7 +95,11 @@ export function BreakRun({
   const glass = useRef<HTMLDivElement>(null);
   const corruption = useRef<HTMLCanvasElement>(null);
   const game = useRef<ArcadeHandle | null>(null);
-  const actions = useRef({ open: () => {}, leave: () => {} });
+  const actions = useRef({
+    open: () => {},
+    leave: () => {},
+    prefetch: () => {},
+  });
   const [live, setLive] = useState(false);
   const [phase, setPhase] = useState<ArcadePhase>("loading");
   const [paused, setPaused] = useState(false);
@@ -71,7 +116,7 @@ export function BreakRun({
     if (!live || !glass.current) return;
     let cancelled = false;
     const host = glass.current;
-    // The game code is downloaded only after the monitor takes over.
+    // The game code is fetched as the print starts to break, and mounted here.
     import("@/components/break/arcade")
       .then(({ mountArcade }) => {
         if (cancelled) return;
@@ -83,6 +128,10 @@ export function BreakRun({
           setForm,
           setShip,
         );
+        // Development only: visual rehearsal reaches any boss stage from the console.
+        if (process.env.NODE_ENV === "development")
+          (window as Window & { guanArcade?: ArcadeHandle }).guanArcade =
+            game.current;
       })
       .catch(() => {
         if (!cancelled) setPhase("error");
@@ -103,6 +152,9 @@ export function BreakRun({
     let raf = 0;
     let engaged = false;
     let dismissed = false;
+    let closing = 0;
+    let lifting = false;
+    let prefetched = false;
     let target = 0;
     let progress = 0;
     let top = 0;
@@ -149,6 +201,21 @@ export function BreakRun({
       cardWidth = card!.offsetWidth || Math.min(480, vw * 0.75);
     }
 
+    // Warm the code and the portraits while the print is still breaking, so the
+    // monitor opens on a picture instead of a loading screen.
+    function prefetch() {
+      if (prefetched) return;
+      prefetched = true;
+      import("@/components/break/arcade").catch(() => {
+        prefetched = false;
+      });
+      for (const url of ARCADE_ASSETS) {
+        const image = new Image();
+        image.decoding = "async";
+        image.src = url;
+      }
+    }
+
     function unlock() {
       document.body.style.cssText = savedStyle;
       if (!engaged) measure();
@@ -160,10 +227,13 @@ export function BreakRun({
     }
 
     function open() {
-      if (engaged) return;
+      if (engaged || closing) return;
       engaged = true;
+      prefetch();
+      // Focus returns to whatever opened the arcade, or to its button.
       previousFocus =
-        document.activeElement instanceof HTMLElement
+        document.activeElement instanceof HTMLElement &&
+        document.activeElement !== document.body
           ? document.activeElement
           : null;
       lockY = scrollY;
@@ -199,26 +269,49 @@ export function BreakRun({
       setLive(true);
     }
 
-    function leave() {
-      if (!engaged) return;
+    // The page returns underneath while the monitor still covers it.
+    function restore() {
       engaged = false;
       dismissed = true;
       progress = target = 0;
       breakSignal.live = false;
       delete document.documentElement.dataset.break;
       window.dispatchEvent(new Event("aiden-arcade-change"));
-      screen!.style.opacity = "0";
-      screen!.style.visibility = "hidden";
-      setLive(false);
-      setPhase("loading");
-      setPaused(false);
       unlock();
       (previousFocus?.isConnected && !previousFocus.closest("[inert]")
         ? previousFocus
         : section!.querySelector<HTMLElement>(".break-open")
       )?.focus({ preventScroll: true });
+      wake();
     }
-    actions.current = { open, leave };
+
+    function finish() {
+      closing = 0;
+      lifting = false;
+      delete screen!.dataset.closing;
+      screen!.style.opacity = "0";
+      screen!.style.visibility = "hidden";
+      setLive(false);
+      setPhase("loading");
+      setPaused(false);
+      wake();
+    }
+
+    function leave() {
+      if (!engaged || closing) return;
+      if (reduced) {
+        restore();
+        finish();
+        return;
+      }
+      lifting = true;
+      screen!.dataset.closing = "";
+      closing = window.setTimeout(() => {
+        restore();
+        closing = window.setTimeout(finish, LIFT_MS);
+      }, COLLAPSE_MS);
+    }
+    actions.current = { open, leave, prefetch };
 
     function draw(now: number) {
       raf = 0;
@@ -232,6 +325,7 @@ export function BreakRun({
       if (Math.abs(progress - target) < 0.0002) progress = target;
       if (dismissed && y < top - vh * 0.35) dismissed = false;
       const p = progress;
+      if (p > 0.1 && !dismissed) prefetch();
       breakSignal.fracture =
         smooth((p - 0.04) / 0.4) * (1 - smooth((p - 0.48) / 0.16));
       breakSignal.spread = dismissed
@@ -258,7 +352,7 @@ export function BreakRun({
         piece.style.opacity = String(jitter * 0.85);
       });
       const small = Math.min(0.58, (cardWidth * 1.08) / vw);
-      if (!engaged) {
+      if (!engaged && !lifting) {
         screen!.style.transform = `translate3d(0,${-vh * 0.03 * (1 - zoom)}px,0) scale(${small + (1 - small) * zoom})`;
         screen!.style.opacity = String(morph);
         screen!.style.clipPath =
@@ -297,7 +391,12 @@ export function BreakRun({
         ...screen!.querySelectorAll<HTMLElement>(
           "button:not([disabled]), [tabindex='0']",
         ),
-      ].filter((el) => el.offsetParent !== null && !el.closest("[inert]"));
+      ].filter(
+        (el) =>
+          el.tabIndex >= 0 &&
+          el.offsetParent !== null &&
+          !el.closest("[inert]"),
+      );
       const first = controls[0],
         end = controls[controls.length - 1];
       if (
@@ -327,6 +426,7 @@ export function BreakRun({
     document.addEventListener("visibilitychange", wake);
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(closing);
       sizes.disconnect();
       window.removeEventListener("scroll", wake);
       window.removeEventListener("resize", resized);
@@ -334,6 +434,7 @@ export function BreakRun({
       document.removeEventListener("visibilitychange", wake);
       pieces.forEach((piece) => piece.remove());
       if (engaged) unlock();
+      delete screen.dataset.closing;
       delete document.documentElement.dataset.break;
       window.dispatchEvent(new Event("aiden-arcade-change"));
       breakSignal.live = false;
@@ -346,15 +447,8 @@ export function BreakRun({
     if (!live) return;
     const selector = paused
       ? ".crt-pause .crt-launch"
-      : [
-            "intro",
-            "waves",
-            "boss-intro",
-            "transform",
-            "fight",
-            "sector-clear",
-          ].includes(phase)
-        ? ".crt-glass > canvas"
+      : FLIGHT.includes(phase)
+        ? ".crt-screen > canvas"
         : ".crt-launch:not([disabled]), .crt-leave";
     const first = Array.from(
       monitor.current?.querySelectorAll<HTMLElement>(selector) ?? [],
@@ -362,22 +456,34 @@ export function BreakRun({
     first?.focus({ preventScroll: true });
   }, [live, phase, paused]);
 
+  const canvas = () =>
+    glass.current?.querySelector<HTMLCanvasElement>("canvas");
   const start = () => {
     game.current?.start();
-    glass.current?.querySelector("canvas")?.focus();
+    canvas()?.focus();
   };
   const flightAction = (action: () => unknown) => {
     action();
-    glass.current?.querySelector("canvas")?.focus({ preventScroll: true });
+    canvas()?.focus({ preventScroll: true });
   };
-  const inPlay = [
-    "intro",
-    "waves",
-    "boss-intro",
-    "transform",
-    "fight",
-    "sector-clear",
-  ].includes(phase);
+  // One choice of three: arrows move the selection and the focus together.
+  const hangarKeys = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const step =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (!step) return;
+    event.preventDefault();
+    const next = ((ship + step + SHIPS.length) % SHIPS.length) as ShipId;
+    game.current?.selectShip(next);
+    event.currentTarget
+      .querySelectorAll<HTMLButtonElement>("[role='radio']")
+      [next]?.focus();
+  };
+  const inPlay = FLIGHT.includes(phase);
+  const sector = SECTORS[form - 1];
 
   return (
     <section
@@ -404,6 +510,8 @@ export function BreakRun({
             type="button"
             disabled={!ready}
             onClick={() => actions.current.open()}
+            onPointerEnter={() => actions.current.prefetch()}
+            onFocus={() => actions.current.prefetch()}
           >
             Arcade
           </button>
@@ -430,269 +538,317 @@ export function BreakRun({
                 </div>
                 <div className="crt-bezel">
                   <div className="crt-glass" ref={glass}>
-                    <canvas
-                      tabIndex={live && inPlay && !paused ? 0 : -1}
-                      role="img"
-                      aria-label="Guan arcade. Three levels. Move with WASD, arrows, or drag. Automatic fire. 1, 2, 3 change ships. Space dashes through shots. Hold Shift for focused fire. X for an EMP pulse. P pauses. Escape exits."
-                    />
-                    <div className="crt-scan" aria-hidden="true" />
-                    <div className="crt-vignette" aria-hidden="true" />
-                    <div className="crt-hud" aria-hidden="true">
-                      <div className="crt-sector-info">
-                        <span className="crt-sector-number">
-                          <span data-stage="">01 / 03</span>
-                        </span>
-                        <span data-objective="" />
-                      </div>
-                      <div className="crt-target-info">
-                        <span data-boss-name="">DEFENSE GRID</span>
-                        <div className="crt-health">
-                          <span
-                            className="crt-health-echo"
-                            data-signal-echo=""
-                          />
-                          <span data-signal="" />
-                        </div>
-                        <div className="crt-phase-pips">
-                          <i />
-                          <i />
-                          <i />
-                        </div>
-                      </div>
-                      <div className="crt-score-block">
-                        <span className="crt-score" data-score="">
-                          000000
-                        </span>
-                      </div>
-                    </div>
-                    <span
-                      className="sr-only"
-                      role="status"
-                      aria-live="polite"
-                      data-encounter-status=""
-                    />
-                    {(phase === "loading" ||
-                      phase === "ready" ||
-                      phase === "error") && (
-                      <div className="crt-welcome">
-                        <div className="crt-title-block">
-                          <h2>GUAN</h2>
-                        </div>
-                        <div className="crt-start-controls">
-                          <div
-                            className="crt-hangar"
-                            role="group"
-                            aria-label="Choose your spaceship"
-                          >
-                            {SHIPS.map((hull, i) => (
-                              <button
-                                key={hull.name}
-                                type="button"
-                                className="crt-ship-option"
-                                aria-pressed={ship === i}
-                                onClick={() =>
-                                  game.current?.selectShip(i as ShipId)
-                                }
-                                style={
-                                  {
-                                    "--hull-color": hull.color,
-                                  } as React.CSSProperties
-                                }
-                                disabled={phase !== "ready"}
-                              >
-                                <ShipIcon ship={i as ShipId} />
-                                <span>
-                                  <strong>{hull.name}</strong>
-                                  <em>{hull.weapon}</em>
-                                </span>
-                                <kbd>{i + 1}</kbd>
-                              </button>
-                            ))}
-                          </div>
-                          <button
-                            type="button"
-                            className="crt-launch"
-                            onClick={start}
-                            disabled={phase !== "ready"}
-                          >
-                            {phase === "loading"
-                              ? "Loading…"
-                              : phase === "error"
-                                ? "Unavailable"
-                                : "Play"}
-                          </button>
-                          {phase === "error" ? (
-                            <p className="crt-controls">
-                              Couldn’t load. Exit and retry.
-                            </p>
-                          ) : (
-                            <div className="crt-control-legend">
-                              <span>
-                                <kbd>WASD</kbd>
-                                <span className="crt-desktop-control">
-                                  {" "}
-                                  / Arrows
-                                </span>
-                                <span className="crt-touch-control">Drag</span>
-                              </span>
-                              <span className="crt-focus-hint">
-                                <kbd>SHIFT</kbd> Focus
-                              </span>
-                              <span>
-                                <kbd>SPACE</kbd> Dash
-                              </span>
-                              <span>
-                                <kbd>X</kbd> Pulse
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {inPlay && (
-                      <div className="crt-flight-bar" inert={paused}>
-                        <div className="crt-player-hud">
-                          <span
-                            className="crt-lives"
-                            data-hull=""
-                            aria-label="Four hull points remaining"
-                          >
-                            ▰ ▰ ▰ ▰
+                    <div className="crt-screen">
+                      <canvas
+                        tabIndex={live && inPlay && !paused ? 0 : -1}
+                        role="img"
+                        aria-label="Guan arcade. Three levels. Move with WASD, arrows, or drag. Automatic fire. 1, 2, 3 change ships. Space dashes through shots. Hold Shift for focused fire. X for an EMP pulse. P pauses. Escape exits."
+                      />
+                      <div className="crt-hud" aria-hidden="true">
+                        <div className="crt-sector-info">
+                          <span className="crt-sector-number">
+                            LEVEL <span data-stage="">01 / 03</span>
                           </span>
-                          <div
-                            className="crt-weapon"
-                            title="Close dodges, absorbed shots, and drone kills charge overdrive."
-                          >
+                          <span className="crt-objective" data-objective="" />
+                        </div>
+                        <div className="crt-target-info">
+                          <span className="crt-target-name" data-boss-name="">
+                            DEFENSE GRID
+                          </span>
+                          <div className="crt-health">
+                            <span
+                              className="crt-health-echo"
+                              data-signal-echo=""
+                            />
+                            <span data-signal="" />
+                          </div>
+                          <div className="crt-phase-pips">
+                            <i />
+                            <i />
+                            <i />
+                          </div>
+                        </div>
+                        <div className="crt-score-block">
+                          <span className="crt-score" data-score="">
+                            0000000
+                          </span>
+                          <span className="crt-score-meta">
+                            <span className="crt-combo" data-combo="" />
+                            <span className="crt-live-rank">
+                              Rank <b data-live-rank="">S</b>
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                      <span
+                        className="sr-only"
+                        role="status"
+                        aria-live="polite"
+                        data-encounter-status=""
+                      />
+                      {(phase === "loading" ||
+                        phase === "ready" ||
+                        phase === "error") && (
+                        <div className="crt-welcome">
+                          <div className="crt-title-block">
+                            <h2>GUAN</h2>
+                          </div>
+                          <div className="crt-start-controls">
+                            <div
+                              className="crt-hangar"
+                              role="radiogroup"
+                              aria-label="Choose your ship"
+                              onKeyDown={hangarKeys}
+                            >
+                              {SHIPS.map((hull, i) => (
+                                <button
+                                  key={hull.name}
+                                  type="button"
+                                  role="radio"
+                                  className="crt-ship-option"
+                                  aria-checked={ship === i}
+                                  tabIndex={ship === i ? 0 : -1}
+                                  onClick={() =>
+                                    game.current?.selectShip(i as ShipId)
+                                  }
+                                  style={
+                                    {
+                                      "--hull-color": hull.color,
+                                    } as React.CSSProperties
+                                  }
+                                  disabled={phase !== "ready"}
+                                >
+                                  <ShipIcon ship={i as ShipId} />
+                                  <span>
+                                    <small>{hull.role}</small>
+                                    <strong>{hull.name}</strong>
+                                    <em>{hull.weapon}</em>
+                                  </span>
+                                  <kbd>{i + 1}</kbd>
+                                </button>
+                              ))}
+                            </div>
+                            <p className="crt-ship-detail" aria-live="polite">
+                              {SHIPS[ship].detail}
+                            </p>
                             <button
                               type="button"
-                              className="crt-ship-name"
-                              data-ship-name=""
-                              aria-label={`Change spaceship, currently ${SHIPS[ship].name}`}
-                              title="Change ship · 1 / 2 / 3"
+                              className="crt-launch"
+                              onClick={start}
+                              disabled={phase !== "ready"}
+                            >
+                              {phase === "loading"
+                                ? "Loading…"
+                                : phase === "error"
+                                  ? "Unavailable"
+                                  : "Play"}
+                            </button>
+                            {phase === "error" ? (
+                              <p className="crt-controls">
+                                Couldn’t load. Exit and retry.
+                              </p>
+                            ) : (
+                              <Legend />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {inPlay && (
+                        <div className="crt-flight-bar" inert={paused}>
+                          <div className="crt-player-hud">
+                            <span
+                              className="crt-lives"
+                              data-hull=""
+                              role="img"
+                              aria-label="4 of 4 hull points"
+                            >
+                              <i />
+                              <i />
+                              <i />
+                              <i />
+                            </span>
+                            <div
+                              className="crt-weapon"
+                              title="Close dodges, absorbed shots, and kills charge overdrive."
+                            >
+                              <button
+                                type="button"
+                                className="crt-ship-name"
+                                data-ship-name=""
+                                aria-label={`Change ship, currently ${SHIPS[ship].name}`}
+                                title="Change ship · 1 / 2 / 3"
+                                onClick={() =>
+                                  flightAction(() =>
+                                    game.current?.selectShip(
+                                      ((ship + 1) % 3) as ShipId,
+                                    ),
+                                  )
+                                }
+                              >
+                                KESTREL
+                              </button>
+                              <span className="crt-energy">
+                                <span
+                                  className="crt-energy-label"
+                                  data-energy-label=""
+                                >
+                                  Energy
+                                </span>
+                                <span className="crt-overdrive-track">
+                                  <span data-overdrive="" />
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+                          <div className="crt-abilities">
+                            <button
+                              type="button"
+                              className="crt-ability crt-focus-button"
+                              data-focus-button=""
+                              aria-label="Toggle focused fire"
+                              aria-pressed={false}
                               onClick={() =>
                                 flightAction(() =>
-                                  game.current?.selectShip(
-                                    ((ship + 1) % 3) as ShipId,
-                                  ),
+                                  game.current?.toggleFocus(),
                                 )
                               }
                             >
-                              KESTREL
+                              <span>
+                                Focus <kbd>SHIFT</kbd>
+                              </span>
                             </button>
-                            <span className="crt-overdrive-track">
-                              <span data-overdrive="" />
-                            </span>
-                          </div>
-                        </div>
-                        <div className="crt-abilities">
-                          <button
-                            type="button"
-                            className="crt-ability crt-focus-button"
-                            data-focus-button=""
-                            aria-label="Toggle focused beam"
-                            aria-pressed={false}
-                            onClick={() =>
-                              flightAction(() => game.current?.toggleFocus())
-                            }
-                          >
-                            <span>
-                              Focus <kbd>SHIFT</kbd>
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            className="crt-ability"
-                            data-dash-button=""
-                            aria-label="Dash through shots to absorb them. Space."
-                            onClick={() =>
-                              flightAction(() => game.current?.dash())
-                            }
-                          >
-                            <span className="crt-ability-fill" data-dash="" />
-
-                            <span>
-                              Dash <kbd>SPACE</kbd>
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            className="crt-ability"
-                            data-pulse-button=""
-                            aria-label="EMP pulse. X. 20 second cooldown."
-                            onClick={() =>
-                              flightAction(() => game.current?.pulse())
-                            }
-                          >
-                            <span className="crt-ability-fill" data-energy="" />
-
-                            <span>
-                              Pulse <kbd data-pulse-key="">X</kbd>
-                            </span>
-                          </button>
-                        </div>
-                        <button
-                          type="button"
-                          className="crt-pause-button"
-                          onClick={() => game.current?.togglePause()}
-                          aria-label="Pause game"
-                        >
-                          Ⅱ
-                        </button>
-                      </div>
-                    )}
-                    {paused && (
-                      <div className="crt-pause">
-                        <button
-                          className="crt-launch"
-                          onClick={() => game.current?.togglePause()}
-                        >
-                          Resume
-                        </button>
-                      </div>
-                    )}
-                    {(phase === "win" || phase === "lose") && (
-                      <div className="crt-end" role="status">
-                        <h2>{phase === "win" ? "CLEAR" : "GAME OVER"}</h2>
-                        {phase === "win" && (
-                          <span
-                            className="crt-rank"
-                            aria-label="Run rank"
-                            data-run-rank=""
-                          />
-                        )}
-                        <span className="crt-result-score" data-result-score="">
-                          000000
-                        </span>
-                        <dl className="crt-run-stats">
-                          <div>
-                            <dt>Time</dt>
-                            <dd data-run-time="">00:00</dd>
-                          </div>
-                          <div>
-                            <dt>Best</dt>
-                            <dd data-best="">000000</dd>
-                          </div>
-                        </dl>
-                        <div className="crt-result-actions">
-                          {phase === "lose" && (
                             <button
-                              className="crt-launch crt-checkpoint"
-                              onClick={() => game.current?.continueStage()}
-                              aria-label="Retry checkpoint"
-                              title="Restart the current boss phase, or the sector's waves, with a 40% score penalty; highest possible rank B."
+                              type="button"
+                              className="crt-ability"
+                              data-dash-button=""
+                              aria-label="Dash through shots to absorb them. Space."
+                              onClick={() =>
+                                flightAction(() => game.current?.dash())
+                              }
                             >
-                              <span data-retry-label="">Retry checkpoint</span>
+                              <span className="crt-ability-fill" data-dash="" />
+                              <span>
+                                Dash <kbd>SPACE</kbd>
+                              </span>
                             </button>
-                          )}
+                            <button
+                              type="button"
+                              className="crt-ability"
+                              data-pulse-button=""
+                              aria-label="EMP pulse. X. 20 second cooldown."
+                              onClick={() =>
+                                flightAction(() => game.current?.pulse())
+                              }
+                            >
+                              <span
+                                className="crt-ability-fill"
+                                data-energy=""
+                              />
+                              <span>
+                                Pulse <kbd data-pulse-key="">X</kbd>
+                              </span>
+                            </button>
+                          </div>
                           <button
-                            className="crt-launch"
-                            onClick={() => game.current?.reset()}
+                            type="button"
+                            className="crt-pause-button"
+                            onClick={() => game.current?.togglePause()}
+                            aria-label="Pause game"
                           >
-                            New run
+                            <span aria-hidden="true" />
                           </button>
                         </div>
-                      </div>
-                    )}
+                      )}
+                      {paused && (
+                        <div
+                          className="crt-pause"
+                          role="group"
+                          aria-label="Paused"
+                        >
+                          <span className="crt-panel-kicker">
+                            Level 0{form} · {sector.boss}
+                          </span>
+                          <h2>PAUSED</h2>
+                          <div className="crt-result-actions">
+                            <button
+                              type="button"
+                              className="crt-launch"
+                              onClick={() => game.current?.togglePause()}
+                            >
+                              Resume
+                            </button>
+                            <button
+                              type="button"
+                              className="crt-launch crt-secondary"
+                              onClick={() => game.current?.reset()}
+                            >
+                              New run
+                            </button>
+                          </div>
+                          <Legend />
+                        </div>
+                      )}
+                      {(phase === "win" || phase === "lose") && (
+                        <div className="crt-end" role="status">
+                          <span className="crt-panel-kicker">
+                            {phase === "win"
+                              ? "Three levels"
+                              : `Level 0${form} · ${sector.boss}`}
+                          </span>
+                          <h2>{phase === "win" ? "CLEAR" : "GAME OVER"}</h2>
+                          {phase === "win" && (
+                            <span className="crt-rank">
+                              <small>Rank</small>
+                              <span data-run-rank="" />
+                            </span>
+                          )}
+                          <span
+                            className="crt-result-score"
+                            data-result-score=""
+                          >
+                            0000000
+                          </span>
+                          <span className="crt-new-best" data-new-best="" />
+                          <dl className="crt-run-stats">
+                            <div>
+                              <dt>Time</dt>
+                              <dd data-run-time="">00:00</dd>
+                            </div>
+                            <div>
+                              <dt>Dodges</dt>
+                              <dd data-run-dodges="">0</dd>
+                            </div>
+                            <div>
+                              <dt>Best</dt>
+                              <dd data-best="">0000000</dd>
+                            </div>
+                          </dl>
+                          <div className="crt-result-actions">
+                            {phase === "lose" && (
+                              <button
+                                type="button"
+                                className="crt-launch crt-checkpoint"
+                                onClick={() => game.current?.continueStage()}
+                                title="Restart the current boss phase, or the level's waves, with a 40% score penalty; highest possible rank B."
+                              >
+                                <span data-retry-label="">
+                                  Retry checkpoint
+                                </span>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className={`crt-launch${phase === "lose" ? " crt-secondary" : ""}`}
+                              onClick={() => game.current?.reset()}
+                            >
+                              New run
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="crt-scan" aria-hidden="true" />
+                    <div className="crt-vignette" aria-hidden="true" />
                   </div>
                 </div>
                 <div className="crt-chin">
@@ -714,11 +870,11 @@ export function BreakRun({
                   ? paused
                     ? "Game paused"
                     : phase === "transform"
-                      ? `${SECTORS[form - 1].boss} is entering its next stage`
+                      ? `${sector.boss} is entering its next stage`
                       : phase === "boss-intro"
-                        ? `Boss approaching: ${SECTORS[form - 1].boss}. ${SECTORS[form - 1].subtitle}`
+                        ? `Boss approaching: ${sector.boss}. ${sector.subtitle}`
                         : phase === "intro"
-                          ? `Sector ${form}: ${SECTORS[form - 1].name}`
+                          ? `Level ${form}: ${sector.place}. ${sector.briefing}`
                           : phase === "waves"
                             ? "Clear the defense grid before the boss arrives"
                             : phase === "fight"

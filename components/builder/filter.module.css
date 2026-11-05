@@ -65,7 +65,7 @@
 }
 
 /* Until the pill is placed, the pressed button wears it. */
-.track:not([data-ready]) .option[aria-pressed="true"] {
+.track:not([data-ready]) .option[aria-checked="true"] {
   background: var(--ink, #111);
   color: #fff;
 }

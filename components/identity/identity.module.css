@@ -8,10 +8,17 @@
 .root {
   --ink: #f6f6f2;
   --dim: #6c6c68;
+  /* the small print: as quiet as it can be and still be read (4.6:1) */
+  --quiet: #77776f;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-swift: cubic-bezier(0.23, 1, 0.32, 1);
+  /* the reel's spring as an easing; set from reel.ts where supported */
+  --spring: var(--ease-swift);
+  --spring-ms: 640ms;
   --pitch-h: clamp(150px, 27vh, 250px);
   --pitch-gap: clamp(4px, 2.4vh, 26px);
+  /* the line the counter and the hint stand on */
+  --foot: max(22px, calc(env(safe-area-inset-bottom) + 10px));
   position: fixed;
   inset: 0;
   display: grid;
@@ -24,6 +31,7 @@
   font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 .root ::selection {
@@ -32,9 +40,17 @@
 }
 
 /* On its own in the middle of the page; when the striker plays it moves up to
-   make room for him under it. */
+   make room for him under it. One size for every screen, from a phone to a
+   wall: about two thirds of a laptop's width, a little less on big screens. */
 .line {
-  --row: 1.2em;
+  /* the widest answer, and until the words are measured, the sentence
+     centred on "founder", the first */
+  --reel-w: 4.93em;
+  --dx: 0.7869em;
+  --rule-x: 0.013em;
+  --rule-k: 0.67667;
+  --hit-x: -0.107em;
+  --hit-k: 0.72535;
   position: relative;
   z-index: 1;
   margin: 0 0 0.35em;
@@ -42,35 +58,80 @@
   transition:
     opacity 700ms ease,
     transform 900ms var(--ease-out);
-  font-size: clamp(30px, 3.85vw, 58px);
+  font-size: clamp(30px, calc(2.6vw + 16px), 120px);
   font-weight: 400;
   line-height: 1.2;
   letter-spacing: -0.034em;
   text-align: center;
   color: var(--dim);
+  font-kerning: normal;
+}
+
+/* The sentence is never reflowed by the word in the blank: the blank is as
+   wide as the widest answer, and the words around it move with transforms
+   to keep the sentence centred on what it says. */
+.head,
+.tail,
+.stop {
+  display: inline-block;
+  white-space: nowrap;
+  transition-property: translate;
+  transition-duration: var(--spring-ms);
+  transition-timing-function: var(--spring);
 }
 
 .head,
 .tail {
-  white-space: nowrap;
+  translate: var(--dx) 0;
+}
+
+/* back over the blank's spare width, to sit after the word */
+.stop {
+  translate: calc(var(--dx) * -2) 0;
+}
+
+/* on two lines, the first has no blank in it to centre on */
+.line[data-wrapped] .head {
+  translate: none;
+}
+
+.line[data-instant] .head,
+.line[data-instant] .tail,
+.line[data-instant] .stop,
+.line[data-instant] .rule,
+.line[data-instant] .slot {
+  transition: none;
 }
 
 .name {
   color: #e7e7e2;
 }
 
+/* Each part of the sentence comes up into place from behind its own
+   baseline, one after another, the way the words in the blank roll. */
 .part {
   display: inline-block;
+  margin: 0 -0.12em -0.3em;
+  padding: 0 0.12em 0.3em;
   transition: opacity 420ms ease;
-  animation: rise 1000ms var(--ease-out) backwards;
-  animation-delay: calc(var(--d) * 120ms + 160ms);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 0.36em), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 0.36em), transparent);
+}
+
+.root[data-settled] .part {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.rise {
+  display: inline-block;
+  animation: rise 1100ms var(--ease-out) backwards;
+  animation-delay: calc(var(--d) * 85ms + 110ms);
 }
 
 @keyframes rise {
   from {
-    opacity: 0;
-    transform: translateY(0.28em);
-    filter: blur(8px);
+    translate: 0 1.3em;
   }
 }
 
@@ -80,74 +141,79 @@
 
 .root[data-leaving] .part {
   opacity: 0;
-  transition-duration: 300ms;
+  transition-duration: 220ms;
 }
 
-/* The blank: the word in it, the list it opens, and the rule under it. */
+/* The blank: the reel of answers, the rule under it, and the button over
+   the word that opens the reel. */
 .blank {
   position: relative;
   display: inline-block;
-}
-
-.slot {
-  position: relative;
-  display: inline-block;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink);
-  font: inherit;
-  line-height: inherit;
-  letter-spacing: inherit;
-  text-align: left;
-  white-space: nowrap;
   vertical-align: baseline;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: width 640ms var(--ease-swift);
 }
 
-.slot:focus-visible {
-  outline: none;
+/* The window the words roll through: a line tall and soft at its top and
+   bottom edges, a little wider than the words so no letter is clipped. */
+.reel {
+  display: inline-grid;
+  align-items: baseline;
+  justify-items: start;
+  box-sizing: content-box;
+  width: var(--reel-w);
+  margin: 0 -0.16em -0.26em;
+  padding: 0 0.16em 0.26em;
+  vertical-align: baseline;
+  text-align: left;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 0.1em, #000 calc(100% - 0.18em), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 0.1em, #000 calc(100% - 0.18em), transparent);
 }
 
-.slot::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0.04em;
-  height: max(1px, 0.03em);
-  background: currentColor;
-  opacity: 0.24;
-  transform-origin: left center;
-  transition: opacity 260ms ease;
+.reel[data-unmasked] {
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
-.blank:hover .slot::after,
-.slot:focus-visible::after {
-  opacity: 0.85;
-}
-
-.root[data-leaving] .slot::after {
-  opacity: 0;
-}
-
-.word {
-  display: inline-block;
+.row {
+  position: relative;
+  display: block;
+  grid-area: 1 / 1;
+  color: var(--ink);
   line-height: 1.2;
+  text-decoration: none;
   white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
+  /* every face at the sentence's x-height, so they all read the same size */
+  font-size-adjust: 0.53;
+}
+
+.row[data-current],
+.row[data-live] {
+  opacity: 1;
+}
+
+/* the first answer comes up into the blank as the sentence arrives */
+.row[data-enter] {
+  animation: enter calc(var(--spring-ms) * 1.5) var(--spring) 470ms backwards;
+}
+
+@keyframes enter {
+  from {
+    translate: 0 1.36em;
+  }
 }
 
 /* each answer in the face of the page it opens */
-.word[data-role="founder"] {
+.row[data-role="founder"] {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-weight: 600;
   letter-spacing: -0.035em;
 }
 
-.word[data-role="student"] {
+.row[data-role="student"] {
   font-family: var(--font-grotesk), "Arial Narrow", sans-serif;
   font-weight: 800;
   font-stretch: 62.5%;
@@ -155,107 +221,120 @@
   letter-spacing: -0.008em;
 }
 
-.word[data-role="builder"] {
+.row[data-role="builder"] {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: -0.075em;
 }
 
-.word[data-role="designer"] {
+.row[data-role="designer"] {
   font-family: var(--font-pixel), monospace;
   font-weight: 500;
   letter-spacing: -0.01em;
 }
 
-.word[data-phase="first"] {
-  animation: rise 1100ms var(--ease-out) 520ms backwards;
+/* Open: the other three laid out above and below, quieter, the nearest
+   first; the one in the sentence stays bright. */
+.reel[data-unmasked] .row {
+  opacity: 0.38;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: opacity 200ms ease;
 }
 
-.word[data-phase="in"] {
-  animation: word-in 780ms var(--ease-out) both;
-}
-
-.word[data-phase="out"] {
+.reel[data-unmasked] .row::before {
+  content: "";
   position: absolute;
-  left: 0;
-  top: 0;
-  pointer-events: none;
-  animation: word-out 520ms cubic-bezier(0.5, 0, 0.75, 0) both;
+  inset: 0 -0.2em;
 }
 
-@keyframes word-in {
-  from {
-    opacity: 0;
-    transform: translateY(0.45em);
-    filter: blur(12px);
-  }
+.reel[data-unmasked] .row[data-current],
+.reel[data-unmasked] .row:hover {
+  opacity: 1;
 }
 
-@keyframes word-out {
-  to {
-    opacity: 0;
-    transform: translateY(-0.45em);
-    filter: blur(12px);
-  }
+.root:not([data-leaving]) .reel[data-unmasked]:has(.row:not([data-current]):hover) .row[data-current]:not(:hover) {
+  opacity: 0.62;
 }
 
-/* The list: all four answers in a column, slid so the current one sits in
-   the sentence. Hidden until the blank is hovered, focused or tapped. */
-.picker {
-  position: absolute;
-  left: 0;
-  top: 0;
-  display: block;
-  transform: translateY(calc(var(--at) * var(--row) * -1));
-  transition: transform 560ms var(--ease-swift);
-  pointer-events: none;
-}
-
-.row {
-  display: block;
-  height: var(--row);
-  text-align: left;
-}
-
-.option {
-  color: var(--ink);
-  text-decoration: none;
+.reel[data-folding] .row:not([data-current]) {
   opacity: 0;
-  transition: opacity 280ms ease;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+/* leaving: only the chosen word stays */
+.root[data-leaving] .row:not([data-chosen]) {
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.root[data-leaving] .row[data-chosen] {
+  opacity: 1;
+}
+
+/* the button lies over the word: its hit area, and what the keyboard holds */
+.slot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: var(--reel-w);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: transparent;
+  font: inherit;
+  cursor: pointer;
+  transform-origin: 0 50%;
+  translate: var(--hit-x) 0;
+  scale: var(--hit-k) 1;
+  transition-property: translate, scale;
+  transition-duration: var(--spring-ms);
+  transition-timing-function: var(--spring);
   -webkit-tap-highlight-color: transparent;
 }
 
-.root[data-open] .picker {
-  pointer-events: auto;
-}
-
-.root[data-open] .option {
-  opacity: 0.28;
-}
-
-.root[data-open] .option[data-current],
-.root[data-open] .option:hover,
-.root[data-open] .option:focus-visible {
-  opacity: 1;
-}
-
-.option:focus-visible {
+.slot:focus-visible {
   outline: none;
-  text-decoration: underline;
-  text-decoration-thickness: max(1px, 0.03em);
-  text-underline-offset: 0.14em;
 }
 
-.root[data-open] .slot .word {
-  visibility: hidden;
+/* The rule of the blank, the length of the word on it: under the letters'
+   feet, clear of every descender, a whole device pixel thick. */
+.rule {
+  position: absolute;
+  left: 0;
+  bottom: -0.035em;
+  width: var(--reel-w);
+  height: 1px;
+  height: max(1px, round(nearest, 0.021em, 1px));
+  background: var(--ink);
+  opacity: 0.26;
+  pointer-events: none;
+  transform-origin: 0 50%;
+  translate: var(--rule-x) 0;
+  scale: var(--rule-k) 1;
+  transition-property: translate, scale, opacity;
+  transition-duration: var(--spring-ms), var(--spring-ms), 240ms;
+  transition-timing-function: var(--spring);
+  animation: draw 1000ms var(--ease-out) 360ms backwards;
 }
 
-.root[data-leaving] .option:not([data-chosen]) {
+@keyframes draw {
+  from {
+    scale: 0 1;
+  }
+}
+
+.blank:hover .rule,
+.slot:focus-visible ~ .rule {
+  opacity: 0.8;
+}
+
+.root[data-leaving] .rule {
   opacity: 0;
-}
-
-.root[data-leaving] .option[data-chosen] {
-  opacity: 1;
 }
 
 /* The play under the sentence: a strip as wide as the line, its picture
@@ -303,17 +382,18 @@
   transition-duration: 300ms;
 }
 
-/* The plushie in the bottom-left corner, and how many have been here. It
-   leans in when you go to it and squashes when you squeeze it. */
+/* The plushie in the bottom-left corner, and how many have been here, on
+   the same line as the hint. It leans in when you go to it and squashes
+   when you squeeze it. */
 .egoist {
   position: absolute;
   left: max(22px, env(safe-area-inset-left));
-  bottom: max(18px, env(safe-area-inset-bottom));
+  bottom: calc(var(--foot) - 6px);
   z-index: 2;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  animation: arrive 1200ms ease 1400ms backwards;
+  align-items: flex-end;
+  gap: 10px;
+  animation: arrive 1000ms ease 1300ms backwards;
 }
 
 @keyframes arrive {
@@ -323,6 +403,7 @@
 }
 
 .plushie {
+  position: relative;
   display: block;
   margin: 0;
   padding: 0;
@@ -362,23 +443,34 @@
   border-radius: 12px;
 }
 
-.count {
+.count,
+.hint {
   margin: 0;
-  color: var(--dim);
-  font: 400 12px/1.3 var(--font-geist-mono), ui-monospace, monospace;
-  letter-spacing: 0.01em;
+  font: 400 clamp(12px, calc(0.2vw + 9px), 14px) / 16px var(--font-geist-mono), ui-monospace, monospace;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* it stands on the plushie's feet */
+.count {
+  margin-bottom: 6px;
+  color: var(--quiet);
   opacity: 0;
-  transition: opacity 900ms ease;
+  translate: 0 3px;
+  transition:
+    opacity 700ms ease,
+    translate 900ms var(--ease-out);
 }
 
 .count[data-shown] {
   opacity: 1;
+  translate: none;
 }
 
 .root[data-leaving] .egoist {
   opacity: 0;
-  transition: opacity 300ms ease;
+  transition: opacity 220ms ease;
 }
 
 .hidden {
@@ -390,32 +482,21 @@
   white-space: nowrap;
 }
 
-.measure {
-  position: absolute;
-  left: 0;
-  top: 0;
-  display: flex;
-  visibility: hidden;
-  pointer-events: none;
-  white-space: nowrap;
-}
-
 .hint {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: max(30px, env(safe-area-inset-bottom));
-  margin: 0;
-  color: #55554f;
-  font: 400 12px/1 var(--font-geist-mono), ui-monospace, monospace;
-  letter-spacing: 0.01em;
+  bottom: var(--foot);
+  color: var(--quiet);
   text-align: center;
   opacity: 0;
-  transition: opacity 1400ms ease;
+  pointer-events: none;
+  transition: opacity 220ms ease;
 }
 
 .hint[data-shown] {
   opacity: 1;
+  transition-duration: 1200ms;
 }
 
 .coarse {
@@ -430,6 +511,18 @@
   .coarse {
     display: inline;
   }
+
+  /* a finger needs more than a line of type to land on; open, the lines
+     stand apart so each answer gets as much */
+  .slot::before {
+    content: "";
+    position: absolute;
+    inset: -0.16em -0.1em;
+  }
+
+  .reel[data-unmasked] .row::before {
+    inset: -0.26em -0.2em;
+  }
 }
 
 @media (max-width: 760px) {
@@ -441,50 +534,66 @@
     height: 72px;
   }
 
-  /* the hint goes up over the plushie, out of its way */
-  .hint {
-    bottom: calc(max(30px, env(safe-area-inset-bottom)) + 76px);
+  .root {
+    --size: clamp(24px, 7.9vw, 46px);
   }
 
   .line {
     max-width: 100%;
-    font-size: clamp(24px, 7.4vw, 40px);
-    line-height: 1.22;
+    font-size: var(--size);
+    line-height: 1.2;
   }
 
   .head {
     display: block;
-    white-space: normal;
+    white-space: nowrap;
+    translate: none;
+  }
+
+  /* the foot is the plushie's on a phone; the hint goes under the sentence,
+     by the word it is about (the sentence's second line ends just over a
+     line below the middle of the page) */
+  .hint {
+    bottom: auto;
+    top: calc(50% + var(--size) * 1.95);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .part,
-  .word[data-phase="first"],
-  .word[data-phase="in"] {
-    animation: fade-in 500ms ease both;
+  .row[data-enter] {
+    animation: fade-in 700ms ease 300ms backwards;
   }
 
-  .word[data-phase="out"] {
-    animation: fade-out 300ms ease both;
+  .rise {
+    animation: fade-in 600ms ease both;
+    animation-delay: calc(var(--d) * 60ms + 80ms);
   }
 
+  .rule {
+    animation: fade-in 600ms ease 300ms backwards;
+  }
+
+  .head,
+  .tail,
+  .stop,
   .slot,
-  .picker,
+  .rule {
+    transition-duration: 360ms;
+    transition-timing-function: ease;
+  }
+
   .line,
   .plushie {
     transition: none;
+  }
+
+  .count {
+    translate: none;
   }
 }
 
 @keyframes fade-in {
   from {
-    opacity: 0;
-  }
-}
-
-@keyframes fade-out {
-  to {
     opacity: 0;
   }
 }

@@ -18,7 +18,7 @@ import {
   TimeCard,
 } from "@/components/mat/things";
 import { presentProjects, type PortfolioContent, type Project } from "@/content/portfolio";
-import { projectKind } from "@/lib/mat";
+import { projectKind, wordmarkWidth } from "@/lib/mat";
 
 // The portfolio laid out on a cutting mat: the name printed across the top,
 // a business card on it, then a band of the mat for every project, the
@@ -91,26 +91,34 @@ function ProjectRow({ project, index, owner }: { project: Project; index: number
 }
 
 // The angles printed in the mat's corner for cutting by, the way every
-// cutting mat has them, kept clear of the corner itself. In millimetres.
+// cutting mat has them, kept clear of the corner itself, and of the mat's
+// name printed along its edge (the arc spans only the angles it marks). In
+// millimetres.
 function Angles() {
-  const from = 30;
+  const from = 40;
   const to = 110;
+  const point = (degrees: number, r: number) => {
+    const a = (degrees * Math.PI) / 180;
+    return [(r * Math.cos(a)).toFixed(2), (120 - r * Math.sin(a)).toFixed(2)] as const;
+  };
+  const [ax, ay] = point(22, to);
+  const [bx, by] = point(68, to);
   return (
     <svg className="mat-angles" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
       {[30, 45, 60].map((degrees) => {
-        const a = (degrees * Math.PI) / 180;
-        const x = (r: number) => (r * Math.cos(a)).toFixed(2);
-        const y = (r: number) => (120 - r * Math.sin(a)).toFixed(2);
+        const [x0, y0] = point(degrees, from);
+        const [x1, y1] = point(degrees, to);
+        const [lx, ly] = point(degrees, to + 3);
         return (
           <g key={degrees}>
-            <path d={`M${x(from)} ${y(from)}L${x(to)} ${y(to)}`} />
-            <text x={x(to + 3)} y={y(to + 3)} transform={`rotate(${-degrees} ${x(to + 3)} ${y(to + 3)})`}>
+            <path d={`M${x0} ${y0}L${x1} ${y1}`} />
+            <text x={lx} y={ly} transform={`rotate(${-degrees} ${lx} ${ly})`}>
               {degrees}°
             </text>
           </g>
         );
       })}
-      <path d={`M${to} 120A${to} ${to} 0 0 0 0 ${120 - to}`} />
+      <path d={`M${ax} ${ay}A${to} ${to} 0 0 0 ${bx} ${by}`} />
     </svg>
   );
 }
@@ -132,7 +140,12 @@ export function Mat({ content }: { content: PortfolioContent }) {
 
   return (
     <>
-      <section className="mat-hero" id="index" aria-label={profile.name}>
+      <section
+        className="mat-hero"
+        id="index"
+        aria-label={profile.name}
+        style={{ "--word-natural": wordmarkWidth(profile.name) } as CSSProperties}
+      >
         <Wordmark text={profile.name} />
         <div className="mat-hero-card">
           {/* the card's size, dimensioned on the mat where it belongs */}

@@ -9,9 +9,11 @@
 .pf {
   --P: min(440px, 44vw);
   --H: min(600px, calc(100svh - var(--band) - 4.5rem));
-  /* shut: how big it is, and how much of it shows past the edge */
+  /* shut: how big it is, how much of it shows past the edge, and how far
+     below the middle of the window it lies */
   --s: 0.52;
   --peek: calc(var(--P) * var(--s) * 0.46);
+  --pf-y: 21vh;
   --manila: var(--stock-manila);
   --manila-dark: color-mix(in srgb, var(--stock-manila) 86%, #6b5426);
   --manila-light: color-mix(in srgb, var(--stock-manila) 82%, white);
@@ -26,7 +28,7 @@
   font-family: var(--font-grotesk), var(--sans);
   pointer-events: none;
   /* its spine sits --peek in from the right edge, low on the window */
-  transform: translate(calc(50vw - var(--peek)), 21vh) rotate(-6deg) scale(var(--s));
+  transform: translate(calc(50vw - var(--peek)), var(--pf-y)) rotate(-6deg) scale(var(--s));
   transition:
     transform 760ms var(--ease-drawer) 380ms,
     opacity 600ms var(--ease-out);
@@ -39,8 +41,26 @@
   transition-delay: 0s, 0s;
 }
 
-.pf:not([data-open]):has(.pf-handle:hover, .pf-handle:focus-visible) {
+/* Once the mat moves under it, it draws back into the margin, clear of the
+   column everything on the mat lies in (262 mm, in the middle). */
+.pf[data-tucked] {
+  --peek: clamp(26px, 50vw - var(--mm) * 131 - 34px, var(--P) * var(--s) * 0.3);
+}
+
+/* a hand over it, or the keyboard on it, brings it out to be taken */
+.pf:not([data-open]):has(.pf-handle:focus-visible) {
   --peek: calc(var(--P) * var(--s) * 0.62);
+}
+
+@media (hover: hover) {
+  .pf:not([data-open]):has(.pf-handle:hover) {
+    --peek: calc(var(--P) * var(--s) * 0.62);
+  }
+}
+
+/* before the page has opened it's off the edge, and it's pushed in last */
+.pf:not([data-arrived]) {
+  --peek: -64px;
 }
 
 .pf[data-open],
@@ -96,9 +116,10 @@ html[data-gaze] .pf {
     linear-gradient(90deg, rgb(90 64 20 / 0.12), transparent 7%),
     var(--manila);
   background-blend-mode: soft-light, normal, normal;
+  /* lying at the edge of the mat, lit from up and to the left of it */
   box-shadow:
-    0 1px 1px rgb(0 0 0 / 0.16),
-    0 18px 40px -10px rgb(0 0 0 / 0.45);
+    0.6px 1px 1px rgb(0 0 0 / calc(0.16 * var(--shade-k))),
+    11px 18px 40px -10px rgb(0 0 0 / calc(0.42 * var(--shade-k)));
 }
 
 .pf-tab {
@@ -335,8 +356,8 @@ html[data-gaze] .pf {
   background-blend-mode: soft-light, normal, normal;
   box-shadow:
     0 -1px 0 rgb(255 255 255 / 0.25) inset,
-    0 1px 3px rgb(0 0 0 / 0.22),
-    0 4px 12px -4px rgb(0 0 0 / 0.25);
+    0.6px 1px 3px rgb(0 0 0 / calc(0.22 * var(--shade-k))),
+    2.5px 4px 12px -4px rgb(0 0 0 / calc(0.25 * var(--shade-k)));
 }
 
 .pf-inside {
@@ -349,7 +370,7 @@ html[data-gaze] .pf {
     linear-gradient(270deg, rgb(90 64 20 / 0.16), transparent 9%),
     var(--manila-light);
   background-blend-mode: soft-light, normal, normal;
-  box-shadow: 0 18px 40px -10px rgb(0 0 0 / 0.45);
+  box-shadow: 11px 18px 40px -10px rgb(0 0 0 / calc(0.42 * var(--shade-k)));
   transform: rotateY(180deg);
   visibility: hidden;
 }
@@ -584,15 +605,38 @@ html[data-gaze] .pf {
   pointer-events: auto;
 }
 
+/* ---- a narrow window: no margin to draw back into ------------------------ */
+
+/* Shut, it lies by the name printed at the top of the mat, clear of the card
+   (the name's size worked out as app/mat.css works it out), and once the mat
+   moves under it, it goes back off the edge altogether. */
+@media (max-width: 1099px) {
+  .pf {
+    --pf-word: min(calc((100vw - 2.5rem) * 100 / var(--word-natural, 231)), calc(42svh / 0.78));
+    --pf-top: calc(var(--band) + var(--mm) * 10);
+    --pf-y: calc(var(--pf-top) + var(--pf-word) * 0.54 - 50vh - var(--band) / 2);
+  }
+
+  @supports (height: 1dvh) {
+    .pf {
+      --pf-y: calc(var(--pf-top) + var(--pf-word) * 0.54 - 50dvh - var(--band) / 2);
+    }
+  }
+
+  .pf[data-tucked] {
+    --peek: -64px;
+  }
+}
+
 /* ---- a phone: one panel wide, the open folder shows just its papers -------- */
 
-@media (max-width: 700px) {
+@media (max-width: 719px) {
   .pf {
     --P: min(92vw, 440px);
     --H: min(640px, calc(100svh - var(--band) - 3rem));
-    --s: 0.36;
+    --s: 0.3;
     --peek: calc(var(--P) * var(--s) * 0.5);
-    transform: translate(calc(50vw - var(--peek)), 26vh) rotate(-6deg) scale(var(--s));
+    --pf-top: calc(var(--band) + 3rem);
   }
 
   .pf[data-open] {

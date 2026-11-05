@@ -128,13 +128,45 @@ export class Voxels {
     });
   }
 
-  geometry(seed = 1, occlude = true) {
+  // What's solid, as a test: a dense grid one voxel wider than the model all
+  // round (every neighbour the mesher asks about is within one voxel of a
+  // solid one), so each test is an index rather than a lookup; the map itself
+  // for a model too big for that.
+  private occupancy() {
+    let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+    for (const k of this.cells.keys()) {
+      const x = (k >>> 20) & 1023, y = (k >>> 10) & 1023, z = k & 1023;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+      if (z < z0) z0 = z;
+      if (z > z1) z1 = z;
+    }
+    const sx = x1 - x0 + 3, sy = y1 - y0 + 3, sz = z1 - z0 + 3;
+    if (!this.cells.size || sx * sy * sz > 1 << 26) return (x: number, y: number, z: number) => this.cells.has(key(x, y, z));
+    const grid = new Uint8Array(sx * sy * sz);
+    // in the keys' own offset space, shifted so the border starts at 0
+    const bx = x0 - 1 - OFFSET, by = y0 - 1 - OFFSET, bz = z0 - 1 - OFFSET;
+    for (const k of this.cells.keys()) grid[((((k >>> 20) & 1023) - x0 + 1) * sy + (((k >>> 10) & 1023) - y0 + 1)) * sz + ((k & 1023) - z0 + 1)] = 1;
+    return (x: number, y: number, z: number) => grid[((x - bx) * sy + (y - by)) * sz + (z - bz)] === 1;
+  }
+
+  /** `sway`, if given, says how much each point of the model gives in the
+   * wind, 0 (still) to 1, by its position in voxels. It's read at the
+   * corners, so neighbouring voxels bend together, and kept as the geometry's
+   * `sway` attribute for a material made with `swayAttribute`. */
+  geometry(seed = 1, occlude = true, { sway }: { sway?: (x: number, y: number, z: number) => number } = {}) {
+    // TEMP(g1-render): time spent meshing, while measuring start-up
+    const t0 = performance.now();
     const positions: number[] = [];
     const normals: number[] = [];
     const colors: number[] = [];
     const indices: number[] = [];
+    const give: number[] = [];
+    const occlusion = [1, 1, 1, 1];
     const s = this.size;
-    const solid = (x: number, y: number, z: number) => this.cells.has(key(x, y, z));
+    const solid = this.occupancy();
     let vertex = 0;
 
     for (const [k, color] of this.cells) {
@@ -149,7 +181,7 @@ export class Voxels {
       for (const face of FACES) {
         const [nx, ny, nz] = face.n;
         if (solid(x + nx, y + ny, z + nz)) continue;
-        const occlusion: number[] = [];
+        let at = 0;
         for (const [cx, cy, cz] of face.c) {
           // the corner's neighbours in the plane just outside the face
           const ox = cx === 0 ? -1 : 1, oy = cy === 0 ? -1 : 1, oz = cz === 0 ? -1 : 1;
@@ -169,9 +201,10 @@ export class Voxels {
             corner = solid(px + ox, py + oy, pz);
           }
           const level = side1 && side2 ? 3 : Number(side1) + Number(side2) + Number(corner);
-          occlusion.push(occlude ? AO[level] : 1);
+          occlusion[at++] = occlude ? AO[level] : 1;
           positions.push((x + cx) * s, (y + cy) * s, (z + cz) * s);
           normals.push(nx, ny, nz);
+          if (sway) give.push(sway(x + cx, y + cy, z + cz));
         }
         for (const ao of occlusion) colors.push(srgbToLinear(r * ao), srgbToLinear(g * ao), srgbToLinear(b * ao));
         // split the quad along the diagonal that keeps the occlusion smooth
@@ -188,9 +221,12 @@ export class Voxels {
     geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
     geometry.setAttribute("normal", new Float32BufferAttribute(normals, 3));
     geometry.setAttribute("color", new Float32BufferAttribute(colors, 3));
+    if (sway) geometry.setAttribute("sway", new Float32BufferAttribute(give, 1));
     geometry.setIndex(new Uint32BufferAttribute(indices, 1));
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
+    const g1 = globalThis as unknown as { __g1mesh?: number };
+    g1.__g1mesh = (g1.__g1mesh ?? 0) + performance.now() - t0;
     return geometry;
   }
 }

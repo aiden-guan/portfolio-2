@@ -61,3 +61,8 @@ export const SECTORS = [
     briefing: "The pitch is over. Settle this in orbit.",
   },
 ] as const;
+// Everything the arcade draws from files. The page warms these before the takeover.
+export const ARCADE_ASSETS = [
+  ...SECTORS.map((sector) => sector.image),
+  "/arcade/hand-seals.webp",
+];

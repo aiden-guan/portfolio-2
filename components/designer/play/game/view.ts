@@ -16,8 +16,9 @@ import {
   WebGLRenderer,
   WebGLRenderTarget,
 } from "three";
-import { POST_FRAGMENT, POST_VERTEX } from "../../scene/engine";
-import { uniforms } from "../../scene/shared";
+import { POST_FRAGMENT, POST_VERTEX } from "../../scene/post";
+import { glowMaterial, shaftMaterial, uniforms, worldMaterial } from "../../scene/shared";
+import { Voxels } from "../../scene/voxels";
 
 // How the game is drawn: the island's own way. A low art resolution scaled up
 // by whole device pixels, the island's post pass for the dither, the levels
@@ -63,6 +64,10 @@ export function createView(container: HTMLElement, canvas: HTMLCanvasElement) {
       uBgTop: { value: new Color() },
       uBgBottom: { value: new Color() },
       uRing: { value: new Color(0xfff6e2) },
+      // the game turns on the post pass's contact shadow; the island leaves it off
+      uAo: { value: 0.9 },
+      uUnit: { value: 0.05 },
+      uDepthSpan: { value: 0 },
     },
     depthTest: false,
     depthWrite: false,
@@ -76,6 +81,7 @@ export function createView(container: HTMLElement, canvas: HTMLCanvasElement) {
   const postCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
   const camera = new OrthographicCamera(-1, 1, 1, -1, 1, 400);
+  post.uniforms.uDepthSpan.value = camera.far - camera.near;
   const right = new Vector3();
   const up = new Vector3();
   const forward = new Vector3();
@@ -87,11 +93,13 @@ export function createView(container: HTMLElement, canvas: HTMLCanvasElement) {
   forward.copy(VIEW).negate();
 
   let artW = 2, artH = 2, cssPerArt = 3;
+  // TEMP(g1-render): css px per art px, while trying a finer picture
+  let artDivisor = 3;
   const resize = () => {
     const w = container.clientWidth || window.innerWidth;
     const h = container.clientHeight || window.innerHeight;
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    const target = Math.min(560, Math.max(300, w / 3));
+    const target = Math.min(560 * (3 / artDivisor), Math.max(300, w / artDivisor));
     const devPerArt = Math.max(1, Math.round((w * dpr) / target));
     cssPerArt = devPerArt / dpr;
     artW = Math.ceil(w / cssPerArt) + 2;
@@ -107,6 +115,7 @@ export function createView(container: HTMLElement, canvas: HTMLCanvasElement) {
   observer.observe(container);
 
   const offset = { x: 0, y: 0 };
+  const snapped = new Vector3();
   let ppu = 20;
   const place = (target: Vector3, span: number) => {
     // the span fits across, or down on a tall screen
@@ -117,9 +126,10 @@ export function createView(container: HTMLElement, canvas: HTMLCanvasElement) {
     camera.top = halfH;
     camera.bottom = -halfH;
     camera.updateProjectionMatrix();
+    post.uniforms.uUnit.value = 1 / ppu;
     const sx = target.dot(right) * ppu, sy = target.dot(up) * ppu, sz = target.dot(forward);
     const rx = Math.round(sx), ry = Math.round(sy);
-    const snapped = new Vector3().addScaledVector(right, rx / ppu).addScaledVector(up, ry / ppu).addScaledVector(forward, sz);
+    snapped.set(0, 0, 0).addScaledVector(right, rx / ppu).addScaledVector(up, ry / ppu).addScaledVector(forward, sz);
     camera.position.copy(snapped).addScaledVector(VIEW, 140);
     camera.updateMatrixWorld();
     post.uniforms.uSnap.value.set(rx, ry);
@@ -128,8 +138,57 @@ export function createView(container: HTMLElement, canvas: HTMLCanvasElement) {
     canvas.style.transform = `translate3d(${offset.x.toFixed(3)}px, ${offset.y.toFixed(3)}px, 0)`;
   };
 
+  // TEMP(g1-render): a handle for comparing passes while working on them
+  if (process.env.NODE_ENV !== "production") (window as unknown as { __view?: unknown }).__view = {
+      post,
+      renderer,
+      uniforms,
+      shaftMaterial,
+      glowMaterial,
+      worldMaterial,
+      Voxels,
+      Mesh,
+      art: (divisor: number) => {
+        artDivisor = divisor;
+        resize();
+      },
+    };
+
+  // —— shaders, built before a scene's first frame
+  // The first time a scene is drawn every material in it is built for that
+  // scene's lights, which can hold the page for most of a second. So the first
+  // time render() meets a scene, it starts the build where the browser can run
+  // it off the main thread (KHR_parallel_shader_compile), against the target
+  // the scene draws into so they're the very programs the draw will ask for,
+  // and the canvas keeps its last frame until they're ready. If they never
+  // report back, it draws anyway after a while.
+  const HOLD_MS = 1500;
+  const built = new WeakSet<Scene>();
+  const building = new WeakMap<Scene, number>();
+  let postBuilt = false;
+  const build = (scene: Scene) => {
+    building.set(scene, performance.now());
+    renderer.setRenderTarget(color);
+    const work: Array<Promise<unknown>> = [renderer.compileAsync(scene, camera)];
+    renderer.setRenderTarget(null);
+    if (!postBuilt) work.push(renderer.compileAsync(postScene, postCamera));
+    const done = () => {
+      built.add(scene);
+      postBuilt = true;
+    };
+    Promise.all(work).then(done, done);
+  };
+
+  /** Draws a frame; false while the scene's shaders are still being built
+   * (the canvas holds its last frame meanwhile). */
   const render = (look: Look, levels = 15) => {
     place(look.target, look.span);
+    if (!built.has(look.scene)) {
+      const since = building.get(look.scene);
+      if (since === undefined) build(look.scene);
+      if (since === undefined || performance.now() - since < HOLD_MS) return false;
+      built.add(look.scene);
+    }
     post.uniforms.uBgTop.value.copy(look.background.top);
     post.uniforms.uBgBottom.value.copy(look.background.bottom);
     post.uniforms.uLevels.value = levels;
@@ -138,6 +197,7 @@ export function createView(container: HTMLElement, canvas: HTMLCanvasElement) {
     renderer.render(look.scene, camera);
     renderer.setRenderTarget(null);
     renderer.render(postScene, postCamera);
+    return true;
   };
 
   const projected = new Vector3();

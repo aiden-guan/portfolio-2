@@ -12,6 +12,7 @@ import {
   nightLights,
   scenery,
   seyrinDesk,
+  strollers,
   type Place,
   type Spot,
 } from "./places";
@@ -48,6 +49,7 @@ export function buildWorld() {
     aiden(),
     clouds(),
     ...scenery(),
+    ...strollers(),
     ...nightLights(),
   ];
   for (const place of places) scene.add(place.object);

@@ -8,6 +8,7 @@ export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Builder",
+  description: "Every build of Aiden Guan's as a thumbnail; each one opens into the full story.",
   alternates: { canonical: "/builder" },
 };
 

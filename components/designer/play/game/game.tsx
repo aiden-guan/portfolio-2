@@ -1,14 +1,14 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Vector3 } from "three";
 import { setMuted, useMuted } from "@/lib/riffle";
 import { uniforms } from "../../scene/shared";
 import { Logo } from "../logo";
 import type { Sound } from "../sound";
-import { CHAPTERS, COMING, nextOf, ORDER } from "./chapters";
-import { SPEAKERS, type ChapterId, type Ctx, type Line, type SceneSetup, type Stats } from "./chapters/types";
+import { CHAPTERS, nextOf } from "./chapters";
+import { FEATS, type FeatId } from "./chapters/feats";
+import { SPEAKERS, type ChapterId, type Ctx, type Emote, type SceneSetup } from "./chapters/types";
 import { face as drawnFace } from "./faces";
 import { LOOKS } from "./people";
 import { pixelPortrait } from "./portrait";
@@ -23,9 +23,18 @@ import { hall } from "./rooms/hall";
 import { hallway } from "./rooms/hallway";
 import { office } from "./rooms/office";
 import { street } from "./rooms/street";
-import { loadSave, reach, writeSave, type Save } from "./save";
+import { DEFAULT_SETTINGS, findFeat, loadFeats, loadSave, loadSettings, reach, writeSave, writeSettings, type Save, type Settings } from "./save";
 import { pauseScreens } from "./screen-kit";
 import { Screen, type ScreenSpec } from "./screens";
+import { Banner, Curtain, EndCard, Intro, MomentCard } from "./shell/cards";
+import { Dialogue, type Talk, type Typing } from "./shell/dialogue";
+import { Hud, type StatName, type StatValues } from "./shell/hud";
+import { ChaptersPanel, Pause, SettingsPanel, TitleMenu, type MenuItem } from "./shell/menus";
+import { prefersReduced, useLingering } from "./shell/motion";
+import { DIAMOND, Pixels, TAP } from "./shell/pixels";
+import { createShake, type Shake } from "./shell/shake";
+import { BubbleView, centre, EMOTE_MS, EmoteView } from "./shell/world";
+import world from "./shell/world.module.css";
 import { createStage, type Stage } from "./stage";
 import { titleScene, type Title } from "./title";
 import { createView, type View } from "./view";
@@ -36,18 +45,33 @@ import styles from "./game.module.css";
 // Aiden: Life of a Handsome Entrepreneur. The title screen, the chapters,
 // and everything the chapters are told through: the HUD, the dialogue (and
 // its choices), the laptop and the phone, the cards that open and close
-// each chapter. The world is drawn by view.ts the way the island is; all
-// of the reading is plain HTML on top. Chapters are scripts (chapters/*.ts)
+// each chapter, the moments, and the sheet of paper that comes down between
+// places. The world is drawn by view.ts the way the island is; all of the
+// reading is plain HTML on top (shell/). Chapters are scripts (chapters/*.ts)
 // written against the Ctx made here.
 
 export type GamePhase = "off" | "splash" | "title" | "ready";
 type Mode = "title" | "intro" | "play" | "end";
-type Talk = { list: Line[]; at: number; then?: () => void; choices?: Array<{ label: string; who?: string }>; pick?: (i: number) => void };
 type Overlay = { spec: ScreenSpec; resolve: (value: unknown) => void; id: number };
 type Bubble = { key: string; target: string | Vector3; text: string; until: number };
-type World = { view: View; title: Title; stage: Stage | null; mini: Wingman | null; time: number; revealFrom: number; revealOut: number; revealMax: number };
+type EmoteMark = { id: number; who: string; kind: Emote };
+type World = { view: View; title: Title; stage: Stage | null; mini: Wingman | null; shake: Shake; time: number; revealFrom: number; revealOut: number; revealMax: number };
+type Panel = "chapters" | "settings" | null;
+type IntroCard = { chapter: ChapterId; lines: string[]; act: number; leaving: boolean };
 
 const CLOCK_RATE = 1500;
+/** How long a moment's card stays up before it slides away. */
+const MOMENT_MS = 4400;
+/** From the head's pivot to the top of the hair, before the figure is scaled. */
+const HEAD_TOP = 0.72;
+
+const STATS: StatValues = {
+  money: { v: 0, ms: 900 },
+  members: { v: 0, ms: 900 },
+  revenue: { v: 0, ms: 900 },
+  ready: { v: 0, ms: 900 },
+  wins: { v: 0, ms: 900 },
+};
 
 function buildRoom(setup: SceneSetup): Room {
   switch (setup.id) {
@@ -97,48 +121,65 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
   const container = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const prompt = useRef<HTMLButtonElement>(null);
+  const promptBody = useRef<HTMLSpanElement>(null);
+  const promptKey = useRef<HTMLElement>(null);
   const marker = useRef<HTMLDivElement>(null);
   const bubbleNodes = useRef(new Map<string, HTMLElement>());
-  const world = useRef<World | null>(null);
-  const typingRef = useRef<{ done: boolean; finish: () => void }>({ done: true, finish: () => {} });
+  const emoteNodes = useRef(new Map<number, HTMLElement>());
+  const worldRef = useRef<World | null>(null);
+  const typingRef = useRef<Typing>({ done: true, finish: () => {} });
   const session = useRef(0);
   const busy = useRef(0);
   const waits = useRef<Array<{ at: number; resolve: () => void }>>([]);
   const stepRef = useRef("");
   const talkRef = useRef<Talk | null>(null);
+  const talkSeq = useRef(0);
   const overlayRef = useRef<Overlay | null>(null);
   const choiceRef = useRef(0);
+  const confirmingRef = useRef<number | null>(null);
   const chapterRef = useRef<ChapterId>("prologue");
   /** What the current step is about: used first when several things are in reach. */
   const preferred = useCallback(() => targetOf(chapterRef.current, stepRef.current) ?? stepRef.current, []);
   const bubblesRef = useRef<Bubble[]>([]);
+  const emotesRef = useRef<EmoteMark[]>([]);
+  const emoteSeq = useRef(0);
+  const momentQueue = useRef<FeatId[]>([]);
+  const momentUp = useRef(false);
+  const settingsRef = useRef<Settings>(DEFAULT_SETTINGS);
   // asks for a picture of the next frame, framed on Aiden (a reel's footage)
   const shots = useRef<Array<(url: string) => void>>([]);
-  const statsRef = useRef<Required<Pick<Stats, "money" | "members" | "revenue" | "ready" | "wins">>>({ money: 0, members: 0, revenue: 0, ready: 0, wins: 0 });
+  const statsRef = useRef<Record<StatName, number>>({ money: 0, members: 0, revenue: 0, ready: 0, wins: 0 });
 
   const [mode, setMode] = useState<Mode>("title");
   const [chapterId, setChapterId] = useState<ChapterId>("prologue");
-  const [intro, setIntro] = useState<{ chapter: ChapterId; lines: string[]; act: number } | null>(null);
+  const [intro, setIntro] = useState<IntroCard | null>(null);
   const [leaving, setLeaving] = useState(false);
-  const [chaptersOpen, setChaptersOpen] = useState(false);
+  const [panel, setPanel] = useState<Panel>(null);
   const [paused, setPaused] = useState(false);
   const [menu, setMenu] = useState(0);
   const [step, setStep] = useState("");
   const [talk, setTalkState] = useState<Talk | null>(null);
   const [choice, setChoice] = useState(0);
+  const [confirming, setConfirming] = useState<number | null>(null);
   const [overlay, setOverlayState] = useState<Overlay | null>(null);
-  const [stats, setStats] = useState({ money: 0, members: 0, revenue: 0, ready: 0, wins: 0 });
+  const [stats, setStats] = useState<StatValues>(STATS);
+  const [statEpoch, setStatEpoch] = useState(0);
   const [hearts, setHearts] = useState({ john: 0, jerry: 0 });
   const [day, setDay] = useState("");
   const [clock, setClock] = useState(7 * 60);
   const [banner, setBanner] = useState<{ place: string; time: string; id: number } | null>(null);
   const [near, setNear] = useState<string | null>(null);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
+  const [emotes, setEmotes] = useState<EmoteMark[]>([]);
   const [glint, setGlint] = useState(0);
   const [toast, setToast] = useState<{ text: string; id: number } | null>(null);
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [touch, setTouch] = useState(false);
   const [save, setSaveState] = useState<Save | null>(null);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [found, setFound] = useState<Record<string, number>>({});
+  const [moment, setMoment] = useState<{ id: FeatId; key: number } | null>(null);
+  const [curtain, setCurtain] = useState<"down" | "up" | null>(null);
   const [mini, setMini] = useState<Wingman | null>(null);
   // a new game over a save asks once more before starting over
   const [confirmNew, setConfirmNew] = useState(false);
@@ -146,10 +187,10 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
   const [moved, setMoved] = useState(false);
   const muted = useMuted();
   const started = phase !== "off";
-  const live = useRef({ mode, paused, chaptersOpen, menu, leaving, phase });
+  const live = useRef({ mode, paused, panel, menu, leaving, phase });
 
   useEffect(() => {
-    live.current = { mode, paused, chaptersOpen, menu, leaving, phase };
+    live.current = { mode, paused, panel, menu, leaving, phase };
   });
 
   // pausing holds the screens' clocks and keys, and the music
@@ -168,6 +209,10 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
     const id = window.setTimeout(() => {
       sync();
       setSaveState(loadSave());
+      const kept = loadSettings();
+      settingsRef.current = kept;
+      setSettings(kept);
+      setFound(loadFeats());
     }, 0);
     return () => {
       coarse.removeEventListener("change", sync);
@@ -202,32 +247,75 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
   );
 
   // —— the state the scripts lean on, kept readable the instant it changes
-  const setTalk = useCallback((next: Talk | null) => {
-    talkRef.current = next;
-    setTalkState(next);
+  // a closing box keeps its last state (the answer picked) while it goes;
+  // only the next exchange starts fresh
+  const setTalk = useCallback((next: Omit<Talk, "id"> | null) => {
+    const value = next ? { ...next, id: (talkSeq.current += 1) } : null;
+    talkRef.current = value;
+    setTalkState(value);
+    if (!value) return;
     choiceRef.current = 0;
     setChoice(0);
+    confirmingRef.current = null;
+    setConfirming(null);
   }, []);
+
+  // the room's wall clocks follow the HUD's
+  useEffect(() => {
+    worldRef.current?.stage?.room.setTime?.(clock);
+  }, [clock]);
+
+  // who is talking, so the stage can turn heads towards them and animate them
+  useEffect(() => {
+    const stage = worldRef.current?.stage;
+    if (!stage) return;
+    // the line too, so mouths move about as long as the words take to type out
+    const line = talk?.list[talk.at];
+    stage.speaking(line?.who ?? null, line?.text);
+  }, [talk]);
+
   const setOverlay = useCallback((next: Overlay | null) => {
     overlayRef.current = next;
     setOverlayState(next);
   }, []);
 
-  const animateStat = useCallback((name: "money" | "members" | "revenue" | "ready" | "wins", to: number, ms = 900) => {
-    const from = statsRef.current[name];
+  /** A stat's new value; the HUD counts its way there over `ms`. */
+  const animateStat = useCallback((name: StatName, to: number, ms = 900) => {
     statsRef.current = { ...statsRef.current, [name]: to };
-    const start = performance.now();
-    const tick = () => {
-      const t = Math.min(1, (performance.now() - start) / ms);
-      const value = Math.round(from + (to - from) * (1 - (1 - t) ** 3));
-      setStats((s) => ({ ...s, [name]: value }));
-      if (t < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
+    setStats((s) => ({ ...s, [name]: { v: to, ms } }));
   }, []);
+
+  const updateSettings = useCallback((next: Settings) => {
+    settingsRef.current = next;
+    setSettings(next);
+    writeSettings(next);
+    if (!next.shake) worldRef.current?.shake.clear();
+  }, []);
+
+  // —— moments: a card the first time each is found, one after another
+  const showMoment = useCallback(() => {
+    const id = momentQueue.current.shift();
+    momentUp.current = Boolean(id);
+    if (!id) return setMoment(null);
+    setMoment({ id, key: Date.now() });
+    soundRef.current?.moment();
+  }, [soundRef]);
+  const dismissMoment = useCallback(() => {
+    setMoment(null);
+    // the next one waits for this one to slide away
+    window.setTimeout(showMoment, 380);
+  }, [showMoment]);
+  useEffect(() => {
+    if (!moment) return;
+    const id = window.setTimeout(dismissMoment, MOMENT_MS);
+    return () => window.clearTimeout(id);
+  }, [moment, dismissMoment]);
 
   const shownAt = useRef(0);
   const quietUntil = useRef(0);
+  const markChoices = useCallback(() => {
+    shownAt.current = performance.now();
+  }, []);
   const advance = useCallback(() => {
     if (!typingRef.current.done) {
       typingRef.current.finish();
@@ -236,12 +324,21 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
     const current = talkRef.current;
     if (!current) return;
     if (current.choices) {
-      if (performance.now() - shownAt.current < 320) return;
+      if (performance.now() - shownAt.current < 320 || confirmingRef.current !== null) return;
       const pick = current.pick;
       const i = choiceRef.current;
       soundRef.current?.confirm();
-      setTalk(null);
-      pick?.(i);
+      // the pick lands in the box for a beat before the box goes
+      confirmingRef.current = i;
+      setConfirming(i);
+      window.setTimeout(
+        () => {
+          if (talkRef.current !== current) return;
+          setTalk(null);
+          pick?.(i);
+        },
+        prefersReduced() ? 120 : 260,
+      );
       return;
     }
     soundRef.current?.select();
@@ -288,16 +385,19 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
           });
         },
         scene: async (setup) => {
-          const w = world.current;
+          const w = worldRef.current;
           if (!w || !alive()) return never;
           if (w.stage) {
             w.revealOut = w.time;
-            await ctx.wait(620);
+            await ctx.wait(560);
             if (!alive()) return never;
           }
           w.stage?.dispose();
+          w.shake.clear();
           const room = buildRoom(setup);
           const stage = createStage(room, { lying: setup.lying, dog: setup.dog ?? false, actors: setup.actors, at: setup.at, heading: setup.heading, hero: setup.hero });
+          // wall clocks in the room show the scene's time from the first frame
+          room.setTime?.(setup.clock);
           stage.snapLook();
           w.stage = stage;
           w.revealOut = -1;
@@ -305,16 +405,19 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
           w.revealMax = reachOf(room);
           bubblesRef.current = [];
           setBubbles([]);
+          emotesRef.current = [];
+          setEmotes([]);
           setDay(setup.day);
           setClock(setup.clock);
           setBanner(setup.banner ? { ...setup.banner, id: Date.now() } : null);
+          soundRef.current?.scene(chapterRef.current, setup.id, setup.night);
           setMode("play");
           await ctx.wait(setup.banner ? 1300 : 900);
         },
-        stage: () => world.current!.stage!,
+        stage: () => worldRef.current!.stage!,
         wait: (ms) => {
           if (!alive()) return never;
-          const w = world.current;
+          const w = worldRef.current;
           return new Promise<void>((resolve) => waits.current.push({ at: (w?.time ?? 0) + ms / 1000, resolve }));
         },
         earn: (amount) => {
@@ -343,6 +446,29 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
           if (!alive()) return;
           setGlint((n) => n + 1);
         },
+        // a hit: the camera takes it, unless the player would rather it didn't
+        shake: (strength = 0.3) => {
+          if (!alive() || !settingsRef.current.shake || prefersReduced()) return;
+          worldRef.current?.shake.add(strength);
+        },
+        feat: (id) => {
+          if (!alive() || !(id in FEATS) || !findFeat(id)) return;
+          setFound(loadFeats());
+          momentQueue.current.push(id);
+          if (!momentUp.current) showMoment();
+        },
+        emote: (who, kind) => {
+          if (!alive()) return;
+          const id = (emoteSeq.current += 1);
+          emotesRef.current = [...emotesRef.current.filter((e) => e.who !== who), { id, who, kind }];
+          setEmotes(emotesRef.current);
+          soundRef.current?.blip(kind === "!" ? 14 : kind === "?" ? 8 : kind === "heart" ? 12 : 4);
+          window.setTimeout(() => {
+            if (!emotesRef.current.some((e) => e.id === id)) return;
+            emotesRef.current = emotesRef.current.filter((e) => e.id !== id);
+            setEmotes(emotesRef.current);
+          }, EMOTE_MS);
+        },
         sound: () => soundRef.current,
         checkpoint: (act) => {
           if (!alive()) return;
@@ -350,14 +476,14 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
           setSaveState(loadSave());
         },
         minigame: () => {
-          const w = world.current;
+          const w = worldRef.current;
           if (!w || !alive()) return never;
           return new Promise((resolve) => {
             const game = createWingman({
               sound: () => soundRef.current,
               onDone: (result) => {
                 window.setTimeout(() => {
-                  const live = world.current;
+                  const live = worldRef.current;
                   if (!live || live.mini !== game) return;
                   live.mini = null;
                   game.dispose();
@@ -390,24 +516,27 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       };
       return ctx;
     },
-    [animateStat, setOverlay, setTalk, soundRef],
+    [animateStat, setOverlay, setTalk, showMoment, soundRef],
   );
 
   /** Runs a piece of a chapter, the player waiting while it does. */
-  const run = useCallback((fn: (ctx: Ctx) => Promise<void> | void) => {
-    const ctx = makeCtx(session.current);
-    busy.current += 1;
-    Promise.resolve()
-      .then(() => fn(ctx))
-      .catch((error) => console.error(error))
-      .finally(() => {
-        busy.current = Math.max(0, busy.current - 1);
-      });
-  }, [makeCtx]);
+  const run = useCallback(
+    (fn: (ctx: Ctx) => Promise<void> | void) => {
+      const ctx = makeCtx(session.current);
+      busy.current += 1;
+      Promise.resolve()
+        .then(() => fn(ctx))
+        .catch((error) => console.error(error))
+        .finally(() => {
+          busy.current = Math.max(0, busy.current - 1);
+        });
+    },
+    [makeCtx],
+  );
 
   const interact = useCallback(
     (id: string) => {
-      const stage = world.current?.stage;
+      const stage = worldRef.current?.stage;
       if (!stage || busy.current || performance.now() < quietUntil.current) return;
       const spot = stage.spot(id);
       if (spot) stage.faceTowards(spot.at);
@@ -418,11 +547,31 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
   );
 
   const wake = useCallback(() => {
-    const stage = world.current?.stage;
+    const stage = worldRef.current?.stage;
     if (!stage?.lying || busy.current) return;
     const chapter = CHAPTERS[chapterRef.current];
     if (chapter.wake) run((ctx) => chapter.wake!(ctx));
   }, [run]);
+
+  // —— the sheet: down over the screen, a change behind it, and up again
+  // (or left down, when what comes next is written on it)
+  const cover = useCallback(
+    (then: () => void, lift = true) => {
+      const reduced = prefersReduced();
+      setCurtain("down");
+      soundRef.current?.whoosh(0.45, false, 0.05);
+      window.setTimeout(
+        () => {
+          then();
+          if (!lift) return setCurtain(null);
+          setCurtain("up");
+          window.setTimeout(() => setCurtain(null), reduced ? 260 : 520);
+        },
+        reduced ? 220 : 470,
+      );
+    },
+    [soundRef],
+  );
 
   // —— starting chapters
   const playAct = useCallback(
@@ -431,12 +580,13 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       act = Math.max(0, Math.min(chapter.acts.length - 1, act));
       const stats = chapter.acts[act].stats;
       statsRef.current = { money: stats.money, members: stats.members ?? 0, revenue: stats.revenue ?? 0, ready: stats.ready ?? 0, wins: stats.wins ?? 0 };
-      setStats(statsRef.current);
+      const at = statsRef.current;
+      setStats({ money: { v: at.money, ms: 0 }, members: { v: at.members, ms: 0 }, revenue: { v: at.revenue, ms: 0 }, ready: { v: at.ready, ms: 0 }, wins: { v: at.wins, ms: 0 } });
+      setStatEpoch((n) => n + 1);
       setHearts(stats.hearts ?? { john: 0, jerry: 0 });
       setTalk(null);
       setOverlay(null);
       setPaused(false);
-      setIntro(null);
       reach(id, act);
       setSaveState(loadSave());
       run((ctx) => chapter.acts[act].run(ctx));
@@ -455,10 +605,13 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       setStep("");
       setTalk(null);
       setOverlay(null);
-      setChaptersOpen(false);
+      setPanel(null);
+      setPaused(false);
       bubblesRef.current = [];
       setBubbles([]);
-      const w = world.current;
+      emotesRef.current = [];
+      setEmotes([]);
+      const w = worldRef.current;
       if (w?.stage) {
         w.stage.dispose();
         w.stage = null;
@@ -468,55 +621,68 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         w.mini = null;
       }
       setMini(null);
-      setIntro({ chapter: id, lines: act === 0 ? CHAPTERS[id].intro : [], act });
+      setIntro({ chapter: id, lines: act === 0 ? CHAPTERS[id].intro : [], act, leaving: false });
       setMode("intro");
     },
     [setOverlay, setTalk],
   );
 
+  /** The intro's done: the chapter starts under it, and the sheet lifts off. */
+  const liftIntro = useCallback(() => {
+    if (!intro || intro.leaving) return;
+    playAct(intro.chapter, intro.act);
+    setIntro({ ...intro, leaving: true });
+    window.setTimeout(() => setIntro((i) => (i?.leaving ? null : i)), prefersReduced() ? 260 : 600);
+  }, [intro, playAct]);
+
   const leaveTitle = useCallback(
     (then: () => void) => {
       if (live.current.leaving) return;
       soundRef.current?.confirm();
-      setChaptersOpen(false);
+      setPanel(null);
       setLeaving(true);
-      const w = world.current;
+      const w = worldRef.current;
       if (w) w.revealOut = w.time;
-      window.setTimeout(() => {
+      cover(() => {
         setLeaving(false);
         then();
-      }, 1100);
+      }, false);
     },
-    [soundRef],
+    [cover, soundRef],
   );
 
   const toTitle = useCallback(() => {
     soundRef.current?.select();
-    session.current += 1;
-    busy.current = 0;
-    setPaused(false);
-    setTalk(null);
-    setOverlay(null);
-    setMode("title");
-    setMenu(0);
-    setSaveState(loadSave());
-    const w = world.current;
-    if (w) {
-      w.stage?.dispose();
-      w.stage = null;
-      w.mini?.dispose();
-      w.mini = null;
-      w.revealOut = -1;
-      w.revealFrom = -1;
-    }
-    setMini(null);
-  }, [setOverlay, setTalk, soundRef]);
+    cover(() => {
+      session.current += 1;
+      busy.current = 0;
+      setPaused(false);
+      setTalk(null);
+      setOverlay(null);
+      setIntro(null);
+      setMode("title");
+      setMenu(0);
+      setSaveState(loadSave());
+      soundRef.current?.scene(null);
+      const w = worldRef.current;
+      if (w) {
+        w.stage?.dispose();
+        w.stage = null;
+        w.mini?.dispose();
+        w.mini = null;
+        w.shake.clear();
+        w.revealOut = -1;
+        w.revealFrom = -1;
+      }
+      setMini(null);
+    });
+  }, [cover, setOverlay, setTalk, soundRef]);
 
   // nothing to continue once every chapter there is has been played
   const resumable = save && !(save.done.includes(save.chapter) && !nextOf(save.chapter));
-  const menuItems = (resumable ? ["continue", "new", "chapters", "sound", "island"] : ["new", "chapters", "sound", "island"]) as Array<"continue" | "new" | "chapters" | "sound" | "island">;
+  const menuItems: MenuItem[] = resumable ? ["continue", "new", "chapters", "settings", "island"] : ["new", "chapters", "settings", "island"];
   const choose = useCallback(
-    (item: "continue" | "new" | "chapters" | "sound" | "island") => {
+    (item: MenuItem) => {
       if (item !== "new") setConfirmNew(false);
       if (item === "new") {
         // starting over replaces where Continue would pick up; ask first
@@ -532,13 +698,12 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       } else if (item === "continue") {
         const s = loadSave();
         if (s) leaveTitle(() => startChapter(s.chapter, s.act));
-      } else if (item === "chapters") {
+      } else if (item === "chapters" || item === "settings") {
         soundRef.current?.select();
-        setChaptersOpen((open) => !open);
-      } else if (item === "sound") setMuted(!muted);
-      else onQuit();
+        setPanel((open) => (open === item ? null : item));
+      } else onQuit();
     },
-    [confirmNew, leaveTitle, muted, onQuit, soundRef, startChapter],
+    [confirmNew, leaveTitle, onQuit, soundRef, startChapter],
   );
 
   // —— the clock in the HUD: a minute every second and a half, while playing
@@ -549,36 +714,54 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
     return () => window.clearInterval(id);
   }, [mode, paused, step, still]);
 
+  // the music hears the clock (the Campanile strikes the hour)
+  useEffect(() => {
+    if (mode === "play") soundRef.current?.clock(clock);
+  }, [clock, mode, soundRef]);
+
   useEffect(() => {
     if (!toast) return;
-    const id = window.setTimeout(() => setToast(null), 1400);
+    const id = window.setTimeout(() => setToast(null), 1500);
     return () => window.clearTimeout(id);
   }, [toast]);
 
   useEffect(() => {
     if (!banner) return;
-    const id = window.setTimeout(() => setBanner(null), 3200);
+    const id = window.setTimeout(() => setBanner(null), 3250);
     return () => window.clearTimeout(id);
   }, [banner]);
 
-  // expired bubbles go
+  // expired bubbles go, shrinking away a moment before they do
   useEffect(() => {
     if (!bubbles.some((b) => b.until)) return;
     const id = window.setInterval(() => {
       const now = performance.now();
+      for (const b of bubblesRef.current) if (b.until && b.until - now < 190) bubbleNodes.current.get(b.key)?.setAttribute("data-out", "");
       const kept = bubblesRef.current.filter((b) => !b.until || b.until > now);
       if (kept.length !== bubblesRef.current.length) {
         bubblesRef.current = kept;
         setBubbles(kept);
       }
-    }, 250);
+    }, 90);
     return () => window.clearInterval(id);
   }, [bubbles]);
 
+  const { shown: momentShown, leaving: momentLeaving } = useLingering(moment, 330);
+
+  // the prompt keeps its word while it fades, and hangs centred on whole pixels
+  const { shown: promptLabel } = useLingering(near, 160);
+  // its size, so words and emotes over the world can keep off it
+  const promptSize = useRef({ half: 0, tall: 0 });
+  useLayoutEffect(() => {
+    const body = promptBody.current;
+    centre(body);
+    promptSize.current = { half: Math.round((body?.offsetWidth ?? 0) / 2), tall: body?.offsetHeight ?? 0 };
+  }, [promptLabel, touch, mode]);
+
   // —— the world, drawn every frame, and the keys and the pointer
-  const actions = useRef({ interact, advance, wake, choose, setPaused, setMenu, setChaptersOpen, setNear, setChoice, setMoved });
+  const actions = useRef({ interact, advance, wake, choose, setPaused, setMenu, setPanel, setNear, setChoice, setMoved });
   useEffect(() => {
-    actions.current = { interact, advance, wake, choose, setPaused, setMenu, setChaptersOpen, setNear, setChoice, setMoved };
+    actions.current = { interact, advance, wake, choose, setPaused, setMenu, setPanel, setNear, setChoice, setMoved };
   }, [interact, advance, wake, choose]);
   const items = useRef(menuItems);
   useEffect(() => {
@@ -587,14 +770,67 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
 
   useEffect(() => {
     if (!started || !container.current || !canvas.current) return;
-    const view = createView(container.current, canvas.current);
+    const cv = canvas.current;
+    const view = createView(container.current, cv);
     const title = titleScene();
-    const w: World = { view, title, stage: null, mini: null, time: 0, revealFrom: -1, revealOut: -1, revealMax: 0.4 };
-    world.current = w;
+    const w: World = { view, title, stage: null, mini: null, shake: createShake(), time: 0, revealFrom: -1, revealOut: -1, revealMax: 0.4 };
+    worldRef.current = w;
     const keys = new Set<string>();
     let raf = 0;
     let last = performance.now();
     let lastNear: string | null = null;
+    // where each thing over the world was last put, so a still camera
+    // writes nothing at all
+    const placed = new WeakMap<HTMLElement, { x: number; y: number }>();
+    const at = new Vector3();
+    let dpr = window.devicePixelRatio || 1;
+    // the prompt's box this frame: words and emotes keep off it
+    const box = { on: false, x: 0, y: 0, half: 0, tall: 0 };
+
+    /** Moves something over the world to a screen point, on whole device pixels. */
+    const put = (el: HTMLElement, x: number, y: number) => {
+      const sx = Math.round(x * dpr) / dpr;
+      const sy = Math.round(y * dpr) / dpr;
+      let last = placed.get(el);
+      if (!last) placed.set(el, (last = { x: NaN, y: NaN }));
+      if (last.x === sx && last.y === sy) return;
+      last.x = sx;
+      last.y = sy;
+      el.style.transform = `translate3d(${sx}px, ${sy}px, 0)`;
+    };
+
+    /** Puts a word or an emote, on top of the prompt if it would cover it. */
+    const putClear = (el: HTMLElement, x: number, y: number) => {
+      if (box.on) {
+        const w = Number(el.dataset.w) / 2 || 0;
+        const h = Number(el.dataset.h) || 0;
+        if (x + w > box.x - box.half && x - w < box.x + box.half && y > box.y - box.tall && y - h < box.y) y = box.y - box.tall - 6;
+      }
+      put(el, x, y);
+    };
+
+    /** Art pixels per world unit, measured off the camera as it is. */
+    const artPerUnit = (target: Vector3) => {
+      const a = view.project(target);
+      const ax = a.x;
+      const ay = a.y;
+      const b = view.project(w.shake.rightOf(target));
+      const cssPerArt = parseFloat(cv.style.width) / cv.width || 1;
+      return Math.hypot(b.x - ax, b.y - ay) / cssPerArt;
+    };
+
+    /** Where to hang something over someone's head (or over a thing). */
+    const anchorOf = (stage: Stage, who: string | Vector3, lift: number) => {
+      if (typeof who !== "string") return at.copy(who);
+      const rig = who === "aiden" ? stage.aidenRig() : stage.actor(who)?.rig;
+      if (rig) {
+        rig.head.getWorldPosition(at);
+        at.y += HEAD_TOP * rig.scale + lift;
+        return at;
+      }
+      const spot = stage.spot(who);
+      return spot ? at.copy(spot.at).setY(spot.at.y + 0.55 + lift) : null;
+    };
 
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
@@ -604,6 +840,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       if (s.paused) return;
       w.time += dt;
       const time = w.time;
+      dpr = window.devicePixelRatio || 1;
       for (let i = waits.current.length - 1; i >= 0; i -= 1) {
         if (time >= waits.current[i].at) {
           const { resolve } = waits.current[i];
@@ -623,7 +860,8 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         const k = Math.min(1, (time - w.revealFrom) / 1.2);
         uniforms.uReveal.value = k >= 1 ? 1 : w.revealMax * (1 - (1 - k) ** 2);
         game.update(dt, time);
-        view.render({ scene: game.scene, ...game.look(tall) }, 15 + Math.round(7 * night));
+        // its arrival waits for its shaders, so it starts from nothing on the first frame drawn
+        if (!view.render({ scene: game.scene, ...game.look(tall) }, 15 + Math.round(7 * night))) w.revealFrom = time;
         marker.current?.removeAttribute("data-shown");
         return;
       }
@@ -635,38 +873,42 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         uniforms.uCloudAmount.value = room.clouds;
         // rooms arrive the way the island does, a pixel at a time from the middle
         if (w.revealOut >= 0) {
-          const k = Math.min(1, (time - w.revealOut) / 0.6);
+          const k = Math.min(1, (time - w.revealOut) / 0.55);
           uniforms.uReveal.value = w.revealMax * (1 - k) ** 1.5;
         } else {
-          const k = Math.min(1, (time - w.revealFrom) / 1.4);
+          const k = Math.min(1, (time - w.revealFrom) / 1.3);
           uniforms.uReveal.value = k >= 1 ? 1 : w.revealMax * (1 - (1 - k) ** 2);
         }
         const frozen = busy.current > 0 || Boolean(talkRef.current) || Boolean(overlayRef.current) || s.mode === "end";
-        let x = 0, y = 0;
+        let x = 0,
+          y = 0;
         if (keys.has("arrowleft") || keys.has("a")) x -= 1;
         if (keys.has("arrowright") || keys.has("d")) x += 1;
         if (keys.has("arrowup") || keys.has("w")) y += 1;
         if (keys.has("arrowdown") || keys.has("s")) y -= 1;
         if ((x || y) && !frozen) actions.current.setMoved(true);
-        stage.update(dt, time, { x, y }, view.axes(), frozen, () => soundRef.current?.step());
-        view.render({ scene: stage.scene, ...stage.look(tall), background: room.background }, 15 + Math.round(7 * room.night));
+        stage.update(dt, time, { x, y, run: keys.has("shift") }, view.axes(), frozen, () => soundRef.current?.step());
+        const look = stage.look(tall);
+        const target = w.shake.apply(look.target, dt, time, () => artPerUnit(look.target));
+        // a room's arrival waits for its shaders, so it starts from nothing on the first frame drawn
+        if (!view.render({ scene: stage.scene, target, span: look.span, background: room.background }, 15 + Math.round(7 * room.night)) && w.revealOut < 0) w.revealFrom = time;
         // a picture of this frame, while the canvas still holds it
-        if (shots.current.length && canvas.current) {
-          const source = canvas.current;
+        if (shots.current.length) {
           const head = view.project(stage.position.clone().setY(1.3));
-          const rect = source.getBoundingClientRect();
-          const sx = source.width / rect.width, sy = source.height / rect.height;
-          const h = Math.min(source.height, source.width * (16 / 9)) * 0.62;
-          const w = h * (9 / 16);
-          const frame = container.current!.getBoundingClientRect();
-          const cx = Math.max(w / 2, Math.min(source.width - w / 2, (head.x - (rect.left - frame.left)) * sx));
-          const cy = Math.max(h / 2, Math.min(source.height - h / 2, (head.y - (rect.top - frame.top)) * sy));
+          const rect = cv.getBoundingClientRect();
+          const sx = cv.width / rect.width,
+            sy = cv.height / rect.height;
+          const h = Math.min(cv.height, cv.width * (16 / 9)) * 0.62;
+          const wide = h * (9 / 16);
+          const box = container.current!.getBoundingClientRect();
+          const cx = Math.max(wide / 2, Math.min(cv.width - wide / 2, (head.x - (rect.left - box.left)) * sx));
+          const cy = Math.max(h / 2, Math.min(cv.height - h / 2, (head.y - (rect.top - box.top)) * sy));
           const out = document.createElement("canvas");
-          out.width = Math.round(w);
+          out.width = Math.round(wide);
           out.height = Math.round(h);
           const ctx2 = out.getContext("2d")!;
           ctx2.imageSmoothingEnabled = false;
-          ctx2.drawImage(source, cx - w / 2, cy - h / 2, w, h, 0, 0, out.width, out.height);
+          ctx2.drawImage(cv, cx - wide / 2, cy - h / 2, wide, h, 0, 0, out.width, out.height);
           const url = out.toDataURL("image/png");
           for (const take of shots.current.splice(0)) take(url);
         }
@@ -680,39 +922,41 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         }
         // the objective's marker, over where to go, until you're there
         const goal = targetOf(chapterRef.current, stepRef.current);
-        const target = goal && !frozen && arrived && !stage.lying ? stage.spot(goal) : null;
+        const aim = goal && !frozen && arrived && !stage.lying ? stage.spot(goal) : null;
         const pin = marker.current;
         if (pin) {
-          const show = Boolean(target) && target?.id !== spot?.id;
-          pin.toggleAttribute("data-shown", show);
-          if (show && target) {
-            const p = view.project(target.at.clone().setY(target.at.y + 1.0));
-            pin.style.transform = `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0)`;
+          const show = Boolean(aim) && aim?.id !== spot?.id;
+          if (pin.hasAttribute("data-shown") !== show) pin.toggleAttribute("data-shown", show);
+          if (show && aim) {
+            const p = view.project(at.copy(aim.at).setY(aim.at.y + 1.0));
+            put(pin, p.x, p.y);
           }
         }
         const node = prompt.current;
+        box.on = Boolean(node && label);
         if (node && label) {
-          const anchor = stage.lying ? ((room as Room & { bed?: Vector3 }).bed ?? stage.position).clone().setY(1.45) : spot!.at.clone().setY(spot!.at.y + 0.45);
-          const p = view.project(anchor);
-          node.style.transform = `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0)`;
+          if (stage.lying) at.copy((room as Room & { bed?: Vector3 }).bed ?? stage.position).setY(1.45);
+          else at.copy(spot!.at).setY(spot!.at.y + 0.45);
+          const p = view.project(at);
+          box.x = p.x;
+          box.y = p.y;
+          box.half = promptSize.current.half;
+          box.tall = promptSize.current.tall;
+          put(node, p.x, p.y);
         }
         for (const b of bubblesRef.current) {
           const el = bubbleNodes.current.get(b.key);
-          if (!el) continue;
-          let point: Vector3 | null = null;
-          if (typeof b.target !== "string") point = b.target;
-          else if (b.target === "aiden") point = stage.position.clone().setY(2.25);
-          else {
-            const actor = stage.actor(b.target);
-            if (actor) point = actor.pos.clone().setY(actor.rig.root.position.y + 2.15);
-            else {
-              const sp = stage.spot(b.target);
-              if (sp) point = sp.at.clone().setY(sp.at.y + 0.55);
-            }
-          }
-          if (!point) continue;
+          const point = el ? anchorOf(stage, b.target, 0.16) : null;
+          if (!el || !point) continue;
           const p = view.project(point);
-          el.style.transform = `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0)`;
+          putClear(el, p.x, p.y);
+        }
+        for (const e of emotesRef.current) {
+          const el = emoteNodes.current.get(e.id);
+          const point = el ? anchorOf(stage, e.who, 0.12) : null;
+          if (!el || !point) continue;
+          const p = view.project(point);
+          putClear(el, p.x, p.y);
         }
       } else {
         uniforms.uNight.value = 0;
@@ -728,6 +972,13 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
     const interactKey = (key: string) => key === "e" || key === " " || key === "enter";
     const CODES: Record<string, string> = { KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d", KeyE: "e" };
     const keyOf = (event: KeyboardEvent) => CODES[event.code] ?? event.key.toLowerCase();
+    // the key on the prompt goes down with yours
+    const press = () => {
+      const k = promptKey.current;
+      if (!k) return;
+      k.setAttribute("data-down", "");
+      window.setTimeout(() => k.removeAttribute("data-down"), 130);
+    };
     let held = 0;
     const onKeyDown = (event: KeyboardEvent) => {
       const key = keyOf(event);
@@ -735,14 +986,14 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       const a = actions.current;
       if (key === "escape") {
         if (s.mode === "play") a.setPaused(!s.paused);
-        else if (s.chaptersOpen) a.setChaptersOpen(false);
+        else if (s.panel) a.setPanel(null);
         return;
       }
       if (s.paused) return;
       if (s.mode === "title") {
-        // only once the menu is up, and not under the chapters list, which
-        // the browser's own focus moves through
-        if (s.leaving || s.phase !== "ready" || s.chaptersOpen) return;
+        // only once the menu is up, and not under a panel, which the
+        // browser's own focus moves through
+        if (s.leaving || s.phase !== "ready" || s.panel) return;
         const list = items.current;
         if (key === "arrowdown" || key === "s") a.setMenu((s.menu + 1) % list.length);
         else if (key === "arrowup" || key === "w") a.setMenu((s.menu + list.length - 1) % list.length);
@@ -761,7 +1012,16 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       }
       const current = talkRef.current;
       if (current?.choices && typingRef.current.done) {
+        if (confirmingRef.current !== null) return;
         const n = current.choices.length;
+        // a number picks its answer straight away
+        const digit = /^[1-9]$/.test(event.key) ? Number(event.key) : 0;
+        if (digit && digit <= n && !event.repeat) {
+          choiceRef.current = digit - 1;
+          a.setChoice(choiceRef.current);
+          a.advance();
+          return;
+        }
         if (key === "arrowdown" || key === "s" || key === "arrowright" || key === "d") {
           choiceRef.current = (choiceRef.current + 1) % n;
           a.setChoice(choiceRef.current);
@@ -789,10 +1049,16 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       if (talkRef.current) a.advance();
       else if (busy.current) return;
       else if (w.stage?.lying) {
-        if (uniforms.uReveal.value >= 1) a.wake();
+        if (uniforms.uReveal.value >= 1) {
+          press();
+          a.wake();
+        }
       } else {
         const spot = w.stage?.nearest(preferred());
-        if (spot) a.interact(spot.id);
+        if (spot) {
+          press();
+          a.interact(spot.id);
+        }
       }
     };
     const onKeyUp = (event: KeyboardEvent) => keys.delete(keyOf(event));
@@ -820,7 +1086,8 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         return;
       }
       const rect = container.current!.getBoundingClientRect();
-      const px = event.clientX - rect.left, py = event.clientY - rect.top;
+      const px = event.clientX - rect.left,
+        py = event.clientY - rect.top;
       let hit: ReturnType<Stage["spots"]>[number] | null = null;
       let best = 46;
       const wanted = preferred();
@@ -861,7 +1128,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       w.mini?.dispose();
       title.dispose();
       view.dispose();
-      world.current = null;
+      worldRef.current = null;
       // hand the island's uniforms back as they were
       uniforms.uReveal.value = 1;
       uniforms.uCloudAmount.value = 1;
@@ -879,7 +1146,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         session.current += 1;
         busy.current = 0;
         waits.current = [];
-        const w = world.current;
+        const w = worldRef.current;
         if (w?.mini) {
           w.mini.dispose();
           w.mini = null;
@@ -887,6 +1154,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
         }
         chapterRef.current = id;
         setChapterId(id);
+        setIntro(null);
         playAct(id, act);
       },
       step: (next: string) => {
@@ -895,16 +1163,23 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       },
       use: (id: string) => interact(id),
       ctx: () => makeCtx(session.current),
-      mini: () => world.current?.mini ?? null,
+      mini: () => worldRef.current?.mini ?? null,
+      /** Forgets every moment found, to see their cards again. */
+      forget: () => {
+        try {
+          localStorage.removeItem("aiden-game-feats");
+        } catch {}
+        setFound({});
+      },
       looks: LOOKS,
     };
   }, [interact, makeCtx, playAct, startChapter]);
 
-  const projectPoint = useCallback((point: Vector3) => world.current?.view.project(point) ?? { x: -999, y: -999 }, []);
+  const projectPoint = useCallback((point: Vector3) => worldRef.current?.view.project(point) ?? { x: -999, y: -999 }, []);
 
   // a tap on the prompt itself works too
   const tapPrompt = () => {
-    const stage = world.current?.stage;
+    const stage = worldRef.current?.stage;
     if (!stage) return;
     if (stage.lying) return wake();
     const spot = stage.nearest(preferred());
@@ -912,12 +1187,10 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
   };
 
   const chapter = CHAPTERS[chapterId];
-  const line = talk ? talk.list[talk.at] : null;
   const hours = Math.floor(clock / 60) % 24;
-  const time = `${((hours + 11) % 12) + 1}:${String(clock % 60).padStart(2, "0")} ${hours < 12 ? "AM" : "PM"}`;
   const done = save?.done ?? [];
-  const open = (id: ChapterId) => id === "prologue" || done.includes(id) || done.includes(ORDER[ORDER.indexOf(id) - 1]);
   const objective = chapter.objectives[step] ?? "";
+  const next = chapter.end.next.chapter;
 
   return (
     <div ref={container} className={styles.game} data-phase={phase} data-screen={mode} data-leaving={leaving || undefined} data-talking={talk ? "" : undefined}>
@@ -933,104 +1206,26 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       {mode === "title" ? (
         <div className={styles.title}>
           <Logo size="xl" className={styles.titleLogo} />
-          <nav className={styles.menu} aria-label="Main menu" data-shown={phase === "ready" || undefined}>
-            {menuItems.map((item, i) => (
-              <button
-                key={item}
-                type="button"
-                className={styles.menuItem}
-                data-on={menu === i || undefined}
-                disabled={leaving}
-                tabIndex={-1}
-                onMouseDown={(event) => event.preventDefault()}
-                onPointerEnter={() => setMenu(i)}
-                onClick={() => choose(item)}
-              >
-                {item === "continue" ? (
-                  <>
-                    Continue
-                    <small>
-                      {CHAPTERS[save!.chapter].number} · {CHAPTERS[save!.chapter].title}
-                    </small>
-                  </>
-                ) : item === "new" ? (
-                  confirmNew ? (
-                    <>
-                      Start over?
-                      <small>Press again. Continue will start from the beginning</small>
-                    </>
-                  ) : (
-                    "New game"
-                  )
-                ) : item === "chapters" ? (
-                  "Chapters"
-                ) : item === "sound" ? (
-                  muted ? "Sound: off" : "Sound: on"
-                ) : (
-                  "Back to the island"
-                )}
-              </button>
-            ))}
-          </nav>
+          <TitleMenu items={menuItems} menu={menu} shown={phase === "ready"} leaving={leaving} save={save} confirmNew={confirmNew} onHover={setMenu} onChoose={choose} />
           <p className={styles.version} data-shown={phase === "ready" || undefined}>
             v1.2 · Life, so far
           </p>
-          {chaptersOpen ? (
-            <div
-              className={styles.chapters}
-              data-ui=""
-              ref={(node) => {
-                if (node && !node.contains(document.activeElement)) node.querySelector<HTMLButtonElement>("ol button")?.focus();
-              }}
-            >
-              <header>
-                <h2>Chapters</h2>
-                <button type="button" className={styles.close} onClick={() => setChaptersOpen(false)} aria-label="Close chapters">
-                  ×
-                </button>
-              </header>
-              <ol>
-                {ORDER.map((id) => {
-                  const c = CHAPTERS[id];
-                  const playable = open(id);
-                  return (
-                    <li key={id} data-open={playable || undefined}>
-                      <span className={styles.chapterNumber}>{c.number}</span>
-                      <strong>{c.title}</strong>
-                      <span>{c.line}</span>
-                      {playable ? (
-                        <button type="button" className={styles.chapterPlay} onClick={() => leaveTitle(() => startChapter(id, 0))}>
-                          {done.includes(id) ? "Replay" : "Play"}
-                        </button>
-                      ) : (
-                        <em>Finish the one before</em>
-                      )}
-                    </li>
-                  );
-                })}
-                {COMING.map((c) => (
-                  <li key={c.title}>
-                    <span className={styles.chapterNumber}>{c.number}</span>
-                    <strong>{c.title}</strong>
-                    <span>{c.line}</span>
-                    <em>Coming soon</em>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ) : null}
+          <ChaptersPanel open={panel === "chapters"} done={done} found={found} onClose={() => setPanel(null)} onPlay={(id) => leaveTitle(() => startChapter(id, 0))} />
+          <SettingsPanel open={panel === "settings"} settings={settings} muted={muted} onSettings={updateSettings} onMuted={setMuted} onClose={() => setPanel(null)} />
         </div>
       ) : null}
 
-      {/* —— before a chapter: a few lines on paper, its card */}
-      {mode === "intro" && intro ? (
+      {/* —— before a chapter: a few lines on the sheet, its card */}
+      {intro ? (
         <Intro
           key={`${intro.chapter}-${intro.act}`}
           lines={intro.lines}
           number={CHAPTERS[intro.chapter].number}
           title={CHAPTERS[intro.chapter].title}
           resumed={intro.act > 0}
-          onDone={() => playAct(intro.chapter, intro.act)}
+          leaving={intro.leaving}
+          touch={touch}
+          onDone={liftIntro}
           soundRef={soundRef}
         />
       ) : null}
@@ -1038,138 +1233,81 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
       {/* —— playing */}
       {mode === "play" || mode === "end" ? (
         <>
-          <div className={styles.hud} data-hidden={mode === "end" || Boolean(mini) || undefined}>
-            <div className={styles.card} data-ui="">
-              <div className={styles.when}>
-                <svg viewBox="0 0 10 10" aria-hidden="true" shapeRendering="crispEdges">
-                  <path d="M4 0h2v2H4zM4 8h2v2H4zM0 4h2v2H0zM8 4h2v2H8zM3 3h4v4H3z" />
-                </svg>
-                <span>{day}</span>
-                <b>{time}</b>
-              </div>
-              {objective ? (
-                <div className={styles.objective} key={step}>
-                  <i aria-hidden="true" />
-                  {objective}
-                </div>
-              ) : null}
-              {chapter.hud.ready && stats.ready < 100 ? (
-                <div className={styles.goal} data-ready="">
-                  <span>
-                    {chapter.hud.ready} <b>{stats.ready}%</b>
-                  </span>
-                  <i style={{ width: `${Math.min(100, stats.ready)}%` }} />
-                </div>
-              ) : null}
-              {chapter.hud.goal ? (
-                <div className={styles.goal}>
-                  <span>
-                    Revenue <b>${stats.revenue.toLocaleString("en-US")}</b>
-                  </span>
-                  <small>of ${chapter.hud.goal.toLocaleString("en-US")}</small>
-                  <i style={{ width: `${Math.min(100, (stats.revenue / chapter.hud.goal) * 100).toFixed(1)}%` }} />
-                </div>
-              ) : null}
-            </div>
-            <div className={styles.right} data-ui="">
-              {chapter.hud.hearts ? (
-                <div className={styles.hearts}>
-                  {(["john", "jerry"] as const).map((who) => (
-                    <span key={who} title={SPEAKERS[who].name}>
-                      <img src={faceOf(who)} alt={SPEAKERS[who].name} />
-                      <b key={hearts[who]}>{[0, 1, 2, 3, 4].map((n) => (n < hearts[who] ? "♥" : "♡")).join("")}</b>
-                    </span>
-                  ))}
-                </div>
-              ) : chapter.hud.money === false ? null : (
-                <div className={styles.money}>
-                  <span>$</span>
-                  {stats.money.toLocaleString("en-US")}
-                  {toast ? (
-                    <em key={toast.id} className={styles.toast}>
-                      {toast.text}
-                    </em>
-                  ) : null}
-                </div>
-              )}
-              {chapter.hud.members ? (
-                <div className={styles.members} title={typeof chapter.hud.members === "string" ? chapter.hud.members : "Members"}>
-                  <small>{typeof chapter.hud.members === "string" ? chapter.hud.members : "Members"}</small>
-                  <span>{stats.members.toLocaleString("en-US")}</span>
-                </div>
-              ) : null}
-              {chapter.hud.wins && stats.wins > 0 ? (
-                <div className={styles.members} title="First places" key={`w${stats.wins}`} data-pop={stats.wins > 0 || undefined}>
-                  <small>1st places</small>
-                  <span>{"🏆".repeat(stats.wins) || "—"}</span>
-                </div>
-              ) : null}
-              <div className={styles.handsome} key={glint} data-glint={glint > 0 || undefined} title="Handsome">
-                <small>Handsome</small>
-                <span aria-label="Maxed out">✦✦✦✦✦</span>
-              </div>
-              <button type="button" className={styles.pause} onMouseDown={(event) => event.preventDefault()} onClick={() => setPaused(true)} aria-label="Pause">
-                <svg viewBox="0 0 10 10" aria-hidden="true" shapeRendering="crispEdges">
-                  <path d="M2 2h2v6H2zM6 2h2v6H6z" />
-                </svg>
-              </button>
-            </div>
-          </div>
+          <Hud
+            hidden={mode === "end" || Boolean(mini)}
+            day={day}
+            clock={clock}
+            night={hours >= 19 || hours < 6}
+            objective={objective}
+            chapter={chapter}
+            stats={stats}
+            epoch={statEpoch}
+            hearts={hearts}
+            faceOf={faceOf}
+            glint={glint}
+            toast={toast}
+            onPause={() => setPaused(true)}
+          />
 
-          {banner ? (
-            <div className={styles.banner} key={banner.id} aria-live="polite">
-              <strong>{banner.place}</strong>
-              <span>{banner.time}</span>
-            </div>
-          ) : null}
+          {banner ? <Banner key={banner.id} place={banner.place} time={banner.time} /> : null}
 
           {bubbles.map((b) => (
-            <div
+            <BubbleView
               key={b.key}
-              className={styles.bubble}
-              ref={(node) => {
+              text={b.text}
+              ringing={!b.until}
+              anchor={(node) => {
                 if (node) bubbleNodes.current.set(b.key, node);
                 else bubbleNodes.current.delete(b.key);
               }}
-              aria-hidden="true"
-            >
-              {b.text}
-            </div>
+            />
           ))}
-          <div ref={marker} className={styles.marker} aria-hidden="true">
-            <i />
+          {emotes.map((e) => (
+            <EmoteView
+              key={e.id}
+              kind={e.kind}
+              anchor={(node) => {
+                if (node) emoteNodes.current.set(e.id, node);
+                else emoteNodes.current.delete(e.id);
+              }}
+            />
+          ))}
+          <div ref={marker} className={world.marker} aria-hidden="true">
+            <Pixels art={DIAMOND} className={world.diamond} />
           </div>
-          <button ref={prompt} type="button" className={styles.prompt} data-shown={near || undefined} onMouseDown={(event) => event.preventDefault()} onClick={tapPrompt} tabIndex={-1}>
-            {touch ? <span className={styles.tap} aria-hidden="true" /> : <kbd>E</kbd>}
-            {near}
+          <button ref={prompt} type="button" className={world.prompt} data-shown={near ? "" : undefined} onMouseDown={(event) => event.preventDefault()} onClick={tapPrompt} tabIndex={-1} aria-hidden={!near}>
+            <span key={promptLabel ?? ""} ref={promptBody} className={world.promptBody}>
+              {touch ? <Pixels art={TAP} className={world.tap} /> : <kbd ref={promptKey}>E</kbd>}
+              {promptLabel}
+            </span>
           </button>
 
           {mini ? <WingmanHud game={mini} project={projectPoint} touch={touch} onPause={() => setPaused(true)} /> : null}
 
-          {line ? (
-            <Dialogue
-              key={`${talk!.list.length}-${talk!.at}-${line.text}`}
-              line={line}
-              pausedRef={pausedRef}
-              onChoices={() => (shownAt.current = performance.now())}
-              face={faceOf(line.who)}
-              soundRef={soundRef}
-              typingRef={typingRef}
-              onNext={advance}
-              choices={talk!.choices}
-              selected={choice}
-              faceOf={faceOf}
-              onPick={(i) => {
-                choiceRef.current = i;
-                setChoice(i);
-                advance();
-              }}
-              onHover={(i) => {
-                choiceRef.current = i;
-                setChoice(i);
-              }}
-            />
-          ) : null}
+          <Dialogue
+            talk={talk}
+            speed={settings.text}
+            touch={touch}
+            pausedRef={pausedRef}
+            typingRef={typingRef}
+            soundRef={soundRef}
+            faceOf={faceOf}
+            selected={choice}
+            confirming={confirming}
+            onNext={advance}
+            onChoices={markChoices}
+            onPick={(i) => {
+              if (confirmingRef.current !== null) return;
+              choiceRef.current = i;
+              setChoice(i);
+              advance();
+            }}
+            onHover={(i) => {
+              if (confirmingRef.current !== null || choiceRef.current === i) return;
+              choiceRef.current = i;
+              setChoice(i);
+            }}
+          />
 
           {overlay ? (
             <Screen
@@ -1187,253 +1325,50 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
             />
           ) : null}
 
-          {mode === "end" ? (
-            <div className={styles.end} data-ui="">
-              <div className={styles.endCard}>
-                <p className={styles.endKicker}>{chapter.end.tbc ? `${chapter.number} · to be continued` : `${chapter.number} complete`}</p>
-                <h2>{chapter.end.title}</h2>
-                <dl>
-                  {chapter.end.stats.map(([label, value]) => (
-                    <div key={label}>
-                      <dt>{label}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                </dl>
-                <div className={styles.next}>
-                  <small>Next · {chapter.end.next.number}</small>
-                  <strong>{chapter.end.next.title}</strong>
-                  <span>
-                    {chapter.end.next.line}
-                    {chapter.end.next.chapter || chapter.end.tbc ? "" : " Coming soon: come back for it."}
-                  </span>
-                </div>
-                <div className={styles.endButtons}>
-                  {chapter.end.next.chapter ? (
-                    <button type="button" className={styles.primary} onClick={() => startChapter(chapter.end.next.chapter!, 0)}>
-                      Play {chapter.end.next.number}
-                    </button>
-                  ) : null}
-                  <button type="button" className={chapter.end.next.chapter ? styles.secondary : styles.primary} onClick={toTitle}>
-                    Title screen
-                  </button>
-                  <button type="button" className={styles.secondary} onClick={onQuit}>
-                    Back to the island
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
+          {mode === "end" ? <EndCard chapter={chapter} onNext={next ? () => cover(() => startChapter(next, 0), false) : undefined} onTitle={toTitle} onQuit={onQuit} /> : null}
 
-          {paused ? (
-            <div className={styles.paused} data-ui="">
-              <div className={styles.pauseCard}>
-                <h2>Paused</h2>
-                <p className={styles.saved}>Your place saves at the start of each part. Come back any time.</p>
-                <button type="button" className={styles.primary} onClick={() => setPaused(false)}>
-                  Resume
-                </button>
-                <button type="button" className={styles.secondary} onClick={() => setMuted(!muted)}>
-                  {muted ? "Sound: off" : "Sound: on"}
-                </button>
-                <button type="button" className={styles.secondary} onClick={toTitle}>
-                  Title screen
-                </button>
-                <button type="button" className={styles.secondary} onClick={onQuit}>
-                  Back to the island
-                </button>
-              </div>
-            </div>
-          ) : null}
+          <Pause
+            open={paused}
+            where={`${chapter.number} · ${chapter.title}`}
+            found={found}
+            settings={settings}
+            muted={muted}
+            onResume={() => setPaused(false)}
+            onTitle={toTitle}
+            onQuit={onQuit}
+            onSettings={updateSettings}
+            onMuted={setMuted}
+          />
 
           {mode === "play" && chapterId === "prologue" && !moved && !talk && !overlay ? (
-            <p className={styles.controls}>{touch ? "Tap to walk · tap things to use them" : "WASD or arrows to walk · E to use · or just click"}</p>
+            <p className={styles.controls}>
+              {touch ? (
+                "Tap to walk · tap things to use them"
+              ) : (
+                <>
+                  <kbd>W</kbd>
+                  <kbd>A</kbd>
+                  <kbd>S</kbd>
+                  <kbd>D</kbd> walk <i aria-hidden="true">·</i> <kbd>Shift</kbd> run <i aria-hidden="true">·</i> <kbd>E</kbd> use <i aria-hidden="true">·</i> or just click
+                </>
+              )}
+            </p>
           ) : null}
         </>
       ) : null}
-    </div>
-  );
-}
 
-function Dialogue({
-  line,
-  pausedRef,
-  onChoices,
-  face,
-  soundRef,
-  typingRef,
-  onNext,
-  choices,
-  selected,
-  faceOf,
-  onPick,
-  onHover,
-}: {
-  line: Line;
-  pausedRef: RefObject<boolean>;
-  onChoices: () => void;
-  face?: string;
-  soundRef: RefObject<Sound | null>;
-  typingRef: RefObject<{ done: boolean; finish: () => void }>;
-  onNext: () => void;
-  choices?: Array<{ label: string; who?: string }>;
-  selected: number;
-  faceOf: (who: string | undefined) => string | undefined;
-  onPick: (i: number) => void;
-  onHover: (i: number) => void;
-}) {
-  const [shown, setShown] = useState(0);
-  const length = line.text.length;
-  const speaker = SPEAKERS[line.who] ?? SPEAKERS.note;
-  useEffect(() => {
-    let n = 0;
-    const id = window.setInterval(() => {
-      if (pausedRef.current) return;
-      n = Math.min(length, n + 1);
-      setShown(n);
-      if (n % 3 === 1 && line.who !== "note") soundRef.current?.blip(speaker.pitch + (n % 2));
-      if (n >= length) {
-        window.clearInterval(id);
-        typingRef.current.done = true;
-      }
-    }, 22);
-    typingRef.current = {
-      done: false,
-      finish: () => {
-        window.clearInterval(id);
-        n = length;
-        setShown(length);
-        typingRef.current.done = true;
-      },
-    };
-    return () => window.clearInterval(id);
-  }, [line, length, soundRef, typingRef, speaker.pitch, pausedRef]);
+      {momentShown ? (
+        <MomentCard
+          key={momentShown.key}
+          feat={FEATS[momentShown.id]}
+          found={Object.keys(found).filter((id) => id in FEATS).length}
+          total={Object.keys(FEATS).length}
+          leaving={momentLeaving}
+          onDismiss={dismissMoment}
+        />
+      ) : null}
 
-  const typed = shown >= length;
-  const offer = Boolean(choices) && typed;
-  useEffect(() => {
-    if (offer) onChoices();
-  }, [offer, onChoices]);
-  return (
-    <div
-      className={styles.dialogue}
-      data-ui=""
-      data-who={line.who === "note" ? "note" : undefined}
-      data-choosing={choices && typed ? "" : undefined}
-      onClick={choices && typed ? undefined : onNext}
-      role="dialog"
-      aria-live="polite"
-    >
-      {line.who !== "note" ? <div className={styles.face}>{face ? <img src={face} alt="" /> : <span className={styles.faceIcon} />}</div> : null}
-      <div className={styles.speech}>
-        {speaker.name ? (
-          <span className={styles.name} data-tag={speaker.tag}>
-            {speaker.name}
-          </span>
-        ) : null}
-        <p>
-          {line.text.slice(0, shown)}
-          <span className={styles.rest}>{line.text.slice(shown)}</span>
-        </p>
-        {choices && typed ? (
-          <div className={styles.choices} role="listbox">
-            {choices.map((c, i) => (
-              <button
-                key={c.label}
-                type="button"
-                role="option"
-                aria-selected={selected === i}
-                className={styles.choice}
-                data-on={selected === i || undefined}
-                onPointerEnter={() => onHover(i)}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onPick(i);
-                }}
-              >
-                {c.who ? <img src={faceOf(c.who)} alt={SPEAKERS[c.who]?.name ?? ""} /> : null}
-                <span>
-                  {c.who ? <b>{SPEAKERS[c.who]?.name}</b> : null}
-                  {c.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-      {choices ? null : (
-        <span className={styles.more} data-shown={typed || undefined} aria-hidden="true">
-          ▼
-        </span>
-      )}
-      {choices ? null : <span className={styles.holdHint} aria-hidden="true">hold to skip</span>}
-    </div>
-  );
-}
-
-function Intro({
-  lines,
-  number,
-  title,
-  resumed,
-  onDone,
-  soundRef,
-}: {
-  lines: string[];
-  number: string;
-  title: string;
-  resumed: boolean;
-  onDone: () => void;
-  soundRef: RefObject<Sound | null>;
-}) {
-  const [at, setAt] = useState(0);
-  const [card, setCard] = useState(false);
-  const done = useRef(onDone);
-  const called = useRef(false);
-  useEffect(() => {
-    done.current = onDone;
-  });
-  const finish = useCallback(() => {
-    if (called.current) return;
-    called.current = true;
-    done.current();
-  }, []);
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.repeat) return;
-      const key = event.key.toLowerCase();
-      if (key === "e" || key === " " || key === "enter" || key === "escape") {
-        event.preventDefault();
-        finish();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [finish]);
-  useEffect(() => {
-    const timers: number[] = [];
-    const per = 1350;
-    lines.forEach((_, i) => timers.push(window.setTimeout(() => setAt(i + 1), 500 + i * per)));
-    const cardAt = lines.length ? 500 + lines.length * per + 400 : 300;
-    timers.push(window.setTimeout(() => setCard(true), cardAt));
-    timers.push(window.setTimeout(() => soundRef.current?.sting(), cardAt + 100));
-    timers.push(window.setTimeout(finish, cardAt + 2500));
-    return () => timers.forEach((id) => window.clearTimeout(id));
-  }, [lines, soundRef, finish]);
-  return (
-    <div className={styles.intro} data-ui="" onClick={finish} data-card={card || undefined}>
-      <div className={styles.introLines}>
-        {lines.map((text, i) => (
-          <p key={text} data-shown={at > i || undefined}>
-            {text}
-          </p>
-        ))}
-      </div>
-      <div className={styles.chapterCard}>
-        <small>{resumed ? `${number} · continued` : number}</small>
-        <strong>{title}</strong>
-      </div>
-      <span className={styles.skip}>click or press E to skip</span>
+      {curtain ? <Curtain phase={curtain} /> : null}
     </div>
   );
 }

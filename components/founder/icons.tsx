@@ -364,9 +364,22 @@ export function SendIcon(props: IconProps) {
   );
 }
 
-const REACTION_COLORS = { like: "#378fe9", celebrate: "#6dae4f", love: "#df704d" } as const;
+const REACTION_COLORS = {
+  like: "#378fe9",
+  celebrate: "#6dae4f",
+  support: "#9b72d6",
+  love: "#df704d",
+  insightful: "#e9a23b",
+  funny: "#3fb4c9",
+} as const;
 
-export function ReactionIcon({ kind, size = 16 }: { kind: keyof typeof REACTION_COLORS; size?: number }) {
+export type ReactionKind = keyof typeof REACTION_COLORS;
+
+/** One palm for Celebrate, upright about its middle: rounded at the fingers, narrower at the wrist. */
+const PALM = "M-1.9-2a1.9 1.9 0 0 1 3.8 0l-.4 5.4a.6.6 0 0 1-.6.6H-.9a.6.6 0 0 1-.6-.6z";
+
+/** A reaction as a coloured disc with a white glyph, drawn for this page. */
+export function ReactionIcon({ kind, size = 16 }: { kind: ReactionKind; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <circle cx="8" cy="8" r="8" fill={REACTION_COLORS[kind]} />
@@ -376,13 +389,52 @@ export function ReactionIcon({ kind, size = 16 }: { kind: keyof typeof REACTION_
           d="M4.1 7.3h1.6v4.9H4.1zM6.4 12.2h3.8a1.1 1.1 0 0 0 1.1-.9l.55-2.75a1 1 0 0 0-1-1.2H8.7l.33-1.7a.95.95 0 0 0-1.7-.75L6.4 7.15z"
         />
       ) : kind === "celebrate" ? (
+        // Two palms meeting, the second edged in the disc's green so they read as two.
+        <>
+          <path fill="#fff" transform="translate(6.5 9.3) rotate(16)" d={PALM} />
+          <path fill="#fff" stroke={REACTION_COLORS.celebrate} strokeWidth="0.8" transform="translate(9.5 9.3) rotate(-16)" d={PALM} />
+          <path d="M8 2.55v1.2M5.7 3.4l.65.95M10.3 3.4l-.65.95" stroke="#fff" strokeWidth="0.95" strokeLinecap="round" />
+        </>
+      ) : kind === "support" ? (
         <path
           fill="#fff"
-          d="M6.4 12.3 4.6 9.6a.75.75 0 0 1 1.2-.9l.75 1V5.4a.75.75 0 0 1 1.5 0v2.4-3.3a.75.75 0 0 1 1.5 0v3.3-2.6a.75.75 0 0 1 1.5 0v2.6-1.6a.75.75 0 0 1 1.5 0v3.6a3.3 3.3 0 0 1-3.3 3.3h-.9a2.4 2.4 0 0 1-1.95-.9z"
+          d="M8.6 7.9 7 6.4a1.05 1.05 0 0 1 1.47-1.5l.13.13.13-.13A1.05 1.05 0 0 1 10.2 6.4zM3.3 9.2h1.5l2.2 1.05h2.15a.85.85 0 0 1 0 1.7H7.3v.35h2.05l2.45-1.45a.8.8 0 0 1 .85 1.35l-2.8 1.75a1.7 1.7 0 0 1-.9.25H5l-1.7-.8z"
+        />
+      ) : kind === "love" ? (
+        <path fill="#fff" d="M8 12.4 4.5 9.1a2.25 2.25 0 0 1 3.15-3.2l.35.35.35-.35A2.25 2.25 0 0 1 11.5 9.1z" />
+      ) : kind === "insightful" ? (
+        <path
+          fill="#fff"
+          d="M8 2.9a3.3 3.3 0 0 0-2 5.92c.32.25.5.55.5.93v.35h3v-.35c0-.38.18-.68.5-.93A3.3 3.3 0 0 0 8 2.9zM6.5 10.95h3v.6a.95.95 0 0 1-.95.95h-1.1a.95.95 0 0 1-.95-.95z"
         />
       ) : (
-        <path fill="#fff" d="M8 12.4 4.5 9.1a2.25 2.25 0 0 1 3.15-3.2l.35.35.35-.35A2.25 2.25 0 0 1 11.5 9.1z" />
+        <>
+          <path d="M4.75 7c.38-.7 1.32-.7 1.7 0M9.55 7c.38-.7 1.32-.7 1.7 0" stroke="#fff" strokeWidth="1.15" strokeLinecap="round" fill="none" />
+          <path fill="#fff" d="M4.6 8.75h6.8a3.4 3.4 0 0 1-6.8 0z" />
+        </>
       )}
+    </svg>
+  );
+}
+
+/** "Pending": a clock whose minute hand sweeps once when it appears. */
+export function ClockIcon({ handClassName, ...props }: IconProps & { handClassName?: string }) {
+  return (
+    <Line strokeWidth={1.6} {...props}>
+      <circle cx="8" cy="8" r="6.25" />
+      <path d="M8 8h2.6" />
+      <path className={handClassName} d="M8 8V4.6" />
+    </Line>
+  );
+}
+
+/** LinkedIn's grey head-and-shoulders, for someone without a photo: the visitor. */
+export function GhostAvatar({ size = 32, className }: { size?: number; className?: string }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <circle cx="16" cy="16" r="16" fill="#e9e5df" />
+      <circle cx="16" cy="12.5" r="5.5" fill="#a39e96" />
+      <path d="M5.6 26.2C7.3 21.8 11.3 19.5 16 19.5s8.7 2.3 10.4 6.7A15.9 15.9 0 0 1 16 32a15.9 15.9 0 0 1-10.4-5.8z" fill="#a39e96" />
     </svg>
   );
 }

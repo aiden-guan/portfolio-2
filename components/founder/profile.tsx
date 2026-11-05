@@ -18,7 +18,7 @@ import {
   SKILLS,
   type Experience,
 } from "@/content/founder";
-import { PROJECTS, ROLES, projectImage } from "@/content/worlds";
+import { PROJECTS, ROLES, imageFocus, projectImage } from "@/content/worlds";
 import { Activity } from "./activity";
 import { CopyLinkButton, FollowButton, ProjectLink } from "./buttons";
 import { Carousel } from "./carousel";
@@ -47,7 +47,7 @@ import {
 } from "./icons";
 import { OrgLogo, ProjectLogo, Wordmark } from "./logos";
 import { MediaRow } from "./media-row";
-import { MessagingDock } from "./messaging-dock";
+import { MessagingDock, type ChatScript } from "./messaging-dock";
 import { ContactInfo, ProfileActions } from "./profile-actions";
 import { Projects, Skills } from "./projects";
 import { FounderProvider } from "./provider";
@@ -56,6 +56,31 @@ import { TopNav } from "./top-nav";
 import styles from "./founder.module.css";
 
 export const PAGE_TITLE = "Aiden Guan | LockedIn";
+
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+
+/** What Aiden says in the messaging dock. Every answer is made of facts from content/. */
+function chatScript(): ChatScript {
+  const alai = project("alai");
+  const building = joinNames(BUILDING.projects.map((slug) => project(slug).name));
+  return {
+    greeting: "Hey, thanks for stopping by.",
+    topics: [
+      {
+        ask: "What are you building?",
+        answer: `${alai.name}, ${lowerFirst(alai.line)}${alai.status === "Waitlist" ? " There’s a waitlist." : ""}`,
+        link: alai.live ? { label: domainOf(alai.live), href: alai.live } : undefined,
+      },
+      { ask: "Open to work?", answer: `Open to building. Right now that’s ${building}.` },
+      {
+        ask: "How do I reach you?",
+        answer: "Email works best.",
+        link: { label: PROFILE.email, href: `mailto:${PROFILE.email}` },
+      },
+    ],
+    fallback: "This inbox is a parody, so that won’t reach me. Email will.",
+  };
+}
 
 /** LockedIn: Aiden's experience, laid out as a LinkedIn profile. */
 export function FounderProfile() {
@@ -123,7 +148,14 @@ export function FounderProfile() {
           </main>
           <Aside year={now.year} />
         </div>
-        <MessagingDock name={PROFILE.name} photo={PROFILE.photo} email={PROFILE.email} subject="Hello from LockedIn" />
+        <MessagingDock
+          name={PROFILE.name}
+          headline={PROFILE.headline}
+          photo={PROFILE.photo}
+          email={PROFILE.email}
+          subject="Hello from LockedIn"
+          script={chatScript()}
+        />
       </FounderProvider>
     </div>
   );
@@ -213,7 +245,7 @@ function TopCard() {
             ))}
           </ul>
         </div>
-        <ProfileActions linkedin={PROFILE.linkedin} github={PROFILE.github} />
+        <ProfileActions name={PROFILE.name} linkedin={PROFILE.linkedin} github={PROFILE.github} />
         <div className={styles.openTo}>
           <p className={styles.openToTitle}>{BUILDING.title}</p>
           <p className={styles.openToText}>{joinNames(building)}</p>
@@ -310,6 +342,7 @@ function FeaturedCard() {
                       width={592}
                       height={310}
                       sizes="(max-width: 767px) 78vw, 296px"
+                      style={{ objectPosition: imageFocus(featured.slug) }}
                     />
                   </span>
                   <span className={styles.featuredBody}>

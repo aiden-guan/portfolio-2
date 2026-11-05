@@ -33,6 +33,7 @@
   z-index: 43;
 }
 
+/* skipping: a quick cut to black, then up on the title */
 .fade {
   position: fixed;
   inset: 0;
@@ -40,11 +41,12 @@
   background: #000;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 360ms ease;
+  transition: opacity 320ms cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
-.fade[data-shown] {
+.fade[data-state="in"] {
   opacity: 1;
+  transition: opacity 170ms ease-in;
 }
 
 /* —— the cinematic's own buttons: skip, and sound */
@@ -58,7 +60,7 @@
   gap: 8px;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   opacity: 0;
-  animation: chromeIn 500ms 900ms ease forwards;
+  animation: chromeIn 400ms 300ms ease forwards;
 }
 
 @keyframes chromeIn {
@@ -172,6 +174,8 @@
   width: var(--progress, 40%);
   border-radius: inherit;
   background: #4cb4ff;
+  /* it's playing: the bar runs on between one second's mark and the next */
+  transition: width 1250ms linear;
 }
 
 .videoTrack i::after {
@@ -275,6 +279,7 @@
 }
 
 .titlebar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 18px;
@@ -285,13 +290,20 @@
   font-size: 12.5px;
 }
 
+/* the client's name sits in the middle of its title bar, where a screen of
+   any shape still shows it while the page fills the view */
 .brand {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
   display: inline-flex;
   align-items: center;
   gap: 7px;
   color: #dfe3e6;
   font-weight: 600;
   letter-spacing: 0.01em;
+  transform: translateX(-50%);
 }
 
 .mark {
@@ -1193,13 +1205,16 @@
   stroke: none;
 }
 
-.action[data-state="library"] .actionInstall,
-.action[data-state="installing"] .actionInstall {
+.action[data-state="library"] .actionInstall {
   opacity: 1;
 }
 
 .action[data-state="installing"] {
-  filter: saturate(0.4) brightness(0.8);
+  background: #3d4450;
+}
+
+.action[data-state="installing"] .actionInstalling {
+  opacity: 1;
 }
 
 .action[data-state="ready"] {
@@ -1247,8 +1262,8 @@
 .download {
   display: grid;
   gap: 6px;
-  width: 260px;
-  margin-left: auto;
+  width: 250px;
+  margin-left: 6px;
   opacity: 0;
   transition: opacity 200ms ease;
 }
@@ -1359,6 +1374,7 @@
 .dark {
   position: absolute;
   inset: -112px 0 0 0;
+  z-index: 5;
   background: #000;
   opacity: 0;
   transition: opacity 280ms ease;
@@ -1549,6 +1565,15 @@
   overflow: hidden;
   transform-origin: 0 0;
   background: #000;
+  /* it starts up out of sight, then comes up on the monitor */
+  opacity: 0;
+  visibility: hidden;
+}
+
+.gameLayer[data-shown] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 520ms ease-out;
 }
 
 .gameLayer[hidden] {

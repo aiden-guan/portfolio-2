@@ -50,9 +50,9 @@ html[data-theme="dark"] .line {
 
 /* it hangs up off the mat, so its shadow falls well away from it */
 .line-cord-shadow {
-  stroke: rgb(0 0 0 / 0.17);
+  stroke: rgb(0 0 0 / calc(0.17 * var(--shade-k)));
   stroke-width: calc(var(--mm) * 0.9);
-  transform: translate(calc(var(--mm) * 2.4), calc(var(--mm) * 6));
+  transform: translate(calc(var(--mm) * 6 * var(--shade-x)), calc(var(--mm) * 6));
 }
 
 .line-cord-rope,
@@ -96,7 +96,7 @@ html[data-theme="dark"] .line {
   border-bottom-color: var(--brass-dark);
   box-shadow:
     inset 0 0 0 0.5px rgb(0 0 0 / 0.3),
-    calc(var(--mm) * 1) calc(var(--mm) * 1.6) calc(var(--mm) * 1) rgb(0 0 0 / 0.22);
+    calc(var(--mm) * 1.6 * var(--shade-x)) calc(var(--mm) * 1.6) calc(var(--mm) * 1) rgb(0 0 0 / calc(0.22 * var(--shade-k)));
 }
 
 /* its shank, screwed down into the mat */
@@ -208,24 +208,24 @@ html[data-theme="dark"] .line {
   /* hanging up off the mat: its shadow falls well away under it */
   box-shadow:
     0 0 0 0.5px rgb(0 0 0 / 0.08),
-    0 1px 1.5px rgb(0 0 0 / 0.14),
-    calc(var(--mm) * 2.4) calc(var(--mm) * 6) calc(var(--mm) * 4) rgb(0 0 0 / 0.24);
+    0.6px 1px 1.5px rgb(0 0 0 / calc(0.14 * var(--shade-k))),
+    calc(var(--mm) * 6 * var(--shade-x)) calc(var(--mm) * 6) calc(var(--mm) * 4) rgb(0 0 0 / calc(0.24 * var(--shade-k)));
   transition: box-shadow 260ms ease-out;
 }
 
 .line-photo[data-held] .line-photo-paper {
   box-shadow:
     0 0 0 0.5px rgb(0 0 0 / 0.08),
-    0 2px 2px rgb(0 0 0 / 0.14),
-    calc(var(--mm) * 3.4) calc(var(--mm) * 8) calc(var(--mm) * 5) rgb(0 0 0 / 0.26);
+    1.2px 2px 2px rgb(0 0 0 / calc(0.14 * var(--shade-k))),
+    calc(var(--mm) * 8 * var(--shade-x)) calc(var(--mm) * 8) calc(var(--mm) * 5) rgb(0 0 0 / calc(0.26 * var(--shade-k)));
 }
 
 /* lying on the mat: a tight contact shadow */
 .line-photo[data-mode="landed"] .line-photo-paper {
   box-shadow:
     0 0 0 0.5px rgb(0 0 0 / 0.1),
-    0 0.5px 0.8px rgb(0 0 0 / 0.3),
-    0 calc(var(--mm) * 0.8) calc(var(--mm) * 1.5) rgb(0 0 0 / 0.2);
+    0 0.5px 0.8px rgb(0 0 0 / calc(0.3 * var(--shade-k))),
+    calc(var(--mm) * 0.8 * var(--shade-x)) calc(var(--mm) * 0.8) calc(var(--mm) * 1.5) rgb(0 0 0 / calc(0.2 * var(--shade-k)));
   transition-duration: 140ms;
 }
 
@@ -282,7 +282,7 @@ html[data-theme="dark"] .line {
   width: calc(var(--mm) * 3);
   height: calc(var(--mm) * 10.2);
   margin-left: calc(var(--mm) * -1.5);
-  filter: drop-shadow(calc(var(--mm) * 0.8) calc(var(--mm) * 1.6) calc(var(--mm) * 0.6) rgb(0 0 0 / 0.25));
+  filter: drop-shadow(calc(var(--mm) * 1.6 * var(--shade-x)) calc(var(--mm) * 1.6) calc(var(--mm) * 0.6) rgb(0 0 0 / calc(0.25 * var(--shade-k))));
   pointer-events: none;
 }
 

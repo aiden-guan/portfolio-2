@@ -31,6 +31,13 @@ export const materials = {
   glow: worldMaterial({ key: "glow", flag: FLAG.solid, fragment: "totalEmissiveRadiance = diffuseColor.rgb * (0.55 + uNight * 2.6);" }),
   // lamp glass: pale by day, lit at night
   lamp: worldMaterial({ key: "lamp", flag: FLAG.soft, fragment: "totalEmissiveRadiance += diffuseColor.rgb * uNight * 2.2;" }),
+  // carried after dark: nothing by day, a warm light by night
+  lantern: worldMaterial({
+    key: "lantern",
+    flag: FLAG.soft,
+    cloud: false,
+    fragment: "if (uNight < 0.5) discard; totalEmissiveRadiance = diffuseColor.rgb * 3.0 * uNight;",
+  }),
   // only out at night, blinking
   firefly: worldMaterial({
     key: "firefly",
@@ -70,13 +77,35 @@ export const OUTFITS: Record<string, Outfit> = {
   orange: { skin: 0xc98b62, hair: 0x241b16, top: 0xef7d32, bottom: 0x1f2633, shoes: 0xf5f5f5 },
   blue: { skin: 0xf0c49d, hair: 0x6b4426, top: 0x2f62d6, bottom: 0x1f2633, shoes: 0xf5f5f5 },
   white: { skin: 0x8a5a3c, hair: 0x15110f, top: 0xf4f4f4, bottom: 0x2b2b2b, shoes: 0xd94a3a },
+  // islanders out for a walk
+  moss: { skin: 0xd9a57b, hair: 0x4a3426, top: 0x3f8a64, bottom: 0x2f3442, shoes: 0x2a2623 },
+  oat: { skin: 0xf1c7a5, hair: 0x8f532a, top: 0xe6d6ba, bottom: 0x4a5a78, shoes: 0x7a4529 },
+  brick: { skin: 0xb97f58, hair: 0x1c1816, top: 0xc4484f, bottom: 0x2a2f3d, shoes: 0xf2f0ea, hat: 0x2a2f3d },
 };
 
-// A person, nine voxels tall.
-export function person(outfit: Outfit, pose: "stand" | "sit" = "stand") {
+// A person, nine voxels tall. "left" and "right" are mid-stride, that foot
+// a voxel ahead and the other behind, the arms swung the other way: with
+// "stand" between them they make a walk.
+export function person(outfit: Outfit, pose: "stand" | "sit" | "left" | "right" = "stand") {
   const v = new Voxels(V, 0.04);
   const { skin, hair, top, bottom, shoes, hat } = outfit;
-  if (pose === "stand") {
+  if (pose === "left" || pose === "right") {
+    const ahead = pose === "left" ? 0 : 1;
+    for (const x of [0, 1]) {
+      const dz = x === ahead ? 1 : -1;
+      v.box(x, 0, dz, x, 0, 1 + dz, shoes);
+      v.box(x, 1, dz, x, 1, 1 + dz, bottom);
+      v.box(x, 2, 0, x, 2, 1, bottom);
+    }
+    v.box(0, 3, 0, 1, 5, 1, top);
+    for (const [x, dz] of [[-1, ahead === 0 ? -1 : 1], [2, ahead === 0 ? 1 : -1]]) {
+      v.box(x, 5, 0, x, 5, 1, top);
+      v.box(x, 3, dz, x, 4, 1 + dz, (_, y) => (y === 3 ? skin : top));
+    }
+    v.box(0, 6, 0, 1, 7, 1, skin);
+    v.box(0, 8, 0, 1, 8, 1, hair);
+    v.box(0, 6, 0, 1, 7, 0, hair);
+  } else if (pose === "stand") {
     v.box(0, 0, 0, 0, 0, 1, shoes);
     v.box(1, 0, 0, 1, 0, 1, shoes);
     v.box(0, 1, 0, 1, 2, 1, bottom);
@@ -101,9 +130,8 @@ export function person(outfit: Outfit, pose: "stand" | "sit" = "stand") {
     v.box(0, 6, 0, 1, 7, 0, hair);
   }
   if (hat) {
-    const y = pose === "stand" ? 8 : 8;
-    v.box(-1, y, -1, 2, y, 2, hat);
-    v.box(0, y + 1, 0, 1, y + 1, 1, hat);
+    v.box(-1, 8, -1, 2, 8, 2, hat);
+    v.box(0, 9, 0, 1, 9, 1, hat);
   }
   return v;
 }

@@ -77,7 +77,7 @@ const LEAN = (7 * Math.PI) / 180;
 const HOLD_TO_CUT = 380;
 // once a visit, after the card has landed, the knife shows what it does
 const DEMO_KEY = "aiden-mat-shown";
-const DEMO_AT = 2100;
+const DEMO_AT = 1500;
 const DEMO = -1;
 
 // where the light comes from, as a direction towards it

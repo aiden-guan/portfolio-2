@@ -1,13 +1,22 @@
 import { Color, DirectionalLight, Group, HemisphereLight, PointLight, Vector3 } from "three";
 import { materials } from "../../../scene/kit";
+import { FLAG, worldMaterial } from "../../../scene/shared";
 import { hash3, mix, Voxels } from "../../../scene/voxels";
 import { S } from "../people";
-import { blocker, disposeAll, grid, letters, meshOf, outdoorFloor, outdoorSolid, textWidth, type Collider, type Room, type Spot } from "./common";
+import { blocker, bulbGlow, calm, disposeAll, grid, letters, meshOf, motion, nearEdge, outdoorFloor, outdoorSolid, textWidth, type Collider, type Room, type Spot } from "./common";
+import { alive, birds, clockHands, leaves, moths, type Life } from "./life";
 
-// Memorial Glade: the lawn in front of Doe Library, the Campanile over the
-// trees at the far corner, paths cut across the grass, a kiosk of flyers,
-// a bench under the lamps. By day, people everywhere on blankets; by night,
-// the clock lit and nobody but whoever needed the walk.
+// the oaks' crowns, moving a little in the wind over the lawn
+const crowns = worldMaterial({ key: "game-glade-trees", flag: FLAG.solid, sway: 0.012, swayFrom: 1.6, extraUniforms: { uMotion: motion }, vertexHead: "uniform float uMotion;", vertex: "transformed.xz = mix(position.xz, transformed.xz, uMotion);" });
+// fall: the oaks' green with gold and rust coming into it
+const OAK = [0x3f7a32, 0x5a9a3c, 0x4a8a38, 0xc9a23a, 0xb86a2a];
+
+// Memorial Glade in the fall: the lawn in front of Doe Library, the
+// Campanile over the trees at the far corner with its clock going round,
+// paths cut across the grass, a kiosk of flyers, a bench under the lamps.
+// By day, people on blankets, the oaks turning and dropping the odd leaf,
+// a few birds going over; by night, the clock lit, moths at the lamps, and
+// nobody but whoever needed the walk.
 //
 // 140 × 100 voxels; the library across the back, the tower at the right.
 
@@ -18,6 +27,7 @@ const at = grid(ORIGIN);
 const block = blocker(ORIGIN);
 
 export function glade({ night = false }: { night?: boolean } = {}) {
+  calm();
   const group = new Group();
   const mesh = (v: Voxels, material?: Parameters<typeof meshOf>[1], shadow = true) => {
     const m = meshOf(v, material ?? outdoorSolid, { shadow, origin: [ORIGIN[0], 0, ORIGIN[1]] });
@@ -35,12 +45,19 @@ export function glade({ night = false }: { night?: boolean } = {}) {
   };
   for (let i = -1; i <= W; i += 1)
     for (let k = -1; k <= D; k += 1) {
-      for (let j = -4; j <= -2; j += 1) ground.set(i, j, k, j === -4 ? 0x5e4630 : 0x6b4f36);
+      if (nearEdge(i, k, W, D)) for (let j = -4; j <= -2; j += 1) ground.set(i, j, k, j === -4 ? 0x5e4630 : 0x6b4f36);
       let c: number;
       if (path(i, k)) c = hash3(i, k, 2) > 0.5 ? 0xd9d4ca : 0xcfc9bd;
       else {
         c = Math.floor((i + k * 0.3) / 7) % 2 ? 0x5a9a3c : 0x529236;
         if (hash3(i, k, 7) > 0.92) c = mix(c, 0x8fcf55, 0.35);
+        // a few leaves down already
+        if (hash3(i, k, 21) > 0.985) c = hash3(k, i, 3) > 0.5 ? 0xc9a23a : 0xb86a2a;
+        // blankets, by day, where people sit
+        if (!night) {
+          if (i >= 49 && i <= 61 && k >= 63 && k <= 78) c = (Math.floor((i - 49) / 3) + Math.floor((k - 63) / 3)) % 2 ? 0xd74718 : (i + k) % 2 ? 0xf6eedd : 0xefe2cc;
+          if (i >= 86 && i <= 97 && k >= 37 && k <= 47) c = i === 86 || i === 97 || k === 37 || k === 47 ? 0xf6f4ee : (i + k) % 4 < 2 ? 0x2f6be8 : 0x2a5fd0;
+        }
       }
       ground.set(i, -1, k, c);
     }
@@ -72,7 +89,7 @@ export function glade({ night = false }: { night?: boolean } = {}) {
 
   // the clock faces you can see, lit at night
   const lit = new Voxels(S, 0);
-  for (const [face, axis] of [["front", "z"], ["side", "x"]] as const) {
+  for (const axis of ["z", "x"] as const) {
     for (let a = -3; a <= 3; a += 1)
       for (let b = -3; b <= 3; b += 1) {
         if (a * a + b * b > 10) continue;
@@ -80,20 +97,24 @@ export function glade({ night = false }: { night?: boolean } = {}) {
         if (axis === "z") lit.set(T.i + 5 + a, 34 + b, T.k + 11, c);
         else lit.set(T.i + 11, 34 + b, T.k + 5 + a, c);
       }
-    if (face === "front") {
-      lit.box(T.i + 5, 34, T.k + 12, T.i + 5, 36, T.k + 12, 0x1b1d22);
-      lit.box(T.i + 5, 34, T.k + 12, T.i + 7, 34, T.k + 12, 0x1b1d22);
-    }
   }
   mesh(lit, night ? materials.glow : materials.solid, false);
 
   // —— trees, a kiosk of flyers, a bench, bikes, lamps
   const t = new Voxels(S, 0.04);
+  const trees = new Voxels(S, 0.04);
   const oak = (i: number, k: number, h: number, r: number) => {
     t.limb(i, 0, k, i + 1, h, k, 1.6, 1.1, 0x6b4a32);
     t.limb(i, h - 3, k, i - 4, h + 2, k + 2, 0.9, 0.6, 0x6b4a32);
-    t.blob(i, h + 4, k, r, r * 0.7, r, (x, y, z) => (hash3(x, y, z) > 0.75 ? 0x3f7a32 : y > h + 6 ? 0x5a9a3c : 0x4a8a38), 0.85, i);
-    t.blob(i - 5, h + 1, k + 3, r * 0.6, r * 0.5, r * 0.6, 0x4a8a38, 0.85, k);
+    const leaf = (x: number, y: number, z: number) => {
+      const n = hash3(x, y, z);
+      // turning from the outside in, in patches: gold and rust on the crown's top and edges
+      const patch = hash3(Math.floor(x / 3), Math.floor(y / 3), Math.floor(z / 3));
+      const outer = y > h + 5 || Math.hypot(x - i, z - k) > r * 0.7;
+      return outer && patch > 0.62 ? OAK[patch > 0.84 ? 4 : 3] : n > 0.75 ? OAK[0] : y > h + 6 ? OAK[1] : OAK[2];
+    };
+    trees.blob(i, h + 4, k, r, r * 0.7, r, leaf, 0.85, i);
+    trees.blob(i - 5, h + 1, k + 3, r * 0.6, r * 0.5, r * 0.6, leaf, 0.85, k);
   };
   oak(8, 40, 24, 11);
   oak(132, 52, 22, 10);
@@ -119,10 +140,11 @@ export function glade({ night = false }: { night?: boolean } = {}) {
     t.box(x, 5, 31, x, 7, 31, 0x2a2f3d);
   }
   mesh(t);
+  mesh(trees, crowns);
 
   const glow = new Voxels(S, 0);
-  for (const [i, k] of [[80, 82], [104, 82], [34, 22], [118, 22]]) glow.box(i - 1, 28, k - 1, i + 2, 30, k + 2, 0xffd998);
-  mesh(glow, night ? materials.glow : materials.lamp, false);
+  for (const [i, k] of [[80, 82], [104, 82], [34, 22], [118, 22]]) glow.box(i - 1, 28, k - 1, i + 2, 30, k + 2, night ? 0xffc477 : 0xffd998);
+  mesh(glow, night ? bulbGlow : materials.lamp, false);
 
   // —— light: afternoon, or the moon and the lamps
   const sun = new DirectionalLight(night ? 0x9fb4ff : 0xffe2b0, night ? 0.8 : 3.1);
@@ -135,6 +157,18 @@ export function glade({ night = false }: { night?: boolean } = {}) {
   sun.shadow.normalBias = 0.02;
   const hemi = night ? new HemisphereLight(0x5a6fb0, 0x22302a, 1.1) : new HemisphereLight(0xdfeaff, 0x6a8a4a, 1.45);
   group.add(sun, sun.target, hemi);
+
+  // the Campanile's clock, both faces you can see; leaves, birds, moths
+  const front = clockHands(new Vector3((T.i + 5.5 - ORIGIN[0]) * S, 3.45, (T.k + 12 - ORIGIN[1]) * S), "z", { minutes: night ? 23 * 60 + 48 : 15 * 60 + 30, radius: 0.27 });
+  const side = clockHands(new Vector3((T.i + 12 - ORIGIN[0]) * S, 3.45, (T.k + 5.5 - ORIGIN[1]) * S), "x", { minutes: night ? 23 * 60 + 48 : 15 * 60 + 30, radius: 0.27 });
+  const lives: Life[] = [front, side];
+  if (night) lives.push(moths([at(80.5, 29, 82.5), at(104.5, 29, 82.5)], { each: 4 }));
+  else {
+    const oaks = [[8, 40, 24, 11], [132, 52, 22, 10], [12, 88, 20, 9], [124, 34, 24, 10]].map(([i, k, h, r]) => ({ x: (i - ORIGIN[0]) * S, z: (k - ORIGIN[1]) * S, y: (h + 2) * S, r: r * S * 0.8 }));
+    lives.push(leaves(oaks, [0xc9a23a, 0xb86a2a, 0xd9b44a, 0x8f5a2a], { count: 12, size: 0.07 }));
+    lives.push(birds(new Vector3(8, 6, -8), new Vector3(-8, 6, 8), { count: 4, voxel: 0.1, every: 38, seconds: 12, seed: 2 }));
+  }
+  const life = alive(group, lives);
   if (night)
     for (const [i, k] of [[80, 82], [104, 82]]) {
       const lamp = new PointLight(0xffd29a, 3.2, 5, 2);
@@ -173,7 +207,15 @@ export function glade({ night = false }: { night?: boolean } = {}) {
     heading: Math.PI,
     night: night ? 0.85 : 0,
     clouds: night ? 0 : 0.6,
-    dispose: () => disposeAll(group),
+    setTime: (minutes: number) => {
+      front.set(minutes);
+      side.set(minutes);
+    },
+    update: (time: number, dt: number) => life.update(time, dt),
+    dispose: () => {
+      life.dispose();
+      disposeAll(group);
+    },
   } satisfies Room & Record<string, unknown>;
   return room;
 }

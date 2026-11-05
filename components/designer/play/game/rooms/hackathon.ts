@@ -1,13 +1,16 @@
 import { Color, Group, HemisphereLight, PointLight, SpotLight, Vector3 } from "three";
-import { materials } from "../../../scene/kit";
+import { FLAG, worldMaterial } from "../../../scene/shared";
 import { hash3, mix, Voxels } from "../../../scene/voxels";
 import { S } from "../people";
-import { blocker, disposeAll, grid, indoorFloor, letters, meshOf, textWidth, type Collider, type Room, type Spot } from "./common";
+import { blinkGlow, blocker, calm, disposeAll, grid, hangSway, hanging, indoorFloor, letters, meshOf, nearEdge, screenGlow, textScreen, textWidth, type Collider, type Room, type Spot } from "./common";
+import { alive, cone, coneMotes } from "./life";
 
-// A hackathon at night: long tables of laptops, a stage with the event's
-// name on the screen, pizza going cold on the side, beanbags for whoever's
-// given up on sleep. The same room for every event, lit in each one's
-// colour and with its own name up on the screen.
+// A hackathon at night: long tables of laptops with code scrolling up them,
+// a stage with the event's name on the screen and a light on the podium,
+// banners in the event's colour down the wall, pizza going cold on the side,
+// beanbags for whoever's given up on sleep, power strips blinking under the
+// tables. The same room for every event, lit in each one's colour and with
+// its own name up on the screen.
 //
 // 130 × 90 voxels; the stage across the back, raised 0.3.
 
@@ -32,7 +35,17 @@ const EVENTS: Record<EventId, { lines: [string, string]; accent: number; second:
  * and the z of the chairs on the near side (facing away) and the far side. */
 export const TEAM = { xs: [1.0, 1.8, 2.6, 3.4], near: (59 - ORIGIN[1]) * S, far: (47 - ORIGIN[1]) * S };
 
+// the strip along the top of the walls: a slow pulse running round the room
+const chase = worldMaterial({
+  key: "game-hack-leds",
+  flag: FLAG.soft,
+  cloud: false,
+  fragment: "float run = 0.5 + 0.5 * sin((vWorld.x - vWorld.z) * 2.2 - uTime * 1.5); totalEmissiveRadiance = diffuseColor.rgb * (0.5 + 1.05 * run * run);",
+});
+const INKS = [0x7dffa8, 0x9cc0fa, 0xfbf8f1];
+
 export function hackathon({ event = "buildnight" as EventId } = {}) {
+  calm();
   const e = EVENTS[event];
   const group = new Group();
   const mesh = (v: Voxels, material?: Parameters<typeof meshOf>[1], shadow = true) => {
@@ -45,7 +58,7 @@ export function hackathon({ event = "buildnight" as EventId } = {}) {
   const floor = new Voxels(S, 0.03);
   for (let i = -2; i < W; i += 1)
     for (let k = -2; k < D; k += 1) {
-      for (let j = -4; j <= -2; j += 1) floor.set(i, j, k, 0x1b1d22);
+      if (nearEdge(i, k, W - 1, D - 1)) for (let j = -4; j <= -2; j += 1) floor.set(i, j, k, 0x1b1d22);
       let c = hash3(i, k, 2) > 0.5 ? 0x2e3140 : 0x2a2d3a;
       if ((k === 44 || k === 60) && i > 6 && i < 124) c = 0x4a4d5a;
       floor.set(i, -1, k, c);
@@ -101,7 +114,24 @@ export function hackathon({ event = "buildnight" as EventId } = {}) {
   for (const [i, k, c] of [[104, 80, e.accent], [114, 84, 0x2f6be8], [96, 86, 0xd74718]] as const) f.blob(i, 3, k, 5, 3.5, 5, (x, y) => (y > 4 ? mix(c, 0xffffff, 0.12) : c));
   // a sponsor wall down the side
   f.box(0, 8, 70, 0, 30, 88, (x, y, z) => ((Math.floor(y / 6) + Math.floor(z / 6)) % 2 ? mix(e.wall, 0xffffff, 0.12) : mix(e.wall, 0xffffff, 0.06)));
+  // a power strip under each run of tables
+  for (const k0 of tables) for (const x of [34, 94]) f.box(x, 0, k0 + 3, x + 4, 0, k0 + 3, 0xd9d4ca);
+  // the rods the banners hang from
+  for (const k of [23, 41, 55]) f.box(1, 32, k, 1, 32, k + 7, 0x8a8f99);
   mesh(f);
+
+  // banners in the event's colours, breathing a little in the air conditioning
+  const banners = new Voxels(S, 0.03);
+  for (const [n, k0] of [23, 41, 55].entries())
+    for (let k = k0; k <= k0 + 7; k += 1)
+      for (let j = 13; j <= 31; j += 1) {
+        // a swallowtail at the bottom
+        if (j === 13 && (k === k0 + 3 || k === k0 + 4)) continue;
+        const band = j >= 17 && j <= 18;
+        const mark = j >= 22 && j <= 27 && k >= k0 + 2 && k <= k0 + 5 && (n + j + k) % 2 === 0;
+        banners.set(1, j, k, band ? e.second : mark ? mix(e.accent, 0xffffff, 0.35) : e.accent);
+      }
+  group.add(hanging(banners, hangSway("x", 0.012), 31, ORIGIN));
 
   // —— what glows: the screen, the strips, the laptops, the podium's mark
   const lit = new Voxels(S, 0);
@@ -112,17 +142,23 @@ export function hackathon({ event = "buildnight" as EventId } = {}) {
   const scaleB = textWidth(b, 2) <= 70 ? 2 : 1;
   letters(lit, a, 65 - Math.floor(textWidth(a, scaleA) / 2), 35, 1, 0xfbf8f1, { axis: "x", scale: scaleA });
   letters(lit, b, 65 - Math.floor(textWidth(b, scaleB) / 2), 35 - 5 * scaleA - 3, 1, e.accent, { axis: "x", scale: scaleB });
-  for (let i = 0; i < W; i += 1) lit.set(i, H - 3, 0, i % 4 === 0 ? e.second : e.accent);
-  for (let k = 0; k < D; k += 1) lit.set(0, H - 3, k, k % 4 === 0 ? e.second : e.accent);
+  mesh(lit, screenGlow, false);
+  const strip = new Voxels(S, 0);
+  for (let i = 0; i < W; i += 1) strip.set(i, H - 3, 0, i % 4 === 0 ? e.second : e.accent);
+  for (let k = 0; k < D; k += 1) strip.set(0, H - 3, k, k % 4 === 0 ? e.second : e.accent);
+  mesh(strip, chase, false);
+  // every open laptop's screen, code scrolling up it
+  const screens = INKS.map(() => new Voxels(S, 0));
   for (const k0 of tables)
     for (const [i0, i1] of [[10, 60], [70, 120]])
       for (let x = i0 + 3; x < i1 - 3; x += 8) {
         if (hash3(x, k0, 3) <= 0.25) continue;
-        const c = [0x9cc0fa, 0x3fd17a, 0xfbf8f1, e.accent, 0x2f6be8][Math.floor(hash3(x, k0, 4) * 5)];
-        lit.box(x + 1, 10, k0 + 1, x + 3, 11, k0 + 1, c);
-        lit.box(x + 1, 10, k0 + 5, x + 3, 11, k0 + 5, mix(c, 0xffffff, 0.2));
+        screens[Math.floor(hash3(x, k0, 4) * INKS.length)].box(x + 1, 10, k0 + 1, x + 3, 11, k0 + 1, 0x111827);
       }
-  mesh(lit, materials.glow, false);
+  screens.forEach((v, n) => mesh(v, textScreen("z", INKS[n], 1.1 + n * 0.35), false));
+  const leds = new Voxels(S, 0);
+  for (const k0 of tables) for (const x of [38, 98]) leds.set(x, 0, k0 + 4, 0xff6a4a);
+  mesh(leds, blinkGlow, false);
 
   // —— light: low house lights, the screen's colour, a spot on the podium
   const hemi = new HemisphereLight(mix(0x8a86c8, e.accent, 0.25), 0x1b1a22, 1.3);
@@ -136,6 +172,13 @@ export function hackathon({ event = "buildnight" as EventId } = {}) {
   const room2 = new PointLight(0xfff1dc, 2.6, 8, 2);
   room2.position.copy(at(95, 30, 55));
   group.add(hemi, screen, spot, spot.target, room1, room2);
+  // the light on the podium, and the dust in it
+  const lampAt = new Vector3(at(60, 0, 0).x, 4.4, at(0, 0, 13).z);
+  const podiumAt = at(60, STAGE_H, 11);
+  const life = alive(group, [
+    cone(lampAt, podiumAt, { radius: 0.75, top: 0.08, color: mix(0xffe6c4, e.accent, 0.25), strength: 0.075 }),
+    coneMotes(lampAt, podiumAt, { radius: 0.75, count: 14, seed: event.length }),
+  ]);
 
   const colliders: Collider[] = [
     block(56, 9, 64, 13), // podium
@@ -167,7 +210,11 @@ export function hackathon({ event = "buildnight" as EventId } = {}) {
     night: 0.55,
     clouds: 0,
     floorAt: (x: number, z: number) => (z < (STAGE_K + 1 - ORIGIN[1]) * S && x > (6 - ORIGIN[0]) * S && x < (124 - ORIGIN[0]) * S ? STAGE_H * S : 0),
-    dispose: () => disposeAll(group),
+    update: (time: number, dt: number) => life.update(time, dt),
+    dispose: () => {
+      life.dispose();
+      disposeAll(group);
+    },
   } satisfies Room & Record<string, unknown>;
   return room;
 }

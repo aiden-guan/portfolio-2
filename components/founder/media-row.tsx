@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { projectImage, type WorldProject } from "@/content/worlds";
+import { imageFocus, projectImage, type WorldProject } from "@/content/worlds";
 import styles from "./founder.module.css";
 
 /** A LinkedIn attachment: thumbnail, a title, a line under it. */
@@ -16,7 +16,14 @@ export function MediaRow({
 }) {
   const inner = (
     <>
-      <Image className={styles.mediaThumb} src={projectImage(project.slug, "sm")} alt="" width={128} height={72} />
+      <Image
+        className={styles.mediaThumb}
+        src={projectImage(project.slug, "sm")}
+        alt=""
+        width={128}
+        height={72}
+        style={{ objectPosition: imageFocus(project.slug) }}
+      />
       <span className={styles.mediaText}>
         <span className={styles.mediaTitle}>{title}</span>
         <span className={styles.mediaSub}>{subtitle}</span>

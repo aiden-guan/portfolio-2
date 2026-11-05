@@ -61,7 +61,6 @@
   height: 68px;
   margin: 0 auto;
   padding: 0 var(--gutter);
-  animation: fade 700ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 
 .home {
@@ -136,49 +135,19 @@
   letter-spacing: -0.055em;
 }
 
-/* Each letter rises into place through a mask at the foot of the line. */
-.word {
-  display: inline-flex;
-  clip-path: inset(-0.3em -0.2em 0 -0.2em);
-}
-
-.word > span {
-  display: inline-block;
-  animation: rise 950ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
-  animation-delay: calc(var(--i) * 34ms + 60ms);
-}
-
-@keyframes rise {
-  from {
-    transform: translateY(108%);
-  }
-}
-
 .total {
   margin: 0.32em 0 0 0.3em;
   color: var(--dim);
   font: 400 13px/1 var(--mono);
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
-  animation: fade 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 380ms backwards;
 }
 
-.filter {
-  animation: fade 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 260ms backwards;
-}
-
-@keyframes fade {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .top,
-  .word > span,
-  .total,
-  .filter {
-    animation: none;
-  }
+.quiet {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

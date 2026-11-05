@@ -18,17 +18,18 @@ import {
   resetWorld,
   resizeWorld,
   retrySector,
-  SECTORS,
   selectShip as selectWorldShip,
   SHIPS,
   stepWorld,
   type CampaignPhase,
   type Sector,
   type ShipId,
+  type World,
 } from "@/components/break/campaign";
 import { BALANCE } from "@/components/break/balance";
+import { ARCADE_ASSETS, SECTORS } from "@/components/break/catalog";
 import { clamp, type FlightInput } from "@/components/break/physics";
-import { formatTime } from "@/components/break/combat";
+import { formatTime, runRank } from "@/components/break/combat";
 
 export { createSound } from "@/components/break/audio";
 export type ArcadePhase = CampaignPhase;
@@ -42,6 +43,9 @@ export type ArcadeHandle = {
   continueStage: () => boolean;
   toggleFocus: () => void;
   selectShip: (ship: ShipId) => void;
+  // Rehearsal and profiling: the live world, and render cost over the last 120 frames.
+  world: World;
+  timing: () => { render: number; worst: number };
 };
 const BEST_KEY = "guan-arcade-best-v2";
 export function mountArcade(
@@ -61,10 +65,7 @@ export function mountArcade(
   s.phase = "loading";
   const sound = createSound();
   const keys = new Set<string>();
-  const assetUrls = [
-    ...SECTORS.map((sector) => sector.image),
-    "/arcade/hand-seals.webp",
-  ];
+  const assetUrls = ARCADE_ASSETS;
   const images = assetUrls.map(() => new Image());
   const vfx = createCampaignVfx(ctx, images, reduced);
   let running = true,
@@ -76,7 +77,16 @@ export function mountArcade(
   let notifiedPhase: ArcadePhase | null = null,
     notifiedSector = 0,
     notifiedShip = -1,
-    savedBest = 0;
+    savedBest = 0,
+    newBest = false;
+  // Hit-stop: wall-clock seconds the simulation holds after a big hit.
+  let freeze = 0;
+  // The health bar's echo trails the value, so fresh damage stays visible.
+  let echo = 1,
+    hudAt = performance.now(),
+    pausedAt = 0,
+    stale = true;
+  const meters = new WeakMap<HTMLElement, number>();
   let pointer: {
     id: number;
     x: number;
@@ -104,10 +114,17 @@ export function mountArcade(
     if (el && el.textContent !== value) el.textContent = value;
   }
   function meter(selector: string, value: number) {
-    const el = node(selector);
-    if (el) el.style.transform = `scaleX(${clamp(value, 0, 1)})`;
+    const el = node(selector),
+      v = Math.round(clamp(value, 0, 1) * 1000) / 1000;
+    if (el && meters.get(el) !== v) {
+      meters.set(el, v);
+      el.style.transform = `scaleX(${v})`;
+    }
   }
   function hud() {
+    const now = performance.now(),
+      dt = Math.min(0.1, Math.max(0, (now - hudAt) / 1000));
+    hudAt = now;
     if (s.sector !== notifiedSector) {
       notifiedSector = s.sector;
       onSector(s.sector);
@@ -136,12 +153,14 @@ export function mountArcade(
         sound.note(880, 0.5, 0.025, 0.3);
       }
       if (s.phase === "win" || s.phase === "lose") {
+        newBest = s.score > savedBest;
         s.best = Math.max(s.best, s.score);
         try {
           localStorage.setItem(BEST_KEY, String(s.best));
           savedBest = s.best;
         } catch {}
       }
+      echo = -1;
     }
     const sector = SECTORS[s.sector - 1],
       hull = SHIPS[s.ship];
@@ -152,6 +171,7 @@ export function mountArcade(
     host.dataset.overdrive = s.overdrive > 0 ? "on" : "off";
     host.dataset.bossStage = String(bossStage(s));
     host.dataset.ward = bossGuard(s) < 1 ? "on" : "off";
+    host.dataset.hull = String(Math.max(0, s.player.hull));
     host.style.setProperty("--sector-color", themeColor(s));
     host.style.setProperty("--ship-color", hull.color);
     text("[data-stage]", `0${s.sector} / 03`);
@@ -180,32 +200,41 @@ export function mountArcade(
     text("[data-best]", String(s.best).padStart(7, "0"));
     text("[data-run-time]", formatTime(s.stats.seconds));
     text("[data-run-rank]", campaignRank(s));
+    text("[data-run-dodges]", String(s.stats.grazes));
+    text("[data-new-best]", newBest && s.score > 0 ? "New best" : "");
+    // The rank this run would earn if it cleared now: same rule as the result.
+    text("[data-live-rank]", runRank(s.stats, true));
+    text("[data-combo]", s.combo > 1 ? `×${s.combo.toFixed(2)}` : "");
+    text(
+      "[data-energy-label]",
+      s.overdrive > 0 ? "Overdrive" : s.charge >= 99.5 ? "Ready" : "Energy",
+    );
     text(
       "[data-retry-label]",
       s.checkpoint.boss
         ? `Retry phase ${["I", "II", "III"][s.checkpoint.stage - 1]}`
-        : `Retry sector 0${s.sector}`,
+        : `Retry level 0${s.sector}`,
     );
     text("[data-ship-name]", hull.name);
-    const hullNode = node("[data-hull]");
-    if (hullNode) {
-      hullNode.textContent = Array.from({ length: BALANCE.hull }, (_, i) =>
-        i < s.player.hull ? "▰" : "▱",
-      ).join(" ");
-      hullNode.setAttribute(
-        "aria-label",
-        `${s.player.hull} hull points remaining`,
-      );
-    }
+    node("[data-hull]")?.setAttribute(
+      "aria-label",
+      `${s.player.hull} of ${BALANCE.hull} hull points`,
+    );
+    let remaining = 0;
+    for (const e of s.enemies) remaining += Math.max(0, e.hp);
     const healthRatio =
       s.phase === "waves"
         ? s.waveHealthMax > 0
-          ? s.enemies.reduce((n, e) => n + Math.max(0, e.hp), 0) /
-            s.waveHealthMax
+          ? remaining / s.waveHealthMax
           : 1
         : s.boss.hp / bossMaxHp(s);
+    // The lighter echo trails the bar, so the damage just dealt stays readable.
+    echo =
+      healthRatio >= echo
+        ? healthRatio
+        : echo + (healthRatio - echo) * (1 - Math.exp(-dt / 0.32));
     meter("[data-signal]", healthRatio);
-    meter("[data-signal-echo]", healthRatio);
+    meter("[data-signal-echo]", echo);
     meter(
       "[data-overdrive]",
       s.overdrive > 0 ? s.overdrive / BALANCE.overdriveSeconds : s.charge / 100,
@@ -257,6 +286,7 @@ export function mountArcade(
     const dpr = Math.min(2, devicePixelRatio || 1);
     canvas.width = Math.round(s.width * dpr);
     canvas.height = Math.round(s.height * dpr);
+    stale = true;
     rebasePointer();
   }
   function clearInput() {
@@ -268,6 +298,7 @@ export function mountArcade(
   function setPaused(value: boolean) {
     if (paused === value) return;
     paused = value;
+    pausedAt = performance.now();
     clearInput();
     accumulator = 0;
     last = performance.now();
@@ -291,6 +322,7 @@ export function mountArcade(
     sound.resetMusic();
     setPaused(false);
     clearInput();
+    freeze = 0;
     resetWorld(s);
     hud();
   }
@@ -298,6 +330,7 @@ export function mountArcade(
     sound.unlock();
     setPaused(false);
     clearInput();
+    freeze = 0;
     const ok = retrySector(s);
     hud();
     return ok;
@@ -353,6 +386,12 @@ export function mountArcade(
       togglePause();
       return;
     }
+    // Ship keys work even while the hangar's Play button has focus.
+    if (!event.repeat && (key === "1" || key === "2" || key === "3")) {
+      event.preventDefault();
+      selectShip((Number(key) - 1) as ShipId);
+      return;
+    }
     if (
       event.target instanceof HTMLElement &&
       event.target.closest("button,a,input,textarea,select")
@@ -384,10 +423,6 @@ export function mountArcade(
     if (key === "x") {
       event.preventDefault();
       pulse();
-    }
-    if (["1", "2", "3"].includes(key)) {
-      event.preventDefault();
-      selectShip((Number(key) - 1) as ShipId);
     }
   }
   function up(event: KeyboardEvent) {
@@ -445,12 +480,17 @@ export function mountArcade(
     event.preventDefault();
   }
   const STEP = 1 / 120;
+  const renderCost = new Float32Array(120);
+  let renderSlot = 0;
   function frame(now: number) {
     if (!running) return;
     const elapsed = Math.min(0.08, Math.max(0, (now - last) / 1000));
     last = now;
     if (paused || document.hidden) accumulator = 0;
-    else {
+    else if (freeze > 0) {
+      freeze = Math.max(0, freeze - elapsed);
+      accumulator = 0;
+    } else {
       accumulator += elapsed;
       while (accumulator + 1e-10 >= STEP) {
         const lastSector = s.sector,
@@ -459,6 +499,9 @@ export function mountArcade(
           priorShots = s.serial,
           priorCasts = s.telemetry.casts,
           priorClones = s.telemetry.clones,
+          priorPhase = s.phase,
+          priorBreak = s.boss.breakWindow,
+          priorOverdrive = s.overdrive,
           wasDashing = s.player.dashTime > 0;
         stepWorld(s, input(), STEP);
         if (wasDashing && s.player.dashTime === 0) rebasePointer();
@@ -480,14 +523,47 @@ export function mountArcade(
           Math.floor(s.time * 7) !== Math.floor((s.time - STEP) * 7)
         )
           sound.note(s.ship === 2 ? 170 : 680, 0.045, 0.004);
+        if (priorOverdrive <= 0 && s.overdrive > 0)
+          [523.25, 783.99, 1046.5].forEach((hz, i) =>
+            sound.note(hz, 0.16, 0.016, i * 0.06, true),
+          );
         if (activePhase(s.phase))
           sound.music(STEP, bossTheme(s), s.overdrive > 0);
         accumulator = Math.max(0, accumulator - STEP);
+        const stop = hitStop(priorPhase, priorHull, priorBreak);
+        if (stop > 0) {
+          freeze = stop;
+          accumulator = 0;
+          break;
+        }
       }
     }
     hud();
-    if (!document.hidden) vfx.render(s);
+    // A paused frame holds still: once it has settled, the canvas keeps its image.
+    if (!document.hidden && (!paused || now - pausedAt < 300 || stale)) {
+      const started = performance.now();
+      vfx.render(s);
+      stale = false;
+      renderCost[renderSlot++ % renderCost.length] =
+        performance.now() - started;
+    }
     raf = requestAnimationFrame(frame);
+  }
+  // Big hits hold the frame for a beat. The simulation's timing is untouched:
+  // every system simply waits, so nothing is gained or lost in the pause.
+  function hitStop(phase: CampaignPhase, hull: number, broken: number) {
+    if (s.phase === "dying" && phase === "fight") {
+      sound.note(46, 0.8, 0.07, 0, true);
+      sound.note(92, 0.45, 0.035);
+      return 0.26;
+    }
+    if (s.phase === "transform" && phase === "fight") {
+      sound.note(58, 0.5, 0.06, 0, true);
+      return 0.2;
+    }
+    if (s.player.hull < hull && s.phase !== "lose") return 0.075;
+    if (s.boss.breakWindow > broken + 1) return 0.09;
+    return 0;
   }
   const sizes = new ResizeObserver(resize);
   sizes.observe(host);
@@ -529,6 +605,17 @@ export function mountArcade(
     continueStage,
     toggleFocus,
     selectShip,
+    world: s,
+    timing() {
+      const count = Math.min(renderSlot, renderCost.length);
+      let total = 0,
+        worst = 0;
+      for (let i = 0; i < count; i++) {
+        total += renderCost[i];
+        worst = Math.max(worst, renderCost[i]);
+      }
+      return { render: count ? total / count : 0, worst };
+    },
     stop() {
       running = false;
       cancelAnimationFrame(raf);

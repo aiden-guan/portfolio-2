@@ -1,0 +1,168 @@
+/* The black page's sentence, with nothing to choose: the same type, the same
+   greys, the same way the words arrive. */
+
+:global(html):has(.root),
+:global(html):has(.root) :global(body) {
+  background: #000;
+  color-scheme: dark;
+}
+
+.root {
+  --ink: #f6f6f2;
+  --dim: #6c6c68;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: clamp(28px, 6vh, 56px);
+  padding: 24px max(24px, env(safe-area-inset-right)) 24px max(24px, env(safe-area-inset-left));
+  overflow: hidden;
+  background: #000;
+  color: var(--ink);
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.root ::selection {
+  background: #f6f6f2;
+  color: #000;
+}
+
+.line {
+  max-width: 20em;
+  margin: 0;
+  color: var(--dim);
+  font-size: clamp(30px, 3.85vw, 58px);
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.034em;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.part {
+  display: inline-block;
+  animation: rise 1000ms var(--ease-out) backwards;
+  animation-delay: calc(var(--d) * 120ms + 160ms);
+}
+
+.name {
+  color: #e7e7e2;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.28em);
+    filter: blur(8px);
+  }
+}
+
+/* The right word, set in the face of the page it opens, on the rule the
+   black page draws under its blank. */
+.word {
+  position: relative;
+  color: var(--ink);
+  text-decoration: none;
+  outline: none;
+}
+
+.word::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.04em;
+  height: max(1px, 0.03em);
+  background: currentColor;
+  opacity: 0.24;
+  transition: opacity 260ms ease;
+}
+
+.word:hover::after,
+.word:focus-visible::after {
+  opacity: 0.85;
+}
+
+.word:focus-visible {
+  border-radius: 0.08em;
+  box-shadow: 0 0 0 0.12em #000, 0 0 0 calc(0.12em + 2px) var(--ink);
+}
+
+.word[data-role="founder"] {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+
+.word[data-role="student"] {
+  font-family: var(--font-grotesk), "Arial Narrow", sans-serif;
+  font-weight: 800;
+  font-stretch: 62.5%;
+  font-variation-settings: "wdth" 62.5;
+  letter-spacing: -0.008em;
+}
+
+.word[data-role="builder"] {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-weight: 400;
+  letter-spacing: -0.075em;
+}
+
+.word[data-role="designer"] {
+  font-family: var(--font-pixel), monospace;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* The way back, in the voice of the black page's hint, as a real link: a
+   full finger high, and as light as it needs to be to read. */
+.home {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: #9a9a95;
+  font: 400 12px/1 var(--font-geist-mono), ui-monospace, monospace;
+  letter-spacing: 0.02em;
+  text-decoration: underline;
+  text-decoration-color: rgb(154 154 149 / 0.4);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.35em;
+  transition:
+    color 160ms ease,
+    text-decoration-color 160ms ease;
+  animation: arrive 900ms ease 900ms backwards;
+}
+
+.home:hover {
+  color: var(--ink);
+  text-decoration-color: currentColor;
+}
+
+.home:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  color: var(--ink);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .part {
+    animation: arrive 600ms ease both;
+    animation-delay: calc(var(--d) * 60ms + 80ms);
+  }
+
+  .home {
+    animation: arrive 600ms ease 300ms backwards;
+  }
+}

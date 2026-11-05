@@ -12,6 +12,8 @@
 .th-foot,
 .th-handoff,
 .th-links,
+.th-label,
+.th-stack,
 .th-thread em,
 .th-back-kicker,
 .th-back-foot {
@@ -109,6 +111,35 @@
   font-style: normal;
 }
 
+/* what the slip says about it, typed in under the thread */
+.th-remarks {
+  display: grid;
+  gap: calc(var(--u) * 0.9);
+  margin-top: calc(var(--u) * 3.6);
+  padding-top: calc(var(--u) * 2.2);
+  border-top: 1px solid rgb(29 28 25 / 0.3);
+}
+
+.th-label,
+.th-stack {
+  color: var(--print-muted);
+  font-size: max(8.5px, calc(var(--u) * 1.55));
+}
+
+.th-detail {
+  margin: 0;
+  color: #232220;
+  font-family: var(--font-mono), var(--mono);
+  font-size: max(10.5px, calc(var(--u) * 2.15));
+  font-variation-settings: "wdth" 82;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.th-stack {
+  margin: 0;
+}
+
 .th-foot {
   align-items: end;
   margin-top: auto;
@@ -148,6 +179,13 @@
 .th-back-foot {
   color: var(--riso-pink);
   font-size: max(10px, calc(var(--u) * 2));
+}
+
+/* riso-printed, like the postcards' picture sides (app/mat.css) */
+.th-back > * {
+  mix-blend-mode: multiply;
+  -webkit-mask: var(--ink) 0 0 / 140px;
+  mask: var(--ink) 0 0 / 140px;
 }
 
 .th-graph {
@@ -193,8 +231,9 @@
   font-variation-settings: "wdth" 72;
 }
 
+/* stamped beside the name, clear of the sheet's number */
 .th > .stamp {
-  top: calc(var(--u) * 9);
-  right: calc(var(--u) * 8);
+  top: calc(var(--u) * 11.5);
+  right: calc(var(--u) * 7);
   bottom: auto;
 }

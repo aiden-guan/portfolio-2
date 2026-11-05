@@ -27,6 +27,16 @@ function subscribe(callback: () => void) {
   };
 }
 
+// The browser's bar takes its colour from the page's theme-color, one for
+// light and one for dark, chosen by the system setting. Picked here, the bar
+// follows the pick instead (as the theme script in app/layout does on load).
+function paintBar(theme: Theme) {
+  const bars = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"][media]')];
+  for (const bar of bars) bar.dataset.color ??= bar.content;
+  const picked = bars.find((bar) => bar.media.includes(`: ${theme})`))?.dataset.color;
+  if (picked) for (const bar of bars) bar.content = picked;
+}
+
 export function ThemeToggle() {
   const theme = useSyncExternalStore(subscribe, resolvedTheme, () => "light");
 
@@ -34,6 +44,7 @@ export function ThemeToggle() {
     const next = resolvedTheme() === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = next;
     window.localStorage.setItem("aiden-theme", next);
+    paintBar(next);
     window.dispatchEvent(new Event(themeEvent));
   }
 

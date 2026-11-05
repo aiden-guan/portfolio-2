@@ -1,7 +1,8 @@
 import { Vector3 } from "three";
 import { LOOKS, someone } from "../people";
 import type { ActorSpec } from "../stage";
-import type { Ctx } from "./types";
+import { again, running } from "./notice";
+import type { Ctx, Line } from "./types";
 
 // The people from the dorm, shared by the Berkeley chapters: Miles, the
 // roommate; Jun, from down the hall; and whoever Miles brought back.
@@ -33,9 +34,17 @@ export async function junBargesIn(ctx: Ctx) {
   ctx.sound()?.click();
   ctx.sound()?.whoosh(0.4, false, 0.14);
   ctx.bubble("door", "BANG", 900);
+  ctx.emote("aiden", "!");
   stage.addActor(JUN(new Vector3(-3.7, 0, 2.3), { heading: Math.PI / 2 }));
   stage.actor("jun")?.show(true);
   stage.actor("jun")?.place(new Vector3(-3.7, 0, 2.3), Math.PI / 2);
   await stage.actor("jun")?.walkTo(new Vector3(-2.6, 0, 1.9));
   stage.actor("jun")?.face(stage.position);
+}
+
+/** Miles, asked for a joke: a new one each time, none of them jokes. Three
+ * running, and that's a moment. */
+export async function milesJokes(ctx: Ctx, key: string, jokes: Line[][]) {
+  await ctx.say(again(ctx, key, jokes));
+  if (running(ctx) === 3) ctx.feat("toughcrowd");
 }

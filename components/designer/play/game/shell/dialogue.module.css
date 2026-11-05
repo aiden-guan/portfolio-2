@@ -1,0 +1,442 @@
+/* The dialogue box: paper at the bottom of the screen, the portrait on the
+   left, the speaker's name on a tab that sits on its top edge. */
+
+.box {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 15;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  width: min(760px, calc(100vw - 28px));
+  min-height: 118px;
+  margin: 0 auto;
+  padding: 16px 22px 20px 14px;
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 2px var(--cream), 0 5px 0 var(--ink);
+  cursor: pointer;
+  animation: boxIn 320ms var(--spring-soft) both;
+}
+
+@keyframes boxIn {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.98);
+  }
+}
+
+.box[data-leaving] {
+  pointer-events: none;
+  animation: boxOut 170ms var(--ease-in) forwards;
+}
+
+@keyframes boxOut {
+  to {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.box[data-choosing] {
+  cursor: default;
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* a narrator's note: no face, no name, on the cream of the intro cards */
+.box[data-note] {
+  grid-template-columns: minmax(0, 1fr);
+  background: #f3ece0;
+}
+
+.box[data-note] .text {
+  color: #3d3a35;
+}
+
+/* —— who's talking */
+
+.face {
+  width: 84px;
+  height: 84px;
+  overflow: hidden;
+  border: 3px solid var(--ink);
+  border-radius: 3px;
+  background: var(--cream);
+  animation: faceIn 340ms var(--spring) both;
+}
+
+@keyframes faceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.face img {
+  display: block;
+  width: 100%;
+  height: calc(100% + 4px);
+  object-fit: cover;
+  object-position: top center;
+  image-rendering: pixelated;
+}
+
+/* while the words come, the face bobs: two frames, like a sprite talking */
+.face[data-talking] img {
+  animation: talking 300ms steps(1, end) infinite;
+}
+
+@keyframes talking {
+  0% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -3px;
+  }
+  100% {
+    translate: 0 0;
+  }
+}
+
+.faceIcon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--cream);
+}
+
+.name {
+  position: absolute;
+  left: 112px;
+  top: -15px;
+  padding: 3px 10px 4px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  background: var(--cobalt);
+  color: var(--paper);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  line-height: 1.15;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 3px 0 var(--ink);
+  animation: nameIn 300ms var(--spring) both 30ms;
+}
+
+@keyframes nameIn {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+.box[data-note] .name {
+  display: none;
+}
+
+.name[data-tag="orange"] {
+  background: var(--orange);
+  color: var(--ink);
+}
+
+.name[data-tag="ink"] {
+  background: var(--ink);
+  box-shadow: 0 3px 0 #000;
+}
+
+.name[data-tag="green"] {
+  background: #4f9a5c;
+}
+
+.name[data-tag="denim"] {
+  background: #4a6f9e;
+}
+
+.name[data-tag="red"] {
+  background: #d74718;
+}
+
+.name[data-tag="gold"] {
+  background: #f2c46b;
+  color: var(--ink);
+}
+
+/* —— the words */
+
+.speech {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding-top: 6px;
+}
+
+.text {
+  margin: 0;
+  font-size: clamp(16px, 1.9vw, 20px);
+  line-height: 1.45;
+}
+
+.rest {
+  visibility: hidden;
+}
+
+/* —— on, when the line is done */
+
+.more {
+  position: absolute;
+  right: 14px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.more[data-shown] {
+  opacity: 1;
+}
+
+.more small {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  animation: fadeIn 300ms ease both 400ms;
+}
+
+.chevron {
+  width: calc(var(--w) * 2px);
+  height: calc(var(--h) * 2px);
+}
+
+.more[data-shown] .chevron {
+  animation: chevronIn 260ms var(--spring) both, chevron 700ms steps(1, end) infinite 260ms;
+}
+
+@keyframes chevronIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes chevron {
+  0% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 3px;
+  }
+  100% {
+    translate: 0 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/* —— answers */
+
+.choices {
+  display: grid;
+  gap: 7px;
+}
+
+.choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 7px 10px 8px;
+  border: 2px solid rgba(27, 29, 34, 0.18);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+  font: 400 15px/1.35 var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.55;
+  animation: choiceIn 320ms var(--spring-soft) both;
+  animation-delay: calc(var(--i) * 60ms);
+  transition:
+    opacity 160ms ease,
+    border-color 100ms ease,
+    background-color 100ms ease,
+    color 100ms ease,
+    box-shadow 140ms var(--ease),
+    translate 140ms var(--ease);
+}
+
+@keyframes choiceIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.choices[data-armed] .choice {
+  opacity: 1;
+}
+
+.choices[data-armed] .choice[data-on] {
+  border-color: var(--cobalt);
+  background: #eef3fd;
+  box-shadow: 0 3px 0 var(--cobalt-deep);
+  translate: 0 -2px;
+}
+
+.choice:focus-visible {
+  outline: 3px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.choice img {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  image-rendering: pixelated;
+}
+
+.answer {
+  display: grid;
+  gap: 1px;
+}
+
+.answer b {
+  color: var(--muted);
+  font: 600 11px/1.2 var(--font-pixel), monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.choice kbd {
+  display: grid;
+  flex: none;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0 5px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 12px/1 var(--font-pixel), monospace;
+  box-shadow: 0 2px 0 var(--ink);
+  opacity: 0.55;
+  transition: opacity 100ms ease;
+}
+
+.choices[data-armed] .choice[data-on] kbd {
+  background: var(--cobalt);
+  color: var(--paper);
+  opacity: 1;
+}
+
+/* the pick lands: it inks in and presses down, the others fall away */
+.choices[data-confirming] .choice {
+  pointer-events: none;
+}
+
+.choices[data-confirming] .choice:not([data-picked]) {
+  opacity: 0.3;
+  translate: 0 2px;
+}
+
+/* transitions only: swapping the animation here would replay the row's
+   entrance just as the box leaves */
+.choices[data-armed] .choice[data-picked] {
+  border-color: var(--ink);
+  background: var(--cobalt);
+  color: var(--paper);
+  box-shadow: 0 1px 0 var(--ink);
+  translate: 0 2px;
+  transition-duration: 60ms;
+}
+
+.choices[data-armed] .choice[data-picked] .answer b {
+  color: rgba(251, 248, 241, 0.72);
+}
+
+.choices[data-armed] .choice[data-picked] kbd {
+  background: var(--paper);
+  color: var(--cobalt);
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .box {
+    width: calc(100vw - 16px);
+    bottom: max(8px, env(safe-area-inset-bottom));
+    gap: 11px;
+    min-height: 100px;
+    padding: 15px 14px 18px 10px;
+  }
+
+  .face {
+    width: 58px;
+    height: 58px;
+  }
+
+  .name {
+    left: 81px;
+    top: -14px;
+    font-size: 12px;
+  }
+
+  .text {
+    font-size: 16px;
+  }
+
+  .choice {
+    font-size: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .box,
+  .face,
+  .name,
+  .choice {
+    animation-name: fadeIn;
+    animation-duration: 160ms;
+  }
+
+  .box[data-leaving] {
+    animation: fadeOut 140ms ease forwards;
+  }
+
+  .face[data-talking] img,
+  .more[data-shown] .chevron {
+    animation: none;
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}

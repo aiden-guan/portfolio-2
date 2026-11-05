@@ -30,6 +30,8 @@ export type Room = {
   /** The floor's height here, where it isn't 0 (a stage). */
   floorAt?: (x: number, z: number) => number;
   update?: (time: number, dt: number) => void;
+  /** The time on the HUD's clock, in minutes since midnight, for a room with a clock on the wall. */
+  setTime?: (minutes: number) => void;
   dispose: () => void;
 };
 
@@ -37,6 +39,134 @@ export const indoorFloor = worldMaterial({ key: "game-floor", flag: FLAG.ground,
 export const outdoorFloor = worldMaterial({ key: "game-floor-out", flag: FLAG.ground });
 export const outdoorSolid = worldMaterial({ key: "game-solid-out", flag: FLAG.solid });
 export const softSolid = worldMaterial({ key: "game-soft", flag: FLAG.soft, cloud: false });
+
+/** 1 normally, 0 for someone who asked for less motion: what sways and drifts is multiplied by it. */
+export const motion = { value: 1 };
+let query: MediaQueryList | null = null;
+/** Whether someone asked for less motion, read as it is now; keeps `motion` in step with it. */
+export function calm() {
+  if (!query && typeof window !== "undefined" && window.matchMedia) query = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const reduce = Boolean(query?.matches);
+  motion.value = reduce ? 0 : 1;
+  return reduce;
+}
+
+// Light that comes from the thing itself. The island's glow is made for
+// night-time lamps and runs hot after dark, which turns a screen into a
+// blob; these stay what they are by day and by night.
+/** A screen, a sign, a lit window: its own colour, a little under full. */
+export const screenGlow = worldMaterial({
+  key: "game-screen",
+  flag: FLAG.solid,
+  cloud: false,
+  fragment: "reflectedLight.directDiffuse *= 0.12; reflectedLight.indirectDiffuse *= 0.12; totalEmissiveRadiance = diffuseColor.rgb * 0.92;",
+});
+/** What's out of a window: unlit, exactly the colours it's painted. */
+export const viewGlow = worldMaterial({
+  key: "game-view",
+  flag: FLAG.ground,
+  cloud: false,
+  fragment: "reflectedLight.directDiffuse = vec3(0.0); reflectedLight.indirectDiffuse = vec3(0.0); totalEmissiveRadiance = diffuseColor.rgb;",
+});
+/** A bulb, a moon: bright enough that at night it bleeds into the pixels around it. */
+export const bulbGlow = worldMaterial({
+  key: "game-bulb",
+  flag: FLAG.soft,
+  cloud: false,
+  fragment: "totalEmissiveRadiance = diffuseColor.rgb * 2.4;",
+});
+/** A lampshade: cloth by day, lit through from inside after dark. */
+export const shadeGlow = worldMaterial({
+  key: "game-shade",
+  flag: FLAG.solid,
+  cloud: false,
+  fragment: "totalEmissiveRadiance += diffuseColor.rgb * uNight * 0.9;",
+});
+/** Fairy lights: each bulb warms and dims slowly, on its own beat. */
+export const twinkleGlow = worldMaterial({
+  key: "game-twinkle",
+  flag: FLAG.soft,
+  cloud: false,
+  fragment:
+    "float beat = sin(uTime * (0.6 + hash12(floor(vWorld.xz * 10.0)) * 0.7) + hash12(floor(vWorld.zy * 10.0)) * 6.28); totalEmissiveRadiance = diffuseColor.rgb * (0.8 + 0.22 * beat) * (0.55 + 0.45 * uNight);",
+});
+/** A power light: on for a moment every couple of seconds, each on its own beat. */
+export const blinkGlow = worldMaterial({
+  key: "game-blink",
+  flag: FLAG.soft,
+  cloud: false,
+  fragment:
+    "float beat = fract(uTime * 0.45 + hash12(floor(vWorld.xz * 10.0) + floor(vWorld.y * 10.0)) * 9.0); totalEmissiveRadiance = diffuseColor.rgb * mix(0.35, 2.4, step(0.62, beat));",
+});
+
+const screens = new Map<string, ReturnType<typeof worldMaterial>>();
+/** A screen with text on it that scrolls up a line at a time: lines of words
+ * a pixel high in `ink` over the screen's own colour. `axis` is the way the
+ * screen faces (a screen facing +x reads along −z). */
+export function textScreen(axis: "x" | "z", ink: number, rate = 1.6) {
+  const key = `${axis}-${ink}-${rate}`;
+  const existing = screens.get(key);
+  if (existing) return existing;
+  const c = new Color(ink);
+  const material = worldMaterial({
+    key: `game-text-${axis}`,
+    flag: FLAG.solid,
+    cloud: false,
+    extraUniforms: { uInk: { value: c }, uRate: { value: rate } },
+    fragmentHead: "uniform vec3 uInk; uniform float uRate;",
+    fragment: /* glsl */ `
+{
+  vec2 q = vec2(${axis === "x" ? "-vWorld.z" : "vWorld.x"}, vWorld.y);
+  float r = q.y / 0.064;
+  float line = floor(uTime * uRate) - floor(r);
+  float word = floor(q.x / 0.046 + hash12(vec2(line, 3.0)) * 4.0);
+  float on = step(0.5, fract(r)) * step(0.34, hash12(vec2(word, line))) * step(0.18, hash12(vec2(line, 11.0)));
+  vec3 face = mix(diffuseColor.rgb, uInk, on);
+  reflectedLight.directDiffuse *= 0.12;
+  reflectedLight.indirectDiffuse *= 0.12;
+  totalEmissiveRadiance = face * 0.92;
+}`,
+  });
+  screens.set(key, material);
+  return material;
+}
+
+const hangs = new Map<string, ReturnType<typeof worldMaterial>>();
+/** Cloth that hangs from a line and breathes in the room's air: the further
+ * below its top, the more it moves, along `axis` (the way the wall it hangs on
+ * faces). Its mesh's origin has to be on the line it hangs from (see `hanging`). */
+export function hangSway(axis: "x" | "z", amount = 0.02, solidFlag = true) {
+  const key = `${axis}-${amount}-${solidFlag}`;
+  const existing = hangs.get(key);
+  if (existing) return existing;
+  const material = worldMaterial({
+    key: `game-hang-${axis}`,
+    flag: solidFlag ? FLAG.solid : FLAG.soft,
+    cloud: false,
+    extraUniforms: { uMotion: motion, uAmount: { value: amount } },
+    vertexHead: "uniform float uMotion; uniform float uAmount;",
+    vertex: /* glsl */ `
+{
+  float hang = max(0.0, -transformed.y);
+  float along = transformed.x + transformed.z;
+  float breathe = sin(uTime * 0.85 + along * 3.1 + swayOrigin.x * 1.7 + swayOrigin.z) * 0.6 + sin(uTime * 0.33 + along * 1.3) * 0.4;
+  // out from the wall it hangs on and back, never into it
+  transformed.${axis} += hang * uAmount * (0.5 + 0.5 * breathe) * uMotion;
+}`,
+  });
+  hangs.set(key, material);
+  return material;
+}
+
+/** A mesh for something that hangs (see `hangSway`): `top` is the voxel row it hangs from. */
+export function hanging(v: Voxels, material: Material, top: number, origin: [number, number]) {
+  const m = meshOf(v, material, { origin: [origin[0], top + 1, origin[1]] });
+  m.position.y = (top + 1) * S;
+  return m;
+}
+
+/** The floor slab only shows its thickness along the two near edges, so only they need it. */
+export const nearEdge = (i: number, k: number, iMax: number, kMax: number) => i >= iMax || k >= kMax;
 
 /** A voxel model as a mesh, `origin` voxels shifted to the world origin. */
 export function meshOf(v: Voxels, material: Material = solid, { shadow = true, origin = [0, 0, 0] as [number, number, number], seed = 5 } = {}) {
@@ -102,7 +232,7 @@ const GLYPHS: Record<string, string[]> = {
   "7": ["111", "001", "010", "010", "010"],
   "8": ["111", "101", "111", "101", "111"],
   "9": ["111", "101", "111", "001", "110"],
-  $: ["011", "110", "010", "011", "110"],
+  $: ["01111", "10100", "01110", "00101", "11110"],
   "-": ["000", "000", "111", "000", "000"],
   "+": ["000", "010", "111", "010", "000"],
   "&": ["010", "101", "010", "101", "011"],

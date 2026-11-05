@@ -4,30 +4,36 @@ import {
   useEffect,
   useEffectEvent,
   useId,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
+  type Ref,
   type RefObject,
 } from "react";
 import { flushSync } from "react-dom";
-import { formatMonth } from "@/content/worlds";
+import { formatMonth, imageFocus } from "@/content/worlds";
+import { leave, move } from "./address";
 import type { GridHandle } from "./grid";
 import { ArrowUpRight, Chevron, Cross, Trophy } from "./icons";
-import { EASE_OUT, EASE_SHEET, ago, corners, fadeAway, freeze, ghost, painted, rectTransform, reducedMotion, release } from "./motion";
-import { Shot, warm } from "./shot";
+import { EASE_OUT, EASE_SHEET, ago, corners, fadeAway, freeze, ghost, rectTransform, reducedMotion, release } from "./motion";
+import { HERO, Shot, THUMB, warm } from "./shot";
 import { StatusMark } from "./status";
 import type { Build } from "./types";
 import styles from "./sheet.module.css";
 
-const HERO_SIZES = "(min-width: 1000px) 720px, (min-width: 640px) 90vw, 100vw";
-
-// morph: the card's picture grows into the sheet. slide: a phone's sheet,
-// up from the bottom. rise: opened from a shared link, with no card to grow
-// from. fade: reduced motion.
+// morph: the card's picture grows into the sheet, and back. slide: a phone's
+// sheet, up from the bottom (opened from a link, or flicked away). rise: opened
+// from a link on a wider screen, with no card to grow from. fade: reduced motion.
 type Motion = "morph" | "slide" | "rise" | "fade";
+
+export type SheetHandle = {
+  /** Closes with the sheet's own motion; `fromHistory` when the back arrow already left its step. */
+  close: (fromHistory?: boolean) => void;
+};
 
 const phone = () => window.matchMedia("(max-width: 639px)").matches;
 
@@ -35,16 +41,8 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 const radius = (element: Element) => parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0;
 
-// ?p=<slug> names the open build, so the address can be shared.
-function link(slug: string | null) {
-  const url = new URL(window.location.href);
-  if (slug) url.searchParams.set("p", slug);
-  else url.searchParams.delete("p");
-  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-}
-
-// Scrolls the page underneath (locked, and blurred out) so the card the
-// sheet is about to shrink into is on screen.
+// Scrolls the page underneath (locked, and covered) so the card the sheet is
+// about to fold back into is on screen.
 function bringIntoView(media: HTMLElement) {
   const box = media.getBoundingClientRect();
   if (box.top >= 64 && box.bottom <= window.innerHeight - 24) return;
@@ -52,22 +50,30 @@ function bringIntoView(media: HTMLElement) {
 }
 
 export function Sheet({
+  ref,
   builds,
   initial,
+  view: firstView,
+  placeholder,
   from,
   now,
   grid,
   onClosed,
 }: {
+  ref?: Ref<SheetHandle>;
   builds: Build[];
   initial: string;
+  /** Which of the build's pictures it opens on (the one the card was scrubbed to). */
+  view: number;
+  /** The file the card already has on screen, shown under the hero until its own arrives. */
+  placeholder: string | null;
   from: "card" | "link";
   now: number;
   grid: RefObject<GridHandle | null>;
   onClosed: (slug: string) => void;
 }) {
   const [index, setIndex] = useState(() => Math.max(0, builds.findIndex((build) => build.slug === initial)));
-  const [view, setView] = useState(0);
+  const [view, setView] = useState(firstView);
   const build = builds[index];
   const count = builds.length;
   const images = [build.slug, ...(build.gallery ?? [])];
@@ -108,21 +114,21 @@ export function Sheet({
     const sheet = panel.current;
     const card = surface.current;
     const picture = hero.current;
-    if (!shade || !sheet || !card || !picture) return;
-    const motion: Motion = reducedMotion() ? "fade" : phone() ? "slide" : media ? "morph" : "rise";
     const running: Animation[] = [];
+    if (!shade || !sheet || !card || !picture) return running;
+    const motion: Motion = reducedMotion() ? "fade" : media ? "morph" : phone() ? "slide" : "rise";
     const play = (element: Element, keyframes: Keyframe[], options: KeyframeAnimationOptions) =>
       running.push(element.animate(keyframes, { fill: "backwards", ...options }));
 
-    play(shade, [{ opacity: 0 }, { opacity: 1 }], { duration: motion === "fade" ? 200 : 480, easing: EASE_OUT });
+    play(shade, [{ opacity: 0 }, { opacity: 1 }], { duration: motion === "fade" ? 200 : 420, easing: EASE_OUT });
     if (motion === "fade") {
       play(sheet, [{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: EASE_OUT });
     } else if (motion === "slide") {
-      play(sheet, [{ transform: "translateY(100%)" }, { transform: "none" }], { duration: 620, easing: EASE_SHEET });
+      play(sheet, [{ transform: "translateY(100%)" }, { transform: "none" }], { duration: 560, easing: EASE_SHEET });
     } else {
-      const grow = { duration: 580, easing: EASE_SHEET };
-      if (media) {
-        // The card's picture grows into the hero while the panel unfolds out
+      const grow = { duration: 560, easing: EASE_SHEET };
+      if (motion === "morph" && media) {
+        // The card's picture grows into the hero while the sheet unfolds out
         // of the card behind it, both with corners counter-scaled so they
         // stay as round as the card's on the way.
         const start = media.getBoundingClientRect();
@@ -141,70 +147,68 @@ export function Sheet({
           card,
           [
             { transform: rectTransform(area, start), borderRadius: corners(round, area, start), opacity: 0 },
-            { opacity: 1, offset: 0.12 },
+            { opacity: 1, offset: 0.14 },
             { transform: "none", borderRadius: `${radius(card)}px`, opacity: 1 },
           ],
           grow,
         );
         lift(media);
       } else {
-        const rise: Keyframe[] = [{ opacity: 0, transform: "translateY(24px)" }, { opacity: 1, transform: "none" }];
+        const rise: Keyframe[] = [{ opacity: 0, transform: "translateY(20px)" }, { opacity: 1, transform: "none" }];
         play(picture, rise, grow);
         play(card, rise, grow);
       }
       parts().forEach((part, order) =>
-        play(part, [{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }], {
-          duration: 600,
-          delay: 220 + order * 40,
+        play(part, [{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }], {
+          duration: 520,
+          delay: 150 + order * 32,
           easing: EASE_OUT,
         }),
       );
     }
     Promise.allSettled(running.map((animation) => animation.finished)).then(() => {
-      if (life.current.phase === "opening") life.current.phase = "open";
+      const played = running.every((animation) => animation.playState === "finished");
+      if (played && life.current.phase === "opening") life.current.phase = "open";
     });
+    return running;
   });
 
-  // Open: lock the page, wait until the picture can be painted, then go.
+  // Open at once, on the frame the click lands on: lock the page, start the
+  // motion, and put focus inside.
   useLayoutEffect(() => {
     const html = document.documentElement;
     const overflow = html.style.overflow;
     html.style.overflow = "hidden";
-    // Kept transparent rather than hidden while it waits: the site's
-    // reduced-motion rule turns even visibility into a transition, and a
-    // hidden close button can't take focus.
-    const root = layer.current;
-    if (root) root.style.opacity = "0";
-    const media = from === "card" ? (grid.current?.media(initial) ?? null) : null;
-    let gone = false;
-    link(initial);
-    painted(stack.current?.querySelector("img"), 220).then(() => {
-      if (gone) return;
-      if (root) root.style.opacity = "";
-      enter(media);
-      closeButton.current?.focus({ preventScroll: true });
-    });
+    const state = life.current;
+    const running = enter(from === "card" ? (grid.current?.media(initial) ?? null) : null);
+    closeButton.current?.focus({ preventScroll: true });
     return () => {
-      gone = true;
       html.style.overflow = overflow;
+      // undone entirely, so a second run (React does one in development)
+      // measures the sheet where it really lies
+      for (const animation of running) animation.cancel();
+      if (state.phase === "opening" && state.lifted) {
+        state.lifted.style.visibility = "";
+        state.lifted = null;
+      }
     };
   }, [from, grid, initial]);
 
   // the builds either side, ready before they're asked for
   useEffect(() => {
     if (count < 2) return;
-    warm(builds[(index + 1) % count].slug, HERO_SIZES);
-    warm(builds[(index - 1 + count) % count].slug, HERO_SIZES);
+    warm(builds[(index + 1) % count].slug, HERO);
+    warm(builds[(index - 1 + count) % count].slug, HERO);
   }, [builds, count, index]);
 
-  function close(velocity = 0) {
+  function close({ velocity, fromHistory = false }: { velocity?: number; fromHistory?: boolean } = {}) {
     const state = life.current;
     if (state.phase === "closing") return;
     state.phase = "closing";
+    if (!fromHistory) leave();
     const slug = build.slug;
     const done = () => {
       lift(null);
-      link(null);
       onClosed(slug);
     };
     const root = layer.current;
@@ -217,7 +221,7 @@ export function Sheet({
     const moving = parts();
     for (const element of [shade, sheet, card, picture, ...moving]) freeze(element);
 
-    let motion: Motion = reducedMotion() ? "fade" : phone() ? "slide" : "morph";
+    let motion: Motion = reducedMotion() ? "fade" : velocity !== undefined ? "slide" : "morph";
     let media: HTMLElement | null = null;
     let target: DOMRect | null = null;
     if (motion === "morph") {
@@ -227,7 +231,10 @@ export function Sheet({
         bringIntoView(media);
         target = media.getBoundingClientRect();
       }
-      if (!target || target.bottom < 0 || target.top > window.innerHeight) motion = "fade";
+      const shown = picture.getBoundingClientRect();
+      const offscreen = (box: DOMRect) => box.bottom < 0 || box.top > window.innerHeight;
+      // with nothing to fold back into, or the hero scrolled away, it goes the plain way
+      if (!target || offscreen(target) || offscreen(shown)) motion = phone() ? "slide" : "rise";
     }
 
     const running: Animation[] = [];
@@ -235,7 +242,7 @@ export function Sheet({
       running.push(element.animate(keyframes, { fill: "both", ...options }));
 
     if (motion === "morph" && media && target) {
-      // The words go first; then the hero and the panel fold back down into
+      // The words go first; then the hero and the sheet fold back down into
       // the card together, from wherever they are (even part-way open).
       const round = radius(media);
       const pictureNow = release(picture);
@@ -243,31 +250,39 @@ export function Sheet({
       const cardNow = release(card);
       const cardBox = card.getBoundingClientRect();
       lift(media);
-      for (const part of moving) play(part, [{ opacity: 0 }], { duration: 80, easing: "linear" });
-      const fold = { duration: 500, delay: 60, easing: EASE_SHEET };
+      // cards rest on their first picture: the hero turns back to it on the way down
+      if (view !== 0) setView(0);
+      for (const part of moving) play(part, [{ opacity: 0 }], { duration: 90, easing: "linear" });
+      const fold = { duration: 480, delay: 50, easing: EASE_SHEET };
       play(picture, [pictureNow, { transform: rectTransform(pictureBox, target), borderRadius: corners(round, pictureBox, target) }], fold);
       play(
         card,
         [
           cardNow,
-          { opacity: cardNow.opacity, offset: 0.35 },
+          { opacity: cardNow.opacity, offset: 0.4 },
           { transform: rectTransform(cardBox, target), borderRadius: corners(round, cardBox, target), opacity: 0 },
         ],
         fold,
       );
-      play(shade, [{ opacity: 0 }], { duration: 460, delay: 80, easing: EASE_OUT });
+      play(shade, [{ opacity: 0 }], { duration: 420, delay: 70, easing: EASE_OUT });
     } else if (motion === "slide") {
       lift(null);
       // a flick carries on at its own speed
-      const duration = velocity > 0 ? Math.min(420, Math.max(180, window.innerHeight / velocity)) : 440;
+      const duration = velocity ? Math.min(420, Math.max(180, window.innerHeight / velocity)) : 420;
       play(sheet, [{ transform: "translateY(100%)" }], { duration, easing: EASE_SHEET });
-      play(shade, [{ opacity: 0 }], { duration: Math.max(260, duration - 40), easing: EASE_OUT });
+      play(shade, [{ opacity: 0 }], { duration: Math.max(240, duration - 40), easing: EASE_OUT });
+    } else if (motion === "rise") {
+      lift(null);
+      play(sheet, [{ opacity: 0, transform: "translateY(16px)" }], { duration: 260, easing: "cubic-bezier(0.4, 0, 1, 1)" });
+      play(shade, [{ opacity: 0 }], { duration: 300, easing: EASE_OUT });
     } else {
       lift(null);
       play(root, [{ opacity: 0 }], { duration: 180, easing: "ease-out" });
     }
     Promise.allSettled(running.map((animation) => animation.finished)).then(done);
   }
+
+  useImperativeHandle(ref, () => ({ close: (fromHistory) => close({ fromHistory }) }));
 
   function go(step: 1 | -1) {
     const state = life.current;
@@ -291,7 +306,7 @@ export function Sheet({
       fadeAway(
         ghost(stack.current, heroGhosts.current),
         still ? [{ opacity: 1 }, { opacity: 0 }] : [{ transform: "none" }, { transform: `translateX(${-step * 12}%)` }],
-        { duration: still ? 220 : 640, easing: EASE_SHEET },
+        { duration: still ? 220 : 620, easing: EASE_SHEET },
       );
     }
     if (copy.current && copyGhosts.current) {
@@ -308,7 +323,7 @@ export function Sheet({
     });
     if (scroller.current) scroller.current.scrollTop = 0;
     if (state.lifted) lift(grid.current?.media(builds[next].slug) ?? null);
-    link(builds[next].slug);
+    move(builds[next].slug);
 
     if (still) {
       for (const element of [stack.current, ...arriving()]) {
@@ -316,14 +331,14 @@ export function Sheet({
       }
       return;
     }
-    // the panel's foot glides to the new build's height, corners kept round
+    // the sheet's foot glides to the new build's height, corners kept round
     const card = surface.current;
     const grown = panel.current?.offsetHeight ?? 0;
-    if (card && height && grown && Math.abs(height - grown) > 1) {
+    if (card && height && grown && Math.abs(height - grown) > 1 && !phone()) {
       const ratio = height / grown;
       const round = radius(card);
       card.animate([{ transform: `scaleY(${ratio})`, borderRadius: `${round}px / ${round / ratio}px` }, { transform: "none", borderRadius: `${round}px` }], {
-        duration: 620,
+        duration: 600,
         easing: EASE_SHEET,
       });
     }
@@ -332,12 +347,12 @@ export function Sheet({
         { clipPath: step > 0 ? "inset(0 0 0 100%)" : "inset(0 100% 0 0)", transform: `translateX(${step * 6}%)` },
         { clipPath: "inset(0 0 0 0)", transform: "none" },
       ],
-      { duration: 640, easing: EASE_SHEET, fill: "backwards" },
+      { duration: 620, easing: EASE_SHEET, fill: "backwards" },
     );
     arriving().forEach((element, order) =>
-      element.animate([{ opacity: 0, transform: `translateX(${step * 24}px)` }, { opacity: 1, transform: "none" }], {
-        duration: 520,
-        delay: 120 + order * 35,
+      element.animate([{ opacity: 0, transform: `translateX(${step * 20}px)` }, { opacity: 1, transform: "none" }], {
+        duration: 500,
+        delay: 110 + order * 32,
         easing: EASE_OUT,
         fill: "backwards",
       }),
@@ -375,7 +390,7 @@ export function Sheet({
   }
 
   // On a phone, pulling the sheet down from the top of its scroll lets it go.
-  const letGo = useEffectEvent((velocity: number) => close(velocity));
+  const letGo = useEffectEvent((velocity: number) => close({ velocity }));
   useEffect(() => {
     const area = scroller.current;
     const sheet = panel.current;
@@ -396,7 +411,7 @@ export function Sheet({
       velocity = 0;
       offset = 0;
     };
-    const move = (event: TouchEvent) => {
+    const drag = (event: TouchEvent) => {
       if (state === "idle") return;
       const y = event.touches[0]?.clientY ?? lastY;
       if (state === "maybe") {
@@ -435,12 +450,12 @@ export function Sheet({
     };
 
     area.addEventListener("touchstart", begin, { passive: true });
-    area.addEventListener("touchmove", move, { passive: false });
+    area.addEventListener("touchmove", drag, { passive: false });
     area.addEventListener("touchend", end);
     area.addEventListener("touchcancel", end);
     return () => {
       area.removeEventListener("touchstart", begin);
-      area.removeEventListener("touchmove", move);
+      area.removeEventListener("touchmove", drag);
       area.removeEventListener("touchend", end);
       area.removeEventListener("touchcancel", end);
     };
@@ -448,6 +463,12 @@ export function Sheet({
 
   const previous = builds[(index - 1 + count) % count];
   const next = builds[(index + 1) % count];
+  // the card's own file sits under the first picture, so the morph never
+  // starts on an empty frame while the bigger one loads
+  const under = (image: string, i: number): CSSProperties | undefined =>
+    placeholder && build.slug === initial && i === firstView
+      ? { backgroundImage: `url("${placeholder}")`, backgroundPosition: imageFocus(image) }
+      : undefined;
 
   return (
     <div ref={layer} className={styles.layer} style={{ "--accent": build.accent } as CSSProperties}>
@@ -466,7 +487,6 @@ export function Sheet({
             <div ref={surface} className={styles.surface} />
             <div className={styles.content}>
               <div className={styles.head} data-stagger="">
-                <span className={styles.grabber} aria-hidden="true" />
                 <p className={styles.place}>
                   <span className={styles.dot} aria-hidden="true" />
                   <span className={styles.at}>{pad(index + 1)}</span>
@@ -498,15 +518,11 @@ export function Sheet({
                       <div
                         key={image}
                         className={styles.view}
+                        style={under(image, i)}
                         data-active={i === view ? "" : undefined}
                         aria-hidden={i === view ? undefined : true}
                       >
-                        <Shot
-                          image={image}
-                          alt={i === 0 ? build.name : `${build.name}, ${i + 1} of ${images.length}`}
-                          sizes={HERO_SIZES}
-                          eager
-                        />
+                        <Shot image={image} alt={i === 0 ? build.name : `${build.name}, ${i + 1} of ${images.length}`} slot={HERO} eager />
                       </div>
                     ))}
                   </div>
@@ -523,7 +539,7 @@ export function Sheet({
                         aria-pressed={i === view}
                         onClick={() => setView(i)}
                       >
-                        <Shot image={image} alt="" sizes="96px" />
+                        <Shot image={image} alt="" slot={THUMB} />
                       </button>
                     ))}
                   </div>

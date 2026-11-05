@@ -10,16 +10,15 @@ export type PillHandle = {
   hide: () => void;
 };
 
-// spring on the pill's position: stiff enough to keep up, damped just under
-// critical so it lags and settles without wobbling
-const STIFFNESS = 240;
-const DAMPING = 25;
+// A critically damped spring on the pill's position: it keeps up with the
+// hand, trails it by a hair and settles in about a sixth of a second,
+// without wobbling.
+const STIFFNESS = 900;
+const DAMPING = 60;
 
-// How far above something the pointer must be for the pill (drawn 16px
-// below and 26px tall, cursor.module.css) to clear it by a few pixels.
-export const PILL_CLEARANCE = 48;
-
-// "Open", trailing the mouse over a card.
+// "Open", beside the pointer while it's over a card's picture. The system
+// cursor is never hidden; the pill only rides along with it, and touch,
+// keyboard and reduced motion never see it.
 export function CursorPill({ ref }: { ref?: Ref<PillHandle> }) {
   const pill = useRef<HTMLDivElement>(null);
 
@@ -33,11 +32,11 @@ export function CursorPill({ ref }: { ref?: Ref<PillHandle> }) {
     let hiddenAt = 0;
 
     const draw = () => {
-      if (pill.current) pill.current.style.transform = `translate3d(${at.x}px, ${at.y}px, 0)`;
+      if (pill.current) pill.current.style.transform = `translate3d(${at.x.toFixed(2)}px, ${at.y.toFixed(2)}px, 0)`;
     };
 
     const tick = (now: number) => {
-      const dt = Math.min(0.034, Math.max(0.001, (now - last) / 1000));
+      const dt = Math.min(0.032, Math.max(0.001, (now - last) / 1000));
       last = now;
       for (const axis of ["x", "y"] as const) {
         speed[axis] += (STIFFNESS * (goal[axis] - at[axis]) - DAMPING * speed[axis]) * dt;
@@ -54,20 +53,21 @@ export function CursorPill({ ref }: { ref?: Ref<PillHandle> }) {
       frame = requestAnimationFrame(tick);
     };
 
-    return {
+    const api: PillHandle = {
       show(x, y) {
         if (!pill.current || reducedMotion()) return;
         goal.x = x;
         goal.y = y;
         // fresh from outside the grid it starts at the pointer; from a
-        // neighbouring card it flies over
-        if (!shown && performance.now() - hiddenAt > 350) {
+        // neighbouring card it glides over
+        if (!shown && performance.now() - hiddenAt > 300) {
           at.x = x;
           at.y = y;
           speed.x = 0;
           speed.y = 0;
           draw();
         }
+        if (!shown) window.addEventListener("scroll", scrolled, { passive: true });
         shown = true;
         pill.current.dataset.on = "";
         run();
@@ -81,9 +81,13 @@ export function CursorPill({ ref }: { ref?: Ref<PillHandle> }) {
         if (!shown) return;
         shown = false;
         hiddenAt = performance.now();
+        window.removeEventListener("scroll", scrolled);
         if (pill.current) delete pill.current.dataset.on;
       },
     };
+    // scrolling carries the card out from under a still pointer
+    const scrolled = () => api.hide();
+    return api;
   }, []);
 
   return (

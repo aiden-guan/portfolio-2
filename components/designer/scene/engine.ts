@@ -18,6 +18,7 @@ import {
   type Material,
   type Object3D,
 } from "three";
+import { POST_FRAGMENT, POST_VERTEX } from "./post";
 import { uniforms } from "./shared";
 import { buildWorld, LIGHT, type WorldSpot } from "./world";
 
@@ -25,12 +26,20 @@ import { buildWorld, LIGHT, type WorldSpot } from "./world";
  * down the thing itself reaches on screen. */
 export type Marker = { id: string; x: number; y: number; top: number; bottom: number; visible: boolean };
 
+/** The art's pixel grid this frame, in css px within the container: an art
+ * pixel is `unit` across and the grid starts at (x, y), so whatever is laid
+ * over the canvas can sit on it. `moved` is false when nothing on screen has
+ * moved since the frame before. */
+export type Grid = { unit: number; x: number; y: number; moved: boolean };
+
 const PICK_SPACING = 10;
+/** the pick is drawn for this many art pixels square around the pointer */
+const PICK_SIZE = 5;
 
 export type EngineEvents = {
   onHover: (id: string | null) => void;
   onSelect: (id: string | null) => void;
-  onFrame: (markers: Marker[]) => void;
+  onFrame: (markers: Marker[], grid: Grid) => void;
   onInteract: () => void;
 };
 
@@ -40,155 +49,54 @@ const HOME = new Vector3(0, 5.8, 0);
 const MIN_ZOOM = 0.85;
 const MAX_ZOOM = 3.2;
 
+// How far the island reaches on screen, along the camera's right and up, in
+// world units: the edge all round, and the top of the tree.
+const REACH = { left: -30, right: 30, bottom: -15, top: 24 };
+
+// How quickly the camera settles, as the angular frequency of a critically
+// damped spring: gliding to a place, zooming, panning by keys, and coasting
+// to a stop after a flick (where it is also the friction).
+const GLIDE = 4.4;
+const ZOOM = 9;
+const PAN = 7;
+const COAST = 4.5;
+
 const BACKGROUND = {
   day: { top: new Color(0xdbe6ec), bottom: new Color(0xf2efe8) },
   night: { top: new Color(0x0e1c40), bottom: new Color(0x283a68) },
 };
 
-export const POST_VERTEX = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = position.xy * 0.5 + 0.5;
-  gl_Position = vec4(position.xy, 0.0, 1.0);
-}`;
+export { POST_FRAGMENT, POST_VERTEX } from "./post";
 
-// The pixel-art pass. Reads the scene rendered at art resolution and:
-// paints the paper (and at night, the sky: stars and a moon) where nothing was
-// drawn; darkens the rim of solid things where they stand in front of
-// something far away; grades the scene to moonlight at night; snaps colour to
-// a small set of levels with ordered dither, so gradients become pixel
-// patterns; lets lit things bleed a dithered glow at night; and eases a
-// one-pixel rim around whatever is pointed at.
-export const POST_FRAGMENT = /* glsl */ `
-uniform sampler2D tColor;
-uniform sampler2D tDepth;
-uniform sampler2D tMask;
-uniform sampler2D tMaskDepth;
-uniform vec2 uRes;
-uniform vec2 uSnap;
-uniform float uHasMask;
-uniform float uHover;
-uniform float uLevels;
-uniform float uNight;
-uniform float uTime;
-uniform vec3 uBgTop;
-uniform vec3 uBgBottom;
-uniform vec3 uRing;
-varying vec2 vUv;
-
-float bayer2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
-float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a); }
-float bayer8(vec2 a) { return bayer4(0.5 * a) * 0.25 + bayer2(a); }
-float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
-// for stars: whole-pixel inputs make the hash above fall into rows
-float starHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-
-vec3 toSRGB(vec3 c) {
-  c = max(c, vec3(0.0));
-  return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
+// A critically damped spring, stepped exactly, so it is the same at any frame
+// rate: returns where it is now and leaves its velocity in `springSpeed`. It
+// never overshoots a goal it starts at rest from, and a new goal mid-move
+// keeps the speed it has, so every move can be interrupted.
+let springSpeed = 0;
+function spring(x: number, v: number, goal: number, omega: number, dt: number) {
+  const d = x - goal;
+  const c = v + omega * d;
+  const e = Math.exp(-omega * dt);
+  springSpeed = (v - c * omega * dt) * e;
+  return goal + (d + c * dt) * e;
 }
 
-float masked(vec2 uv) {
-  float hit = step(0.5, texture2D(tMask, uv).r);
-  float visible = step(texture2D(tMaskDepth, uv).r, texture2D(tDepth, uv).r + 0.0004);
-  return hit * visible;
+// Past an edge the island gives, less the further it's pulled.
+function give(value: number, lo: number, hi: number, room: number) {
+  if (value < lo) return lo - band(lo - value, room);
+  if (value > hi) return hi + band(value - hi, room);
+  return value;
 }
-
-void main() {
-  vec2 px = floor(vUv * uRes);
-  vec2 texel = 1.0 / uRes;
-  vec2 uv = (px + 0.5) * texel;
-  float depth = texture2D(tDepth, uv).r;
-  vec4 src = texture2D(tColor, uv);
-  float dither = bayer8(px + uSnap) - 0.5;
-  vec3 col;
-
-  if (depth >= 0.99999) {
-    float sky = smoothstep(0.25, 1.0, vUv.y);
-    col = mix(uBgBottom, uBgTop, sky);
-    col += (hash(px + uSnap + 7.0) - 0.5) * (2.0 / 255.0);
-    if (uNight > 0.01) {
-      // many faint stars, a few bright ones with short arms; none low down
-      vec2 cell = px + uSnap;
-      float s = starHash(cell);
-      float above = smoothstep(0.24, 0.42, vUv.y);
-      float twinkle = 0.62 + 0.38 * sin(uTime * (0.7 + s * 2.4) + s * 50.0);
-      float faint = step(0.9925, s) * mix(0.25, 0.5, fract(s * 97.0));
-      float arms = max(max(starHash(cell + vec2(1.0, 0.0)), starHash(cell - vec2(1.0, 0.0))), max(starHash(cell + vec2(0.0, 1.0)), starHash(cell - vec2(0.0, 1.0))));
-      float bright = s > 0.99935 ? 1.0 : (arms > 0.99935 ? 0.38 : 0.0);
-      col = mix(col, vec3(1.0, 0.97, 0.88), max(faint, bright) * twinkle * above * uNight);
-      // the moon, fixed in the sky the way the real one is
-      vec2 mc = vec2(0.82, 0.79) * uRes;
-      float r = max(7.0, uRes.y * 0.034);
-      float d = length(px + 0.5 - mc);
-      float bite = length(px + 0.5 - (mc + vec2(r * 0.42, r * 0.3)));
-      // the halo only exists near the moon: tested explicitly, because a
-      // threshold that is merely tiny still lights one pixel in every 8x8
-      if (d < r * 2.8) {
-        float halo = 1.0 - smoothstep(r, r * 2.8, d);
-        col = mix(col, vec3(0.36, 0.44, 0.7), step(bayer8(px) + 0.02, halo * 0.5) * uNight * 0.45);
-      }
-      if (d < r && bite > r * 0.9) col = mix(col, vec3(1.0, 0.95, 0.8), uNight);
-    }
-  } else {
-    col = toSRGB(src.rgb);
-    if (src.a > 0.75) {
-      float dl = texture2D(tDepth, uv - vec2(texel.x, 0.0)).r;
-      float dr = texture2D(tDepth, uv + vec2(texel.x, 0.0)).r;
-      float du = texture2D(tDepth, uv + vec2(0.0, texel.y)).r;
-      float dd = texture2D(tDepth, uv - vec2(0.0, texel.y)).r;
-      float far = max(max(dl, dr), max(du, dd)) - depth;
-      if (far > 0.0022) col *= mix(0.6, 0.55, uNight);
-    }
-    float luma = dot(col, vec3(0.299, 0.587, 0.114));
-    col = clamp(mix(vec3(luma), col, 1.12), 0.0, 1.0);
-    // moonlight: cool and a little grey, except where something warm is lit
-    if (uNight > 0.01) {
-      float l = dot(col, vec3(0.299, 0.587, 0.114));
-      float warm = clamp((col.r - col.b) * 2.5, 0.0, 1.0) * smoothstep(0.1, 0.3, l);
-      vec3 moonlit = vec3(l) * vec3(0.74, 0.88, 1.22) + vec3(0.0, 0.012, 0.035);
-      col = mix(col, moonlit, 0.45 * uNight * (1.0 - warm));
-    }
-    col = floor(col * uLevels + 0.5 + dither) / uLevels;
-  }
-
-  // at night, lit things bleed a soft dithered glow into the pixels around them
-  if (uNight > 0.01) {
-    float glow = 0.0;
-    vec3 tint = vec3(0.0);
-    for (int y = -3; y <= 3; y++) {
-      for (int x = -3; x <= 3; x++) {
-        vec2 o = vec2(float(x), float(y));
-        float r = length(o);
-        if (r < 0.5 || r > 2.6) continue;
-        vec3 c = texture2D(tColor, uv + o * texel).rgb;
-        float hot = smoothstep(1.05, 2.0, max(c.r, max(c.g, c.b)));
-        float w = hot * (1.0 - r / 3.0) * (1.0 - r / 3.0);
-        glow += w;
-        tint += c * w;
-      }
-    }
-    if (glow > 0.001) {
-      vec3 halo = toSRGB(tint / glow);
-      float k = clamp(glow * 0.24, 0.0, 0.55) * uNight;
-      col = mix(col, max(col, halo * 0.85), step(bayer8(px + uSnap) + 0.001, k));
-    }
-  }
-
-  if (uHasMask > 0.5 && uHover > 0.001) {
-    float m = masked(uv);
-    float near = max(
-      max(masked(uv - vec2(texel.x, 0.0)), masked(uv + vec2(texel.x, 0.0))),
-      max(masked(uv + vec2(0.0, texel.y)), masked(uv - vec2(0.0, texel.y)))
-    );
-    if (m < 0.5 && near > 0.5) col = mix(col, uRing, 0.92 * uHover);
-    else if (m > 0.5) col = mix(col, vec3(1.0), 0.07 * uHover);
-  }
-
-  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
-}`;
-
-type View = { target: Vector3; zoom: number };
+const band = (over: number, room: number) => (1 - 1 / ((over * 0.55) / room + 1)) * room;
+// and back: how far it was pulled to give this much, for a drag that starts
+// out there
+function ungive(value: number, lo: number, hi: number, room: number) {
+  const back = (over: number) => over / 0.55 / Math.max(1e-3, 1 - Math.min(0.999, over / room));
+  if (value < lo) return lo - back(lo - value);
+  if (value > hi) return hi + back(value - hi);
+  return value;
+}
+const clamp = (value: number, lo: number, hi: number) => (value < lo ? lo : value > hi ? hi : value);
 
 export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, events: EngineEvents) {
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -209,8 +117,9 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
 
   // Pointing is read off a picture: every place drawn in its own flat colour
   // over a black world, so the hover follows exactly what is on screen, and
-  // whatever stands in front wins.
-  const pickTarget = new WebGLRenderTarget(2, 2, { minFilter: NearestFilter, magFilter: NearestFilter });
+  // whatever stands in front wins. Only the few pixels around the pointer are
+  // drawn, by narrowing the camera to them.
+  const pickTarget = new WebGLRenderTarget(PICK_SIZE, PICK_SIZE, { minFilter: NearestFilter, magFilter: NearestFilter });
   const pickBlack = new MeshBasicMaterial({ color: 0x000000 });
   const pickColours = spots.map(
     (_, i) => new MeshBasicMaterial({ color: new Color().setRGB(((i + 1) * PICK_SPACING) / 255, 0, 0, LinearSRGBColorSpace) }),
@@ -221,7 +130,27 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
       if ((o as Mesh).isMesh && !o.userData.decor) pickOf.set(o, i + 1);
     }),
   );
-  const pickPixels = new Uint8Array(5 * 5 * 4);
+  // the island doesn't change what it's made of, so what to swap for the pick
+  // is worked out once
+  const pickMeshes: Mesh[] = [];
+  const pickWith: Material[] = [];
+  const drawnWith: Array<Material | Material[]> = [];
+  const pickHidden: Object3D[] = [];
+  const pickHiddenWas: boolean[] = [];
+  scene.traverse((o) => {
+    const mesh = o as Mesh;
+    if (mesh.isMesh) {
+      const id = pickOf.get(o) ?? 0;
+      pickMeshes.push(mesh);
+      pickWith.push(id ? pickColours[id - 1] : pickBlack);
+      drawnWith.push(mesh.material);
+    } else if ("isLine" in o || "isPoints" in o) {
+      pickHidden.push(o);
+      pickHiddenWas.push(false);
+    }
+  });
+  const pickPixels = new Uint8Array(PICK_SIZE * PICK_SIZE * 4);
+  const pickCounts = new Uint8Array(spots.length + 1);
 
   const post = new ShaderMaterial({
     vertexShader: POST_VERTEX,
@@ -240,6 +169,8 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
       uTime: uniforms.uTime,
       uBgTop: { value: BACKGROUND.day.top.clone() },
       uBgBottom: { value: BACKGROUND.day.bottom.clone() },
+      // the rim round whatever is pointed at; the page's place tags are lit
+      // in the same cream (designer.module.css, --rim)
       uRing: { value: new Color(0xfff6e2) },
     },
     depthTest: false,
@@ -254,11 +185,14 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
   const postCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
   // —— size: the canvas is the art resolution, scaled up by whole device pixels
-  let artW = 2, artH = 2, cssPerArt = 3, ppu = 7, fit = 7;
+  let artW = 2, artH = 2, cssPerArt = 3, ppu = 7, fit = 7, dpr = 1;
+  // the container's place on the page, read once per resize rather than per frame
+  const box = { left: 0, top: 0, width: 0, height: 0 };
+  let resized = true;
   const resize = () => {
     const w = container.clientWidth;
     const h = container.clientHeight;
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    dpr = Math.min(window.devicePixelRatio || 1, 3);
     const target = Math.min(560, Math.max(300, w / 3));
     const devPerArt = Math.max(1, Math.round((w * dpr) / target));
     cssPerArt = devPerArt / dpr;
@@ -269,21 +203,22 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
     canvas.style.height = `${artH * cssPerArt}px`;
     color.setSize(artW, artH);
     mask.setSize(artW, artH);
-    pickTarget.setSize(artW, artH);
     post.uniforms.uRes.value.set(artW, artH);
     fit = Math.min((artW - 2) / 58, (artH - 2) / 41);
     if (w < 700) fit = Math.min((artW - 2) / 52, (artH - 2) / 40);
+    const rect = container.getBoundingClientRect();
+    box.left = rect.left;
+    box.top = rect.top;
+    box.width = rect.width;
+    box.height = rect.height;
+    resized = true;
   };
   resize();
   const observer = new ResizeObserver(resize);
   observer.observe(container);
 
-  // —— camera: where it is, where it is going, and how the panel shifts it
-  const view: View = { target: HOME.clone(), zoom: 1 };
-  const goal: View = { target: HOME.clone(), zoom: 1 };
-  // how quickly the camera closes on where it's going; the trailer slows it
-  let pace = 5;
-  const inset = { x: 0, y: 0 }; // css px the open panel takes from the right / bottom
+  // —— the camera, kept as where it looks along the screen's right and up
+  // (the island is drawn straight down one axis, so depth never shows)
   const right = new Vector3();
   const up = new Vector3();
   const forward = new Vector3();
@@ -293,16 +228,78 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
   right.setFromMatrixColumn(camera.matrixWorld, 0);
   up.setFromMatrixColumn(camera.matrixWorld, 1);
   forward.copy(VIEW).negate();
+  const depth = HOME.dot(forward);
+  const home = { x: HOME.dot(right), y: HOME.dot(up) };
+  const focusOf = spots.map((spot) => ({ x: spot.focus.dot(right), y: spot.focus.dot(up) }));
 
-  const clampTarget = (t: Vector3) => {
-    const sx = t.dot(right), sy = t.dot(up), sz = t.dot(forward);
-    const limitX = 24, limitY = 16;
-    const cx = Math.max(-limitX, Math.min(limitX, sx));
-    const cy = Math.max(-limitY + 1, Math.min(limitY + 3, sy));
-    return new Vector3().addScaledVector(right, cx).addScaledVector(up, cy).addScaledVector(forward, sz);
+  // what is drawn, where it's going, and how fast it's moving on the way
+  const view = { x: home.x, y: home.y, zoom: 1 };
+  const goal = { x: home.x, y: home.y, zoom: 1 };
+  const velocity = { x: 0, y: 0, zoom: 0 };
+  // everything a visitor does settles on a spring; the trailer's slow moves
+  // (look) keep the plain drift they were cut to
+  let follow: "spring" | "drift" = "spring";
+  let pace = GLIDE;
+  // css px the open panel takes from the right / bottom, eased with the camera
+  const inset = { x: 0, y: 0 };
+  const insetGoal = { x: 0, y: 0 };
+  const insetSpeed = { x: 0, y: 0 };
+  // while zooming about a point, that point stays put on screen: where it is
+  // on the island, and how far it is from the middle of the view, in css px
+  const anchor = { on: false, x: 0, y: 0, dx: 0, dy: 0 };
+  const anchoredX = (zoom: number) => anchor.x - anchor.dx / (cssPerArt * fit * zoom);
+  const anchoredY = (zoom: number) => anchor.y + anchor.dy / (cssPerArt * fit * zoom);
+
+  // Where the camera may look at a zoom: from half a view in from the
+  // island's ends; when the view holds all of it, near the middle.
+  const limits = { x0: 0, x1: 0, y0: 0, y1: 0, roomX: 1, roomY: 1 };
+  const boundsAt = (zoom: number) => {
+    const p = fit * zoom;
+    const halfW = (artW - 2) / 2 / p;
+    const halfH = (artH - 2) / 2 / p;
+    const span = (lo: number, hi: number, half: number, i: 0 | 1) => {
+      const inward = Math.min(half * 0.5, (hi - lo) / 2);
+      let a = lo + inward;
+      let b = hi - inward;
+      if (b - a < 6) {
+        a = (lo + hi) / 2 - 3;
+        b = (lo + hi) / 2 + 3;
+      }
+      if (i === 0) {
+        limits.x0 = a;
+        limits.x1 = b;
+      } else {
+        limits.y0 = a;
+        limits.y1 = b;
+      }
+    };
+    span(REACH.left, REACH.right, halfW, 0);
+    span(REACH.bottom, REACH.top, halfH, 1);
+    // how far past an edge a drag can pull it
+    limits.roomX = halfW * 0.3;
+    limits.roomY = halfH * 0.3;
+    return limits;
+  };
+
+  // The middle of the canvas in css px within the container (the canvas
+  // overhangs by an art pixel all round), and the middle of what the panel
+  // leaves of it.
+  const centreX = () => (artW / 2 - 1) * cssPerArt - inset.x / 2;
+  const centreY = () => (artH / 2 - 1) * cssPerArt - inset.y / 2;
+  const anchorAt = (clientX: number, clientY: number) => {
+    const k = 1 / (cssPerArt * fit * view.zoom);
+    anchor.dx = clientX - box.left - centreX();
+    anchor.dy = clientY - box.top - centreY();
+    anchor.x = view.x + anchor.dx * k;
+    anchor.y = view.y - anchor.dy * k;
+    anchor.on = true;
   };
 
   const offset = { x: 0, y: 0 };
+  // the camera's pixel on the grid and its scale, to tell when the picture
+  // has moved
+  let snapX = 0, snapY = 0, snapPpu = 0;
+  let moved = true;
   const placeCamera = () => {
     ppu = fit * view.zoom;
     const halfW = artW / 2 / ppu, halfH = artH / 2 / ppu;
@@ -312,76 +309,72 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
     camera.bottom = -halfH;
     camera.updateProjectionMatrix();
     // the panel covers part of the view: look at a point offset so the
-    // subject sits in the middle of what is left
-    const shiftX = (inset.x / 2 / cssPerArt) / ppu;
-    const shiftY = (inset.y / 2 / cssPerArt) / ppu;
-    const t = view.target.clone().addScaledVector(right, shiftX).addScaledVector(up, -shiftY);
-    // snap to the pixel grid so the picture moves in whole pixels, and make
-    // up the remainder by sliding the canvas itself
-    const sx = t.dot(right) * ppu, sy = t.dot(up) * ppu, sz = t.dot(forward);
+    // subject sits in the middle of what is left; then snap to the pixel
+    // grid so the picture moves in whole pixels, and make up the remainder
+    // by sliding the canvas itself
+    const sx = (view.x + inset.x / 2 / cssPerArt / ppu) * ppu;
+    const sy = (view.y - inset.y / 2 / cssPerArt / ppu) * ppu;
     const rx = Math.round(sx), ry = Math.round(sy);
-    const snapped = new Vector3().addScaledVector(right, rx / ppu).addScaledVector(up, ry / ppu).addScaledVector(forward, sz);
-    camera.position.copy(snapped).addScaledVector(VIEW, 140);
+    camera.position.set(0, 0, 0).addScaledVector(right, rx / ppu).addScaledVector(up, ry / ppu).addScaledVector(forward, depth).addScaledVector(VIEW, 140);
     camera.updateMatrixWorld();
     post.uniforms.uSnap.value.set(rx, ry);
-    offset.x = -(1 + (sx - rx)) * cssPerArt;
-    offset.y = -(1 - (sy - ry)) * cssPerArt;
-    canvas.style.transform = `translate3d(${offset.x.toFixed(3)}px, ${offset.y.toFixed(3)}px, 0)`;
+    // (on whole device pixels, so the canvas is never resampled between them)
+    const ox = Math.round(-(1 + (sx - rx)) * cssPerArt * dpr) / dpr;
+    const oy = Math.round(-(1 - (sy - ry)) * cssPerArt * dpr) / dpr;
+    moved = resized || rx !== snapX || ry !== snapY || ppu !== snapPpu || Math.abs(ox - offset.x) > 1e-3 || Math.abs(oy - offset.y) > 1e-3;
+    if (moved) canvas.style.transform = `translate3d(${ox.toFixed(3)}px, ${oy.toFixed(3)}px, 0)`;
+    snapX = rx;
+    snapY = ry;
+    snapPpu = ppu;
+    offset.x = ox;
+    offset.y = oy;
+    resized = false;
   };
 
   // —— pointing: hover, click, drag to look around, wheel and pinch to zoom
-  const swapped: Array<{ o: Object3D; material?: Material | Material[]; visible: boolean }> = [];
   const pickAt = (clientX: number, clientY: number): string | null => {
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.floor(((clientX - rect.left) / rect.width) * artW);
-    const y = Math.floor((1 - (clientY - rect.top) / rect.height) * artH);
+    const x = Math.floor((clientX - box.left - offset.x) / cssPerArt);
+    const y = artH - 1 - Math.floor((clientY - box.top - offset.y) / cssPerArt);
     if (x < 0 || y < 0 || x >= artW || y >= artH) return null;
-    swapped.length = 0;
-    scene.traverse((o) => {
-      const mesh = o as Mesh;
-      if (mesh.isMesh) {
-        swapped.push({ o, material: mesh.material, visible: o.visible });
-        const id = pickOf.get(o) ?? 0;
-        mesh.material = id ? pickColours[id - 1] : pickBlack;
-      } else if ("isLine" in o || "isPoints" in o) {
-        swapped.push({ o, visible: o.visible });
-        o.visible = false;
-      }
-    });
+    const x0 = clamp(x - 2, 0, artW - PICK_SIZE);
+    const y0 = clamp(y - 2, 0, artH - PICK_SIZE);
+    for (let i = 0; i < pickMeshes.length; i += 1) pickMeshes[i].material = pickWith[i];
+    for (let i = 0; i < pickHidden.length; i += 1) {
+      pickHiddenWas[i] = pickHidden[i].visible;
+      pickHidden[i].visible = false;
+    }
+    camera.setViewOffset(artW, artH, x0, artH - y0 - PICK_SIZE, PICK_SIZE, PICK_SIZE);
     const shadows = renderer.shadowMap.enabled;
     renderer.shadowMap.enabled = false;
     renderer.setRenderTarget(pickTarget);
     renderer.setClearColor(0x000000, 0);
     renderer.render(scene, camera);
     renderer.shadowMap.enabled = shadows;
-    for (const item of swapped) {
-      if (item.material) (item.o as Mesh).material = item.material;
-      item.o.visible = item.visible;
-    }
-    const x0 = Math.max(0, Math.min(artW - 5, x - 2));
-    const y0 = Math.max(0, Math.min(artH - 5, y - 2));
-    renderer.readRenderTargetPixels(pickTarget, x0, y0, 5, 5, pickPixels);
+    camera.clearViewOffset();
+    for (let i = 0; i < pickMeshes.length; i += 1) pickMeshes[i].material = drawnWith[i];
+    for (let i = 0; i < pickHidden.length; i += 1) pickHidden[i].visible = pickHiddenWas[i];
+    renderer.readRenderTargetPixels(pickTarget, 0, 0, PICK_SIZE, PICK_SIZE, pickPixels);
     const idAt = (i: number) => Math.round(pickPixels[i * 4] / PICK_SPACING);
     // the pixel under the pointer wins; failing that, whatever covers most
     // of the pixels within two of it, so small things are easy to land on
-    const centre = idAt((y - y0) * 5 + (x - x0));
+    const centre = idAt((y - y0) * PICK_SIZE + (x - x0));
     if (centre) return spots[centre - 1]?.id ?? null;
-    const counts = new Map<number, number>();
-    for (let i = 0; i < 25; i += 1) {
-      const id = idAt(i);
-      if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
-    }
+    pickCounts.fill(0);
     let best = 0;
-    let most = 0;
-    for (const [id, count] of counts) {
-      if (count > most) {
-        best = id;
-        most = count;
-      }
+    for (let i = 0; i < PICK_SIZE * PICK_SIZE; i += 1) {
+      const id = idAt(i);
+      if (id <= 0 || id > spots.length) continue;
+      pickCounts[id] += 1;
+      if (pickCounts[id] > pickCounts[best]) best = id;
     }
-    return best ? spots[best - 1]?.id ?? null : null;
+    return best ? spots[best - 1].id : null;
   };
 
+  // What is pointed at, from two places: the picture under the mouse, and
+  // the page (a marker hovered or focused). The page's wins, and leaving the
+  // canvas for a marker only clears the picture's, whichever event comes first.
+  let pickHover: string | null = null;
+  let pageHover: string | null = null;
   let hovered: string | null = null;
   let selected: string | null = null;
   // what is outlined, and how far the outline has eased in
@@ -403,141 +396,237 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
     if (highlighted) glow = Math.min(glow, 0.3);
     highlighted = next;
   };
-  const setHover = (id: string | null) => {
-    if (id === hovered) return;
-    hovered = id;
-    canvas.style.cursor = id ? "pointer" : "grab";
+
+  type Mode = "idle" | "press" | "drag" | "pinch";
+  let mode: Mode = "idle";
+  const setCursor = () => {
+    canvas.style.cursor = mode === "drag" || mode === "pinch" ? "grabbing" : pickHover ? "pointer" : "grab";
+  };
+  const applyHover = () => {
+    setCursor();
+    const next = pageHover ?? pickHover;
+    if (next === hovered) return;
+    hovered = next;
     syncHighlight();
-    events.onHover(id);
+    events.onHover(next);
   };
 
-  let pointer: { x: number; y: number } | null = null;
-  let pickDirty = false;
-  let lastView = "";
+  // the mouse over the canvas, and the art pixel it was last picked at
+  let pointerIn = false, pointerX = 0, pointerY = 0;
+  let pickedPixel = -1;
+  let pickWait = 0;
   const pointers = new Map<number, { x: number; y: number }>();
-  let dragging = false;
-  let downAt = { x: 0, y: 0, time: 0 };
-  let pinchFrom = 0;
-  const velocity = new Vector2();
-  let lastMove = 0;
+  const press = { x: 0, y: 0 };
+  const pinch = { distance: 1, zoom: 1 };
+  // where a drag would have put the camera with no edges, and how fast it
+  // was going (world units a second, smoothed over the last few moves)
+  const raw = { x: 0, y: 0 };
+  const flick = { x: 0, y: 0, at: 0 };
 
-  const panBy = (dx: number, dy: number) => {
-    const scale = 1 / (cssPerArt * ppu);
-    goal.target.addScaledVector(right, -dx * scale).addScaledVector(up, dy * scale);
-    goal.target.copy(clampTarget(goal.target));
-    view.target.copy(goal.target);
+  const catchCamera = () => {
+    goal.x = view.x;
+    goal.y = view.y;
+    goal.zoom = view.zoom;
+    velocity.x = velocity.y = velocity.zoom = 0;
+    anchor.on = false;
+    follow = "spring";
   };
-
-  const zoomAt = (factor: number, clientX: number, clientY: number) => {
-    const before = goal.zoom;
-    goal.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, goal.zoom * factor));
-    // keep the point under the pointer where it is
-    const rect = container.getBoundingClientRect();
-    const ox = clientX - rect.left - (rect.width - inset.x) / 2;
-    const oy = clientY - rect.top - (rect.height - inset.y) / 2;
-    const k = 1 / (cssPerArt * fit);
-    const shift = k * (1 / before - 1 / goal.zoom);
-    goal.target.addScaledVector(right, ox * shift).addScaledVector(up, -oy * shift);
-    goal.target.copy(clampTarget(goal.target));
+  const pinchState = () => {
+    let i = 0, ax = 0, ay = 0, bx = 0, by = 0;
+    for (const p of pointers.values()) {
+      if (i === 0) {
+        ax = p.x;
+        ay = p.y;
+      } else if (i === 1) {
+        bx = p.x;
+        by = p.y;
+      }
+      i += 1;
+    }
+    return { mx: (ax + bx) / 2, my: (ay + by) / 2, distance: Math.max(1, Math.hypot(ax - bx, ay - by)) };
   };
 
   const onPointerDown = (event: PointerEvent) => {
-    canvas.setPointerCapture(event.pointerId);
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    downAt = { x: event.clientX, y: event.clientY, time: performance.now() };
-    dragging = false;
-    velocity.set(0, 0);
-    if (pointers.size === 2) {
-      const [a, b] = [...pointers.values()];
-      pinchFrom = Math.hypot(a.x - b.x, a.y - b.y);
+    try {
+      canvas.setPointerCapture(event.pointerId);
+    } catch {
+      // a pointer already gone; the drag carries on without the capture
     }
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     events.onInteract();
+    catchCamera();
+    if (pointers.size === 1) {
+      mode = "press";
+      press.x = event.clientX;
+      press.y = event.clientY;
+      const lim = boundsAt(view.zoom);
+      raw.x = ungive(view.x, lim.x0, lim.x1, lim.roomX);
+      raw.y = ungive(view.y, lim.y0, lim.y1, lim.roomY);
+      flick.x = flick.y = 0;
+      flick.at = event.timeStamp;
+    } else if (pointers.size === 2) {
+      mode = "pinch";
+      const { mx, my, distance } = pinchState();
+      pinch.distance = distance;
+      pinch.zoom = view.zoom;
+      anchorAt(mx, my);
+      pickHover = null;
+      applyHover();
+    }
   };
   const onPointerMove = (event: PointerEvent) => {
     const previous = pointers.get(event.pointerId);
     if (!previous) {
       if (event.pointerType === "mouse") {
-        pointer = { x: event.clientX, y: event.clientY };
-        pickDirty = true;
+        pointerIn = true;
+        pointerX = event.clientX;
+        pointerY = event.clientY;
       }
-      return;
-    }
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (pointers.size === 2) {
-      const [a, b] = [...pointers.values()];
-      const distance = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinchFrom > 0) zoomAt(distance / pinchFrom, (a.x + b.x) / 2, (a.y + b.y) / 2);
-      view.zoom = goal.zoom;
-      pinchFrom = distance;
-      dragging = true;
       return;
     }
     const dx = event.clientX - previous.x;
     const dy = event.clientY - previous.y;
-    if (!dragging && Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > 5) {
-      dragging = true;
-      canvas.style.cursor = "grabbing";
-      setHover(null);
+    previous.x = event.clientX;
+    previous.y = event.clientY;
+    if (mode === "pinch") {
+      if (pointers.size < 2) return;
+      // two fingers zoom about the point between them, and carry it with them
+      const { mx, my, distance } = pinchState();
+      const zoom = clamp((pinch.zoom * distance) / pinch.distance, MIN_ZOOM, MAX_ZOOM);
+      anchor.dx = mx - box.left - centreX();
+      anchor.dy = my - box.top - centreY();
+      const lim = boundsAt(zoom);
+      view.zoom = goal.zoom = zoom;
+      view.x = goal.x = give(anchoredX(zoom), lim.x0, lim.x1, lim.roomX);
+      view.y = goal.y = give(anchoredY(zoom), lim.y0, lim.y1, lim.roomY);
+      return;
     }
-    if (dragging) {
-      panBy(dx, dy);
-      const now = performance.now();
-      const dt = Math.max(1, now - lastMove);
-      velocity.set(dx / dt, dy / dt);
-      lastMove = now;
+    if (mode === "press" && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 5) {
+      mode = "drag";
+      pickHover = null;
+      applyHover();
     }
+    if (mode !== "drag") return;
+    const k = 1 / (cssPerArt * ppu);
+    raw.x -= dx * k;
+    raw.y += dy * k;
+    const lim = boundsAt(view.zoom);
+    const nx = give(raw.x, lim.x0, lim.x1, lim.roomX);
+    const ny = give(raw.y, lim.y0, lim.y1, lim.roomY);
+    const seconds = Math.max(0.001, (event.timeStamp - flick.at) / 1000);
+    const w = 1 - Math.exp(-seconds / 0.045);
+    flick.x += ((nx - view.x) / seconds - flick.x) * w;
+    flick.y += ((ny - view.y) / seconds - flick.y) * w;
+    flick.at = event.timeStamp;
+    view.x = goal.x = nx;
+    view.y = goal.y = ny;
   };
   const onPointerUp = (event: PointerEvent) => {
-    pointers.delete(event.pointerId);
-    if (pointers.size > 0) return;
-    if (!dragging) {
-      select(pickAt(event.clientX, event.clientY));
-    } else if (!reduced && performance.now() - lastMove < 60) {
-      coast.set(velocity.x * 16, velocity.y * 16);
+    if (!pointers.delete(event.pointerId)) return;
+    const cancelled = event.type === "pointercancel";
+    if (mode === "pinch") {
+      if (pointers.size === 1) {
+        // one finger left: it carries on as a drag from where it is
+        mode = "drag";
+        anchor.on = false;
+        const lim = boundsAt(view.zoom);
+        raw.x = ungive(view.x, lim.x0, lim.x1, lim.roomX);
+        raw.y = ungive(view.y, lim.y0, lim.y1, lim.roomY);
+        flick.x = flick.y = 0;
+        flick.at = event.timeStamp;
+        return;
+      }
+      if (pointers.size > 0) return;
     }
-    dragging = false;
-    canvas.style.cursor = hovered ? "pointer" : "grab";
+    if (pointers.size > 0) return;
+    const was = mode;
+    mode = "idle";
+    if (was === "press" && !cancelled) {
+      select(pickAt(event.clientX, event.clientY));
+    } else if (was === "drag" || was === "pinch") {
+      // let go, it keeps going and slows to a stop; short of an edge it was
+      // pulled past, it comes back
+      anchor.on = false;
+      const fresh = !reduced && was === "drag" && event.timeStamp - flick.at < 80;
+      velocity.x = fresh ? flick.x : 0;
+      velocity.y = fresh ? flick.y : 0;
+      const lim = boundsAt(view.zoom);
+      goal.x = clamp(view.x + velocity.x / COAST, lim.x0, lim.x1);
+      goal.y = clamp(view.y + velocity.y / COAST, lim.y0, lim.y1);
+      follow = "spring";
+      pace = COAST;
+    }
+    setCursor();
   };
   const onLeave = () => {
-    pointer = null;
-    setHover(null);
+    pointerIn = false;
+    pickedPixel = -1;
+    pickHover = null;
+    applyHover();
+  };
+  const zoomAbout = (clientX: number, clientY: number, zoom: number, direct: boolean) => {
+    // successive turns of the wheel zoom about the point they started on
+    if (!anchor.on || Math.abs(clientX - box.left - centreX() - anchor.dx) > 2 || Math.abs(clientY - box.top - centreY() - anchor.dy) > 2) {
+      anchorAt(clientX, clientY);
+    }
+    goal.zoom = clamp(zoom, MIN_ZOOM, MAX_ZOOM);
+    follow = "spring";
+    pace = ZOOM;
+    if (direct || reduced) {
+      view.zoom = goal.zoom;
+      velocity.zoom = 0;
+    }
   };
   const onWheel = (event: WheelEvent) => {
     event.preventDefault();
     events.onInteract();
+    if (mode !== "idle") return;
+    const lines = event.deltaMode === 1 ? 16 : 1;
     if (event.ctrlKey || Math.abs(event.deltaY) > Math.abs(event.deltaX) * 0.6) {
-      zoomAt(Math.exp(-event.deltaY * (event.ctrlKey ? 0.01 : 0.0016)), event.clientX, event.clientY);
+      // a trackpad's pinch arrives as a wheel with ctrl held, finely, and is
+      // followed directly; a wheel's notches are eased
+      zoomAbout(event.clientX, event.clientY, goal.zoom * Math.exp(-event.deltaY * lines * (event.ctrlKey ? 0.01 : 0.0016)), event.ctrlKey);
     } else {
-      goal.target.addScaledVector(right, (event.deltaX / (cssPerArt * ppu)));
-      goal.target.copy(clampTarget(goal.target));
+      anchor.on = false;
+      const lim = boundsAt(goal.zoom);
+      goal.x = clamp(goal.x + (event.deltaX * lines) / (cssPerArt * ppu), lim.x0, lim.x1);
+      follow = "spring";
+      pace = PAN;
     }
   };
-  const onDoubleClick = (event: MouseEvent) => zoomAt(1.6, event.clientX, event.clientY);
-  const coast = new Vector2();
+  const onDoubleClick = (event: MouseEvent) => zoomAbout(event.clientX, event.clientY, goal.zoom * 1.6, false);
 
   canvas.addEventListener("pointerdown", onPointerDown);
   canvas.addEventListener("pointermove", onPointerMove);
   canvas.addEventListener("pointerup", onPointerUp);
   canvas.addEventListener("pointercancel", onPointerUp);
   canvas.addEventListener("pointerleave", onLeave);
-  canvas.addEventListener("wheel", onWheel, { passive: false });
+  // the wheel is taken over the whole stage, so it zooms over a marker too
+  container.addEventListener("wheel", onWheel, { passive: false });
   canvas.addEventListener("dblclick", onDoubleClick);
   canvas.style.cursor = "grab";
 
-  let before: View | null = null;
+  const indexOf = (id: string | null) => (id ? spots.findIndex((s) => s.id === id) : -1);
+  let before: { x: number; y: number; zoom: number } | null = null;
   function select(id: string | null) {
-    pace = 5;
-    if (id && !selected) before = { target: goal.target.clone(), zoom: goal.zoom };
+    follow = "spring";
+    pace = GLIDE;
+    anchor.on = false;
+    if (id && !selected) before = { x: goal.x, y: goal.y, zoom: goal.zoom };
     selected = id;
     // the pointer may not be over the thing it was over once the camera moves
-    if (hovered && hovered !== id) setHover(null);
+    pageHover = null;
+    if (pickHover && pickHover !== id) pickHover = null;
+    applyHover();
     syncHighlight();
-    const spot = id ? spots.find((s) => s.id === id) : null;
-    if (spot) {
-      goal.target.copy(spot.focus);
+    const i = indexOf(id);
+    if (i >= 0) {
+      goal.x = focusOf[i].x;
+      goal.y = focusOf[i].y;
       goal.zoom = Math.max(goal.zoom, id === "aiden" ? 2.3 : 1.9);
     } else if (before) {
-      goal.target.copy(before.target);
+      goal.x = before.x;
+      goal.y = before.y;
       goal.zoom = before.zoom;
       before = null;
     }
@@ -564,16 +653,99 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
   // the shared uniforms outlive a visit; start every visit from daylight
   applyLight();
 
-  // —— the loop
-  const projected = new Vector3();
-  const toScreen = (point: Vector3) => {
-    projected.copy(point).project(camera);
-    return {
-      x: ((projected.x + 1) / 2) * artW * cssPerArt + offset.x,
-      y: ((1 - projected.y) / 2) * artH * cssPerArt + offset.y,
-    };
+  // —— the camera, a frame on
+  const moveCamera = (dt: number) => {
+    if (reduced) {
+      inset.x = insetGoal.x;
+      inset.y = insetGoal.y;
+    } else {
+      inset.x = spring(inset.x, insetSpeed.x, insetGoal.x, GLIDE * 1.4, dt);
+      insetSpeed.x = springSpeed;
+      inset.y = spring(inset.y, insetSpeed.y, insetGoal.y, GLIDE * 1.4, dt);
+      insetSpeed.y = springSpeed;
+    }
+    // the hand has it
+    if (mode === "drag" || mode === "pinch") return;
+    if (reduced) {
+      if (anchor.on) {
+        const lim = boundsAt(goal.zoom);
+        goal.x = clamp(anchoredX(goal.zoom), lim.x0, lim.x1);
+        goal.y = clamp(anchoredY(goal.zoom), lim.y0, lim.y1);
+        anchor.on = false;
+      }
+      view.x = goal.x;
+      view.y = goal.y;
+      view.zoom = goal.zoom;
+      return;
+    }
+    if (follow === "drift") {
+      const k = 1 - Math.exp(-dt * pace);
+      view.x += (goal.x - view.x) * k;
+      view.y += (goal.y - view.y) * k;
+      view.zoom += (goal.zoom - view.zoom) * k;
+      return;
+    }
+    view.zoom = spring(view.zoom, velocity.zoom, goal.zoom, pace, dt);
+    velocity.zoom = springSpeed;
+    if (anchor.on) {
+      // the zoom moves the camera, so the anchored point stays put
+      let lim = boundsAt(goal.zoom);
+      goal.x = clamp(anchoredX(goal.zoom), lim.x0, lim.x1);
+      goal.y = clamp(anchoredY(goal.zoom), lim.y0, lim.y1);
+      lim = boundsAt(view.zoom);
+      view.x = clamp(anchoredX(view.zoom), lim.x0, lim.x1);
+      view.y = clamp(anchoredY(view.zoom), lim.y0, lim.y1);
+      if (Math.abs(view.zoom - goal.zoom) < 1e-4 && Math.abs(velocity.zoom) < 1e-3) {
+        anchor.on = false;
+        velocity.x = velocity.y = 0;
+      }
+      return;
+    }
+    view.x = spring(view.x, velocity.x, goal.x, pace, dt);
+    velocity.x = springSpeed;
+    view.y = spring(view.y, velocity.y, goal.y, pace, dt);
+    velocity.y = springSpeed;
   };
-  const corner = new Vector3();
+
+  // —— the markers, worked out where they are on the island once, and where
+  // they are on screen every frame, into the same objects
+  const marks = spots.map((spot) => {
+    const centre = spot.box.getCenter(new Vector3());
+    const top = centre.clone().setY(spot.box.max.y);
+    const bottom = centre.clone().setY(spot.box.min.y);
+    return {
+      x: spot.anchor.dot(right),
+      y: spot.anchor.dot(up),
+      top: top.dot(up),
+      bottom: bottom.dot(up),
+    };
+  });
+  const markers: Marker[] = spots.map((spot) => ({ id: spot.id, x: 0, y: 0, top: 0, bottom: 0, visible: false }));
+  const grid: Grid = { unit: 3, x: 0, y: 0, moved: true };
+  let shown = false;
+  const placeMarkers = () => {
+    const visible = uniforms.uReveal.value > 0.95;
+    grid.moved = moved || visible !== shown;
+    grid.unit = cssPerArt;
+    grid.x = offset.x;
+    grid.y = offset.y;
+    shown = visible;
+    if (!grid.moved) return;
+    // an island point's art pixel is the canvas's middle plus its distance
+    // from the camera; css px are that, scaled, plus the canvas's slide
+    const cx = artW / 2 - snapX, cy = artH / 2 + snapY;
+    for (let i = 0; i < marks.length; i += 1) {
+      const m = marks[i];
+      const out = markers[i];
+      out.x = (cx + m.x * ppu) * cssPerArt + offset.x;
+      out.y = (cy - m.y * ppu) * cssPerArt + offset.y;
+      out.top = Math.min(out.y, (cy - m.top * ppu) * cssPerArt + offset.y);
+      out.bottom = (cy - m.bottom * ppu) * cssPerArt + offset.y;
+      out.visible = visible;
+    }
+  };
+
+  // —— the loop
   let start = 0;
   let last = 0;
   let frame = 0;
@@ -602,19 +774,21 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
       applyLight();
     }
 
-    if (coast.lengthSq() > 0.01 && pointers.size === 0) {
-      panBy(coast.x, coast.y);
-      coast.multiplyScalar(Math.exp(-dt * 6));
-    }
-    const k = reduced ? 1 : 1 - Math.exp(-dt * pace);
-    if (pointers.size === 0) view.target.lerp(goal.target, k);
-    view.zoom += (goal.zoom - view.zoom) * k;
+    moveCamera(dt);
     placeCamera();
 
-    const viewKey = `${camera.position.x.toFixed(3)},${camera.position.y.toFixed(3)},${ppu.toFixed(4)}`;
-    if (pointer && pointers.size === 0 && (pickDirty || viewKey !== lastView)) setHover(pickAt(pointer.x, pointer.y));
-    pickDirty = false;
-    lastView = viewKey;
+    // the hover is picked again when the mouse has moved an art pixel's
+    // width, and now and then while the camera moves under a still mouse
+    if (pointerIn && mode === "idle") {
+      const px = Math.floor((pointerX - box.left) / cssPerArt) + Math.floor((pointerY - box.top) / cssPerArt) * 4096;
+      pickWait -= 1;
+      if (px !== pickedPixel || (moved && pickWait <= 0)) {
+        pickedPixel = px;
+        pickWait = 4;
+        pickHover = pickAt(pointerX, pointerY);
+        applyHover();
+      }
+    }
 
     const wanted = hovered ?? selected;
     glow += ((wanted ? 1 : 0) - glow) * (reduced ? 1 : 1 - Math.exp(-dt * 16));
@@ -644,27 +818,22 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
     renderer.setRenderTarget(null);
     renderer.render(postScene, postCamera);
 
-    // where the markers go, in css px within the container
-    const markers: Marker[] = spots.map((spot) => {
-      const { x, y } = toScreen(spot.anchor);
-      spot.box.getCenter(corner);
-      corner.y = spot.box.max.y;
-      const top = toScreen(corner).y;
-      corner.y = spot.box.min.y;
-      const bottom = toScreen(corner).y;
-      return { id: spot.id, x, y, top: Math.min(top, y), bottom, visible: uniforms.uReveal.value > 0.95 };
-    });
-    events.onFrame(markers);
+    placeMarkers();
+    events.onFrame(markers, grid);
   };
   frame = requestAnimationFrame(tick);
   if (reduced) uniforms.uReveal.value = 1;
 
   return {
     select,
-    hover: (id: string | null) => setHover(id),
+    /** What the page points at: a marker hovered or focused, or null. */
+    hover: (id: string | null) => {
+      pageHover = id;
+      applyHover();
+    },
     setInset: (x: number, y: number) => {
-      inset.x = x;
-      inset.y = y;
+      insetGoal.x = x;
+      insetGoal.y = y;
     },
     setNight: (on: boolean) => {
       nightGoal = on ? 1 : 0;
@@ -675,10 +844,33 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
     },
     /** Points the camera at a place without opening it, at its own pace: the trailer's slow moves. */
     look: (id: string | null, zoom = 1.6, speed = 5) => {
-      const spot = id ? spots.find((s) => s.id === id) : null;
-      goal.target.copy(spot ? spot.focus : HOME);
-      goal.zoom = spot ? zoom : 1;
+      const i = indexOf(id);
+      goal.x = i >= 0 ? focusOf[i].x : home.x;
+      goal.y = i >= 0 ? focusOf[i].y : home.y;
+      goal.zoom = i >= 0 ? zoom : 1;
+      velocity.x = velocity.y = velocity.zoom = 0;
+      anchor.on = false;
+      follow = "drift";
       pace = speed;
+    },
+    /** Brings a place's marker into view if it's off the edge or under the
+     * page's chrome (reached by Tab), moving no further than it has to. */
+    reveal: (id: string) => {
+      const i = indexOf(id);
+      if (i < 0) return;
+      const m = markers[i];
+      const left = 72, right = box.width - inset.x - 72;
+      const top = 120, bottom = box.height - inset.y - 56;
+      const dx = m.x < left ? left - m.x : m.x > right ? right - m.x : 0;
+      const dy = m.y < top ? top - m.y : m.y > bottom ? bottom - m.y : 0;
+      if (!dx && !dy) return;
+      anchor.on = false;
+      const k = 1 / (cssPerArt * fit * view.zoom);
+      goal.x = view.x - dx * k;
+      goal.y = view.y + dy * k;
+      goal.zoom = view.zoom;
+      follow = "spring";
+      pace = GLIDE;
     },
     pause: (on: boolean) => {
       paused = on;
@@ -686,16 +878,31 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
       if (!on) applyLight();
     },
     home: () => {
-      goal.target.copy(HOME);
+      follow = "spring";
+      pace = GLIDE;
+      anchor.on = false;
+      goal.x = home.x;
+      goal.y = home.y;
       goal.zoom = 1;
     },
     zoomBy: (factor: number) => {
-      const rect = container.getBoundingClientRect();
-      zoomAt(factor, rect.left + (rect.width - inset.x) / 2, rect.top + (rect.height - inset.y) / 2);
+      // about the middle of what's in view, which therefore stays put
+      anchor.on = false;
+      goal.zoom = clamp(goal.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+      const lim = boundsAt(goal.zoom);
+      goal.x = clamp(goal.x, lim.x0, lim.x1);
+      goal.y = clamp(goal.y, lim.y0, lim.y1);
+      follow = "spring";
+      pace = ZOOM;
     },
     panBy: (dx: number, dy: number) => {
-      goal.target.addScaledVector(right, -dx / (cssPerArt * ppu)).addScaledVector(up, dy / (cssPerArt * ppu));
-      goal.target.copy(clampTarget(goal.target));
+      anchor.on = false;
+      const k = 1 / (cssPerArt * fit * goal.zoom);
+      const lim = boundsAt(goal.zoom);
+      goal.x = clamp(goal.x - dx * k, lim.x0, lim.x1);
+      goal.y = clamp(goal.y + dy * k, lim.y0, lim.y1);
+      follow = "spring";
+      pace = PAN;
     },
     spots: spots.map((spot) => ({ id: spot.id, slug: spot.slug })),
     dispose: () => {
@@ -707,7 +914,7 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerUp);
       canvas.removeEventListener("pointerleave", onLeave);
-      canvas.removeEventListener("wheel", onWheel);
+      container.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("dblclick", onDoubleClick);
       scene.traverse((object) => {
         const mesh = object as Mesh;
@@ -716,6 +923,8 @@ export function createEngine(container: HTMLElement, canvas: HTMLCanvasElement, 
         if (Array.isArray(material)) material.forEach((m) => m.dispose());
         else material?.dispose();
       });
+      for (const m of [maskMaterial, pickBlack, ...pickColours]) m.dispose();
+      triangle.dispose();
       color.dispose();
       mask.dispose();
       pickTarget.dispose();

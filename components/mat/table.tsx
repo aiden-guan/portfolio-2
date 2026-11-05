@@ -55,9 +55,11 @@ type Body = {
   hy: number;
   w: number;
   h: number;
-  // how far it is lifted off the mat (0..1)
+  // how far it is lifted off the mat (0..1), which sets the shadow it casts;
+  // and until when it's held up a little while it turns over
   lift: number;
   vlift: number;
+  aloft: number;
   z: number;
   moving: boolean;
   homing: boolean;
@@ -66,8 +68,17 @@ type Body = {
   stubOf?: string;
   // a stub still joined to its ticket goes wherever the ticket goes
   joinedTo: Body | null;
+  // what was last written to it, so nothing at rest is written again
   written: string;
   writtenTurn: string;
+  writtenLift: string;
+  wx: number;
+  wy: number;
+  wa: number;
+  wl: number;
+  // inside something that sticks to the window as the page scrolls (the
+  // arcade's entrance): its place on the mat moves, and is followed
+  floats: boolean;
   // the crop marks where it belongs, whether they show, and whether it is
   // being pulled onto them
   mark: HTMLElement | null;
@@ -144,7 +155,15 @@ export function Table({ children }: { children: ReactNode }) {
     if (!mat) return;
     const html = document.documentElement;
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const els = [...mat.querySelectorAll<HTMLElement>(".thing")];
+    // (not the inert copies of the envelope the arcade breaks up: they are
+    // pictures of it, not paper)
+    const els = [...mat.querySelectorAll<HTMLElement>(".thing")].filter((el) => !el.closest("[inert]"));
+    const sticks = (el: HTMLElement) => {
+      for (let node = el.parentElement; node && node !== mat; node = node.parentElement) {
+        if (getComputedStyle(node).position === "sticky") return true;
+      }
+      return false;
+    };
     const bodies: Body[] = els.map((el) => {
       const body: Body = {
       el,
@@ -164,6 +183,7 @@ export function Table({ children }: { children: ReactNode }) {
       h: 0,
       lift: 0,
       vlift: 0,
+      aloft: 0,
       z: 0,
       moving: false,
       homing: false,
@@ -173,6 +193,12 @@ export function Table({ children }: { children: ReactNode }) {
       joinedTo: null,
       written: "",
       writtenTurn: "",
+      writtenLift: "",
+      wx: 0,
+      wy: 0,
+      wa: 0,
+      wl: 0,
+      floats: sticks(el),
       mark: null,
       marked: false,
       seating: false,
@@ -206,12 +232,24 @@ export function Table({ children }: { children: ReactNode }) {
       body.mark = mark;
     }
 
-    // The ruler printed down the mat's edge, numbered every centimetre.
+    // The ruler printed down the mat's edge, numbered every centimetre. Its
+    // numbers are printed with the rest of the mat's print as the page
+    // opens, and after that simply are.
     const scale = document.createElement("div");
     scale.className = "mat-scale";
     scale.setAttribute("aria-hidden", "true");
+    scale.dataset.fresh = "";
     mat.prepend(scale);
     let scaleKey = "";
+    const freshTimer = window.setTimeout(() => delete scale.dataset.fresh, 900);
+
+    // While something is held, cut or burnt, the pointer is a hand, a knife
+    // or a torch wherever it goes. One veil over the window says so, rather
+    // than restyling every element on the page the moment a hand closes.
+    const veil = document.createElement("div");
+    veil.className = "mat-veil";
+    veil.setAttribute("aria-hidden", "true");
+    document.body.append(veil);
 
     const guideX = document.querySelector<HTMLElement>(".ruler-guide-x");
     const guideY = mat.querySelector<HTMLElement>(".ruler-guide-y");
@@ -223,6 +261,11 @@ export function Table({ children }: { children: ReactNode }) {
     let matW = 0;
     let matH = 0;
     let mm = 4;
+    // the band along the top, and where the mat's corner is on the page,
+    // read when things are measured rather than every frame
+    let band = 50;
+    let originX = 0;
+    let originY = 0;
     let topZ = 10;
     let raf = 0;
     let last = 0;
@@ -233,9 +276,50 @@ export function Table({ children }: { children: ReactNode }) {
     // the mat itself scorched (lib/torch)
     let scorched = false;
 
+    // Where CSS put a thing: its top left on the mat.
+    function placed(body: Body) {
+      let x = 0;
+      let y = 0;
+      let node: HTMLElement | null = body.el;
+      while (node && node !== mat) {
+        x += node.offsetLeft;
+        y += node.offsetTop;
+        node = node.offsetParent as HTMLElement | null;
+      }
+      return { x, y };
+    }
+
+    // Its crop marks, round where it belongs.
+    function markOut(body: Body) {
+      if (!body.mark) return;
+      let x0 = body.hx - body.ox;
+      let y0 = body.hy - body.oy;
+      let x1 = x0 + body.w;
+      let y1 = y0 + body.h;
+      // a ticket's place takes in its stub's
+      for (const stub of bodies) {
+        if (!body.joint || stub.stubOf !== body.joint) continue;
+        x0 = Math.min(x0, stub.hx - stub.w / 2);
+        y0 = Math.min(y0, stub.hy - stub.h / 2);
+        x1 = Math.max(x1, stub.hx + stub.w / 2);
+        y1 = Math.max(y1, stub.hy + stub.h / 2);
+      }
+      const style = body.mark.style;
+      style.left = `${x0}px`;
+      style.top = `${y0}px`;
+      style.width = `${x1 - x0}px`;
+      style.height = `${y1 - y0}px`;
+    }
+
     function measure() {
       matW = mat!.offsetWidth;
       matH = mat!.offsetHeight;
+      // (the band is set in rems, which needn't be 16 px)
+      const root = getComputedStyle(html);
+      band = parseFloat(root.getPropertyValue("--band")) * (parseFloat(root.fontSize) || 16) || 50;
+      const box = mat!.getBoundingClientRect();
+      originX = box.left + window.scrollX;
+      originY = box.top + window.scrollY;
       // .mat-scale is 100 mm wide, which says how big a millimetre is here
       mm = scale.getBoundingClientRect().width / 100 || 4;
       // a piece lies exactly where the thing it was cut from does
@@ -245,14 +329,7 @@ export function Table({ children }: { children: ReactNode }) {
         body.el.style.top = `${body.root.el.offsetTop}px`;
       }
       for (const body of bodies) {
-        let x = 0;
-        let y = 0;
-        let node: HTMLElement | null = body.el;
-        while (node && node !== mat) {
-          x += node.offsetLeft;
-          y += node.offsetTop;
-          node = node.offsetParent as HTMLElement | null;
-        }
+        const at = placed(body);
         body.w = body.el.offsetWidth;
         body.h = body.el.offsetHeight;
         if (body.wear) {
@@ -262,36 +339,34 @@ export function Table({ children }: { children: ReactNode }) {
           body.ox = body.w / 2;
           body.oy = body.h / 2;
         }
-        body.hx = x + body.ox;
-        body.hy = y + body.oy;
+        body.hx = at.x + body.ox;
+        body.hy = at.y + body.oy;
         body.written = "";
       }
-      for (const body of bodies) {
-        if (!body.mark) continue;
-        let x0 = body.hx - body.ox;
-        let y0 = body.hy - body.oy;
-        let x1 = x0 + body.w;
-        let y1 = y0 + body.h;
-        // a ticket's place takes in its stub's
-        for (const stub of bodies) {
-          if (!body.joint || stub.stubOf !== body.joint) continue;
-          x0 = Math.min(x0, stub.hx - stub.w / 2);
-          y0 = Math.min(y0, stub.hy - stub.h / 2);
-          x1 = Math.max(x1, stub.hx + stub.w / 2);
-          y1 = Math.max(y1, stub.hy + stub.h / 2);
-        }
-        const style = body.mark.style;
-        style.left = `${x0}px`;
-        style.top = `${y0}px`;
-        style.width = `${x1 - x0}px`;
-        style.height = `${y1 - y0}px`;
-      }
+      for (const body of bodies) markOut(body);
       number();
+    }
+
+    // Things inside something that sticks to the window as the page scrolls
+    // go along with it, so their place on the mat is followed as it moves.
+    const floating = bodies.some((body) => body.floats);
+    let floatRaf = 0;
+    function refloat() {
+      floatRaf = 0;
+      for (const body of bodies) {
+        if (!body.floats) continue;
+        const at = placed(body);
+        const dx = at.x + body.ox - body.hx;
+        const dy = at.y + body.oy - body.hy;
+        if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) continue;
+        body.hx += dx;
+        body.hy += dy;
+        markOut(body);
+      }
     }
 
     // A number beside every centimetre of the ruler, counted from the top.
     function number() {
-      const band = parseFloat(getComputedStyle(html).getPropertyValue("--band")) * 16 || 50;
       const step = mm * 10;
       const count = Math.max(0, Math.floor((matH - band) / step));
       const key = `${count}:${step.toFixed(3)}:${band}`;
@@ -307,9 +382,10 @@ export function Table({ children }: { children: ReactNode }) {
       scale.replaceChildren(numbers);
     }
 
+    // (from where the mat's corner was last measured, and the scroll, so
+    // the hand is followed without asking the page for its layout)
     function toMat(clientX: number, clientY: number) {
-      const box = mat!.getBoundingClientRect();
-      return { x: clientX - box.left, y: clientY - box.top };
+      return { x: clientX + window.scrollX - originX, y: clientY + window.scrollY - originY };
     }
 
     // A joined stub sits where the ticket's turn and offset carry it.
@@ -330,17 +406,34 @@ export function Table({ children }: { children: ReactNode }) {
     }
 
     // (A flat translate: at rest a thing is printed into the mat with the
-    // rest, and only gets a layer of its own while it's live.)
+    // rest, and only gets a layer of its own while it's live.) Its height
+    // off the mat goes to CSS as --lift, which casts its shadow (app/mat.css):
+    // the higher it is, the further down and to the right of it the shadow
+    // falls, and the softer.
     function write(body: Body) {
-      const css = `translate(${body.x.toFixed(2)}px, ${body.y.toFixed(2)}px)`;
-      if (css !== body.written) {
-        body.written = css;
-        body.el.style.transform = css;
+      if (body.x !== body.wx || body.y !== body.wy || !body.written) {
+        body.wx = body.x;
+        body.wy = body.y;
+        const css = `translate(${body.x.toFixed(2)}px, ${body.y.toFixed(2)}px)`;
+        if (css !== body.written) {
+          body.written = css;
+          body.el.style.transform = css;
+        }
       }
+      if (body.a === body.wa && body.lift === body.wl && body.writtenTurn) return;
+      body.wa = body.a;
+      body.wl = body.lift;
       const turn = `rotate(${body.a.toFixed(4)}rad) scale(${(1 + 0.028 * body.lift).toFixed(4)})`;
       if (turn !== body.writtenTurn) {
         body.writtenTurn = turn;
         body.turn.style.transform = turn;
+      }
+      // at rest it's left to the stylesheet, which lifts it a hair under a hand
+      const lift = body.lift > 0.001 ? body.lift.toFixed(3) : "";
+      if (lift !== body.writtenLift) {
+        body.writtenLift = lift;
+        if (lift) body.el.style.setProperty("--lift", lift);
+        else body.el.style.removeProperty("--lift");
       }
     }
 
@@ -401,11 +494,13 @@ export function Table({ children }: { children: ReactNode }) {
         } else if (body.moving) {
           busy = stepSlide(body, dt) || busy;
         }
-        // set down: the lift settles back onto the mat
-        if (body.lift > 0.0005 || Math.abs(body.vlift) > 0.001) {
-          body.vlift += (-body.lift * 260 - body.vlift * 26) * dt;
-          body.lift += body.vlift * dt;
-          if (body.lift < 0.0005 && Math.abs(body.vlift) < 0.001) {
+        // set down: the lift settles back onto the mat (or, turning over, it's
+        // held up off it a moment first)
+        const aloft = now < body.aloft ? 0.62 : 0;
+        if (aloft || body.lift > 0.0005 || Math.abs(body.vlift) > 0.001) {
+          body.vlift += ((aloft - body.lift) * 260 - body.vlift * 26) * dt;
+          body.lift = Math.max(0, body.lift + body.vlift * dt);
+          if (!aloft && body.lift < 0.0005 && Math.abs(body.vlift) < 0.001) {
             body.lift = 0;
             body.vlift = 0;
           } else busy = true;
@@ -419,10 +514,11 @@ export function Table({ children }: { children: ReactNode }) {
         liven(
           body,
           grab?.body === body ||
+            (pending?.body === body && !pending.touch) ||
             body.moving ||
             body.homing ||
             body.lift > 0 ||
-            (joined !== null && (grab?.body === joined || joined.moving || joined.homing)),
+            (joined !== null && (grab?.body === joined || joined.moving || joined.homing || joined.lift > 0)),
         );
         markHome(body);
       }
@@ -455,15 +551,16 @@ export function Table({ children }: { children: ReactNode }) {
       let y = pointerY;
       let across = 1;
       let down = 1;
-      if (held) {
-        const box = mat!.getBoundingClientRect();
+      if (held && grab) {
         const lift = 1 + 0.028 * held.lift;
         const cos = Math.abs(Math.cos(held.a));
         const sin = Math.abs(Math.sin(held.a));
         across = (cos * held.w + sin * held.h) * lift;
         down = (sin * held.w + cos * held.h) * lift;
-        x = box.left + held.hx + held.x - across / 2;
-        y = box.top + held.hy + held.y - down / 2;
+        // (the window is wherever the hand is, less where the hand is on the
+        // mat: no asking the page where it has scrolled to, after it's moved)
+        x = grab.cx - grab.lastX + held.hx + held.x - across / 2;
+        y = grab.cy - grab.lastY + held.hy + held.y - down / 2;
       }
       guideX.toggleAttribute("data-span", Boolean(held));
       guideY.toggleAttribute("data-span", Boolean(held));
@@ -476,7 +573,7 @@ export function Table({ children }: { children: ReactNode }) {
     // Carrying something to the top or bottom of the window scrolls the mat
     // under it, so it can be taken from one section to another.
     function carry(held: Grab, dt: number) {
-      const top = parseFloat(getComputedStyle(html).getPropertyValue("--band")) * 16 || 50;
+      const top = band;
       const zone = 64;
       const low = window.innerHeight - zone;
       let speed = 0;
@@ -688,6 +785,8 @@ export function Table({ children }: { children: ReactNode }) {
         startX: clientX,
         startY: clientY,
       };
+      // (picked up from under a hand that had already lifted it a hair)
+      if (body.lift < 0.06 && body.el.matches(":hover")) body.lift = 0.06;
       raise(body);
       body.el.classList.add("is-held");
       html.dataset.holding = "true";
@@ -742,6 +841,9 @@ export function Table({ children }: { children: ReactNode }) {
       }
       el.classList.toggle("is-turned", turned);
       if (still) return;
+      // it comes up off the mat to turn, and its shadow with it
+      body.aloft = performance.now() + 280;
+      wake();
       window.clearTimeout(body.turnTimer);
       // (should the turn's end never come, a hidden tab say)
       body.turnTimer = window.setTimeout(() => laid(body), 1500);
@@ -1158,13 +1260,16 @@ export function Table({ children }: { children: ReactNode }) {
       return true;
     }
 
-    // The flame's heat on whatever's uppermost under it.
+    // The flame's heat on whatever's uppermost under it. (Every frame the
+    // torch is lit, so the stack is sorted in an array kept for it.)
+    const stack: number[] = [];
+    const higher = (p: number, q: number) => bodies[q]!.z - bodies[p]!.z || q - p;
     function heat(x: number, y: number, radius: number, power: number, dt: number) {
-      const stack = bodies
-        .map((body, index) => ({ body, index }))
-        .filter(({ body }) => !body.gone)
-        .sort((p, q) => q.body.z - p.body.z || q.index - p.index);
-      for (const { body } of stack) {
+      stack.length = 0;
+      for (let index = 0; index < bodies.length; index++) if (!bodies[index]!.gone) stack.push(index);
+      stack.sort(higher);
+      for (const index of stack) {
+        const body = bodies[index]!;
         const p = local(body, x, y);
         if (!covers(body, p)) continue;
         const wear = worn(body);
@@ -1254,6 +1359,17 @@ export function Table({ children }: { children: ReactNode }) {
       // a video's own controls, a form field: leave them be
       if (target?.closest("input, textarea, select, [data-no-drag]")) return;
       const touch = event.pointerType === "touch";
+      const box = mat.getBoundingClientRect();
+      originX = box.left + window.scrollX;
+      originY = box.top + window.scrollY;
+      // Under a mouse it gets its own layer now, while the hand is still
+      // deciding, so the first frame it moves in isn't the one that has to
+      // paint it; and the sound wakes now too, which the first time takes a
+      // moment. (A finger on it is as likely to be scrolling the page past.)
+      if (!touch) {
+        liven(body, true);
+        unlockSound();
+      }
       pending = {
         body,
         id: event.pointerId,
@@ -1278,8 +1394,10 @@ export function Table({ children }: { children: ReactNode }) {
         const moved = Math.hypot(event.clientX - pending.x, event.clientY - pending.y);
         if (pending.touch) {
           if (moved > 10) {
+            // a finger scrolling the page past it, not taking hold
             window.clearTimeout(pending.timer);
             pending = null;
+            wake();
           }
           return;
         }
@@ -1300,6 +1418,8 @@ export function Table({ children }: { children: ReactNode }) {
       if (pending && pending.id === event.pointerId) {
         window.clearTimeout(pending.timer);
         pending = null;
+        // (the layer it was given goes back, unless the click turns it over)
+        wake();
         return;
       }
       if (grab && grab.id === event.pointerId) {
@@ -1313,6 +1433,7 @@ export function Table({ children }: { children: ReactNode }) {
       if (pending && pending.id === event.pointerId) {
         window.clearTimeout(pending.timer);
         pending = null;
+        wake();
       }
       if (grab && grab.id === event.pointerId) release();
     };
@@ -1402,6 +1523,17 @@ export function Table({ children }: { children: ReactNode }) {
       measure();
       for (const body of bodies) write(body);
     };
+    const onScroll = () => {
+      if (!floatRaf) floatRaf = requestAnimationFrame(refloat);
+    };
+    // The window lost while something's in hand (the hand let go elsewhere):
+    // it's put down. And a press on the veil can only mean a hand that let go
+    // without the page hearing it, so the veil steps aside.
+    const onBlur = () => release();
+    const onVeil = () => {
+      release();
+      delete html.dataset.holding;
+    };
 
     const onGuide = (event: PointerEvent) => {
       if (event.pointerType === "touch") return;
@@ -1454,12 +1586,17 @@ export function Table({ children }: { children: ReactNode }) {
     window.addEventListener(SCORCH_EVENT, onScorch);
     window.addEventListener("pointermove", onGuide, { passive: true });
     document.addEventListener("mouseout", onLeave);
+    if (floating) window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("blur", onBlur);
+    veil.addEventListener("pointerdown", onVeil);
     const unmountCuts = mountCuts(mat, surface);
     const unmountTorch = mountTorch(mat, surface);
 
     return () => {
       cancelAnimationFrame(raf);
       cancelAnimationFrame(guideRaf);
+      cancelAnimationFrame(floatRaf);
+      window.clearTimeout(freshTimer);
       unmountCuts();
       unmountTorch();
       cancelAnimationFrame(wearRaf);
@@ -1468,6 +1605,10 @@ export function Table({ children }: { children: ReactNode }) {
         if (body.root !== body) body.el.remove();
       }
       scale.remove();
+      veil.removeEventListener("pointerdown", onVeil);
+      veil.remove();
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("blur", onBlur);
       for (const body of bodies) body.mark?.remove();
       if (pending) window.clearTimeout(pending.timer);
       sizes.disconnect();

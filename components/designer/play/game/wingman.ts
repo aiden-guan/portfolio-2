@@ -23,6 +23,12 @@ const STARTS = [-3, 69, 165];
 const CENTER = 0.95; // a middle, above the feet, at the drawn height
 const HEAD = 2.3; // where a landing on a head bounces from
 const MAX_VX = 34;
+// the physics runs in fixed steps, so a throw goes the same way at any frame rate
+const STEP = 1 / 240;
+// the throw meter sweeps faster each throw
+const SWEEP = [1.15, 1.32, 1.5];
+// a landing's spring: starts squashed, wobbles back
+const spring = (t: number) => (t < 0 || t > 0.45 ? 0 : Math.exp(-t * 11) * Math.cos(t * 28));
 
 type Zone = {
   from: number;
@@ -69,6 +75,8 @@ export type WingmanView = {
   wipe: number;
   /** Where this throw starts. */
   place: string;
+  /** The longest run of baddies without touching the ground, this summer. */
+  bestCombo: number;
 };
 
 // —— the coast, a tile at a time
@@ -490,6 +498,8 @@ function phoneGeometry() {
 // —— the game
 
 export function createWingman({ sound, onDone }: { sound: () => Sound | null; onDone: (result: WingmanResult) => void }) {
+  // with reduced motion the camera holds still: no shake, no punch in, no squash
+  const calm = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const scene = new Scene();
   const course = new Group();
   course.rotation.y = Math.PI / 4;
@@ -497,12 +507,21 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
 
   const tiles = ZONES.map((_, z) => [buildTile(z, 0), buildTile(z, 1)]);
   const live = new Map<number, { group: Group; foam: Mesh | null }>();
+  const foams: Array<{ i: number; mesh: Mesh }> = [];
+  let shownFirst = NaN;
+  let shownLast = NaN;
   const ensureTiles = (camX: number) => {
     const first = Math.floor((camX - 28) / TILE), last = Math.floor((camX + 34) / TILE);
+    // only when the camera has crossed into another tile
+    if (first === shownFirst && last === shownLast) return;
+    shownFirst = first;
+    shownLast = last;
     for (const [i, t] of live)
       if (i < first - 1 || i > last + 1) {
         course.remove(t.group);
         live.delete(i);
+        const f = foams.findIndex((x) => x.i === i);
+        if (f >= 0) foams.splice(f, 1);
       }
     for (let i = first; i <= last; i += 1) {
       if (live.has(i)) continue;
@@ -520,6 +539,7 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
       if (built.foam) {
         foam = new Mesh(built.foam, materials.glow);
         group.add(foam);
+        foams.push({ i, mesh: foam });
       }
       course.add(group);
       live.set(i, { group, foam });
@@ -583,28 +603,55 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
   const dustSand = speck(0xf1dcaa);
   const dustStone = speck(0xd9d4ca);
   const phoneGeom = phoneGeometry();
-  type Particle = { mesh: Mesh; v: Vector3; life: number; max: number; spin: number; scale: number };
+  // hearts and dust: a fixed pool, reused, so a busy bounce allocates nothing
+  type Particle = { mesh: Mesh; v: Vector3; life: number; max: number; spin: number; scale: number; gravity: number; on: boolean };
+  const POOL = 120;
   const particles: Particle[] = [];
-  const spare: Mesh[] = [];
-  const spareDust: Mesh[] = [];
-  const burstHearts = (at: Vector3, n: number) => {
+  let rolls = 0;
+  // the same scatter every time, so nothing on screen depends on Math.random
+  const roll = () => hash3((rolls += 1), 7, 13);
+  const spawn = (geometry: BufferGeometry, material: Mesh["material"], x: number, y: number, z: number, vx: number, vy: number, vz: number, max: number, spin: number, scale: number, gravity: number) => {
+    let p: Particle | undefined;
+    for (let i = 0; i < particles.length; i += 1)
+      if (!particles[i].on) {
+        p = particles[i];
+        break;
+      }
+    if (!p) {
+      if (particles.length >= POOL) return;
+      p = { mesh: new Mesh(geometry, material), v: new Vector3(), life: 0, max: 1, spin: 0, scale: 1, gravity: 0, on: false };
+      particles.push(p);
+      course.add(p.mesh);
+    }
+    p.on = true;
+    p.mesh.visible = true;
+    p.mesh.geometry = geometry;
+    p.mesh.material = material;
+    p.mesh.position.set(x, y, z);
+    p.mesh.rotation.set(0, 0, 0);
+    p.mesh.scale.setScalar(scale);
+    p.v.set(vx, vy, vz);
+    p.life = 0;
+    p.max = max;
+    p.spin = spin;
+    p.scale = scale;
+    p.gravity = gravity;
+  };
+  const burstHearts = (x: number, y: number, z: number, n: number) => {
     for (let i = 0; i < n; i += 1) {
-      const mesh = spare.pop() ?? new Mesh(heartBig, materials.glow);
-      mesh.position.copy(at);
-      mesh.visible = true;
-      course.add(mesh);
-      const a = (i / n) * Math.PI * 2 + Math.random();
-      particles.push({ mesh, v: new Vector3(Math.cos(a) * 2.2, 2.5 + Math.random() * 2.5, Math.sin(a) * 1.2), life: 0, max: 0.9 + Math.random() * 0.4, spin: Math.random() * 6 - 3, scale: 0.8 + Math.random() * 0.6 });
+      const a = (i / n) * Math.PI * 2 + roll();
+      spawn(heartBig, materials.glow, x, y, z, Math.cos(a) * 2.2, 2.5 + roll() * 2.5, Math.sin(a) * 1.2, 0.9 + roll() * 0.4, roll() * 6 - 3, 0.8 + roll() * 0.6, 2.5);
     }
   };
-  const dust = (at: Vector3, n: number, stone = false) => {
+  const dust = (x: number, y: number, z: number, n: number, stone = false) => {
+    for (let i = 0; i < n; i += 1) spawn(stone ? dustStone : dustSand, solid, x, y, z, (roll() - 0.6) * 3, 1 + roll() * 2.4, (roll() - 0.5) * 2, 0.5 + roll() * 0.3, 0, 0.6 + roll() * 0.8, 9);
+  };
+  /** A landing kicks up a ring of it, low and out. */
+  const ring = (x: number, z: number, n: number, stone = false) => {
     for (let i = 0; i < n; i += 1) {
-      const mesh = spareDust.pop() ?? new Mesh(dustSand, solid);
-      mesh.geometry = stone ? dustStone : dustSand;
-      mesh.position.copy(at);
-      mesh.visible = true;
-      course.add(mesh);
-      particles.push({ mesh, v: new Vector3((Math.random() - 0.6) * 3, 1 + Math.random() * 2.4, (Math.random() - 0.5) * 2), life: 0, max: 0.5 + Math.random() * 0.3, spin: 0, scale: 0.6 + Math.random() * 0.8 });
+      const a = (i / n) * Math.PI * 2;
+      const v = 2.6 + roll() * 1.6;
+      spawn(stone ? dustStone : dustSand, solid, x + Math.cos(a) * 0.2, 0.08, z + Math.sin(a) * 0.2, Math.cos(a) * v, 0.9 + roll() * 0.9, Math.sin(a) * v * 0.6, 0.42 + roll() * 0.25, 0, 0.7 + roll() * 0.7, 7);
     }
   };
 
@@ -654,6 +701,7 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
   };
   const give = (body: Body) => {
     course.remove(body.holder);
+    body.holder.scale.set(1, 1, 1);
     const key = body.kind;
     const list = pools.get(key) ?? [];
     list.push(body);
@@ -679,6 +727,14 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
   let now = 0;
   let freeze = 0;
   let shake = 0;
+  // the camera's punch in on an impact, and John's squash on a landing
+  let kick = 0;
+  let landedAt = -1;
+  let acc = 0;
+  let bounces = 0;
+  let slides = 0;
+  let wasGold = false;
+  let bestCombo = 0;
   let wipe = 0;
   let wipeAt = -1;
   let topZone = 0;
@@ -690,19 +746,20 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
   const a = { x: origin, run: 0, pose: "carry" as Pose, phase: 0 };
   const cam = { x: origin + 2, y: 1.8, span: 1, shake: new Vector3() };
   const listeners = new Set<() => void>();
+  const liveView = { distance: 0, meter: 0, speed: 0, height: 0, rising: false, combo: 0, popups };
   let snapshot: WingmanView = view();
 
   function view(): WingmanView {
-    return { phase, round, rounds: ROUNDS, zone: zoneShown, dives, rizzed, total, combo, power, results: [...results], wipe, place: ZONES[zoneAt(origin + 4)].name };
+    return { phase, round, rounds: ROUNDS, zone: zoneShown, dives, rizzed, total, combo, power, results: [...results], wipe, place: ZONES[zoneAt(origin + 4)].name, bestCombo };
   }
   const emit = () => {
     snapshot = view();
     for (const fn of listeners) fn();
   };
 
-  const popup = (text: string, tone: Popup["tone"], at: Vector3) => {
+  const popup = (text: string, tone: Popup["tone"], x: number, y: number, z: number) => {
     popupId += 1;
-    popups.push({ id: popupId, text, tone, at: course.localToWorld(at.clone()), born: now });
+    popups.push({ id: popupId, text, tone, at: course.localToWorld(new Vector3(x, y, z)), born: now });
     if (popups.length > 8) popups.shift();
   };
 
@@ -740,6 +797,10 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
     combo = 0;
     dives = 3;
     power = "";
+    acc = 0;
+    kick = 0;
+    landedAt = -1;
+    johnHolder.scale.set(1, 1, 1);
     topZone = zoneAt(origin + 4);
     zoneShown = topZone;
     cam.x = origin + 2;
@@ -769,6 +830,11 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
     a.pose = "throw";
     sound()?.whoosh(0.5, true, 0.16);
     sound()?.boing(-4);
+    if (q > 0.9) {
+      kick = 0.8;
+      sound()?.sparkle();
+    }
+    dust(a.x, 0.06, 0, 6, zoneAt(a.x) > 0);
     setPhase("flight");
   };
 
@@ -786,16 +852,21 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
     combo += 1;
     rizzed += 1;
     total += 1;
+    bestCombo = Math.max(bestCombo, combo);
     if (rizzed % 2 === 0) dives = Math.min(3, dives + 1);
     j.y = HEAD;
     j.vy = zone.bounce + Math.min(6, combo) * 0.15;
-    j.vx = Math.min(MAX_VX, Math.max(j.vx, 7) + zone.boost);
+    // a chain is worth a little more speed with every link
+    j.vx = Math.min(MAX_VX, Math.max(j.vx, 7) + zone.boost + Math.min(8, combo) * 0.22);
     j.spin = 0;
-    freeze = 0.065;
+    // a few frames of hit-stop, longer the longer the chain; a punch in; a squash
+    freeze = 0.06 + Math.min(5, combo) * 0.006;
     shake = 0.16;
+    kick = Math.min(1.25, 0.75 + combo * 0.06);
+    landedAt = now;
     const rating = e.tier === 0 ? (e.seed % 2 ? "7/10" : "6/10") : zone.rating;
-    popup(combo > 1 ? `${rating} · RIZZED ×${combo}` : `${rating} · RIZZED`, e.tier === 3 ? "gold" : "rizz", new Vector3(e.x, 2.6, e.z));
-    burstHearts(new Vector3(e.x, 2.1, e.z), e.tier === 3 ? 10 : 6);
+    popup(combo > 1 ? `${rating} · RIZZED ×${combo}` : `${rating} · RIZZED`, e.tier === 3 ? "gold" : "rizz", e.x, 2.6, e.z);
+    burstHearts(e.x, 2.1, e.z, e.tier === 3 ? 10 : 6);
     sound()?.rizz(combo);
     sound()?.boing(e.tier * 2);
     emit();
@@ -808,9 +879,11 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
     j.y = HEAD + 0.15;
     j.vy = 6;
     j.vx *= 0.45;
-    freeze = 0.09;
-    shake = 0.22;
-    popup("SHE HAS A BOYFRIEND", "nope", new Vector3(e.x, 2.8, 0));
+    freeze = 0.11;
+    shake = 0.24;
+    kick = 1.3;
+    landedAt = now;
+    popup("SHE HAS A BOYFRIEND", "nope", e.x, 2.8, 0);
     sound()?.nope();
     emit();
   };
@@ -821,8 +894,9 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
     j.vx = Math.min(MAX_VX, j.vx + 4.5);
     j.vy = Math.max(j.vy, 5.5);
     dives = Math.min(3, dives + 1);
-    popup("SLID INTO HER DMs", "dm", new Vector3(e.x, e.y + 0.6, 0));
-    burstHearts(new Vector3(e.x, e.y, 0), 4);
+    kick = Math.max(kick, 0.5);
+    popup("SLID INTO HER DMs", "dm", e.x, e.y + 0.6, 0);
+    burstHearts(e.x, e.y, 0, 4);
     sound()?.notify();
     sound()?.whoosh(0.4, true, 0.12);
     emit();
@@ -873,13 +947,22 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
     if (j.y <= 0.35) {
       j.y = 0.35;
       if (j.vy < -4.2 && !j.sliding) {
+        const hard = Math.min(1, -j.vy / 16);
         j.vy = -j.vy * 0.42;
         j.vx *= 0.72;
         j.spin = 10;
+        // a chain that ends on the sand still gets its number
+        if (combo >= 3) popup(`COMBO ×${combo}`, "power", j.x, 2.2, 0);
         combo = 0;
-        dust(new Vector3(j.x, 0.1, 0), 7, zoneAt(j.x) > 0);
+        bounces += 1;
+        const stone = zoneAt(j.x) > 0;
+        ring(j.x, 0, 10, stone);
+        dust(j.x, 0.1, 0, 4, stone);
+        kick = Math.max(kick, 0.35 + hard * 0.4);
+        shake = Math.max(shake, 0.1 + hard * 0.08);
+        landedAt = now;
         sound()?.thud();
-        if (Math.random() < 0.4) popup("OOF", "oof", new Vector3(j.x, 1.2, 0));
+        if (bounces % 3 === 1) popup("OOF", "oof", j.x, 1.2, 0);
         emit();
       } else {
         j.vy = 0;
@@ -888,7 +971,9 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
     }
     if (j.sliding) {
       j.vx = Math.max(0, j.vx - 10 * h);
-      if (Math.random() < 0.3) dust(new Vector3(j.x, 0.05, 0), 1, zoneAt(j.x) > 0);
+      // a trail of sand behind the slide, twenty puffs a second
+      slides += 1;
+      if (slides % 12 === 0) dust(j.x, 0.05, 0, 1, zoneAt(j.x) > 0);
       if (j.vx <= 0.01) land();
     }
   };
@@ -961,6 +1046,9 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
         body.rig.head.rotation.y = Math.sin(time * 14) * 0.5 * Math.max(0, 1 - since);
       }
       body.holder.rotation.y += (turn - body.holder.rotation.y) * 0.12;
+      // the one he lands on gives a little under him, and springs back
+      const sink = e.hit && e.kind === "baddie" && !calm ? spring(since) : 0;
+      body.holder.scale.set(1 + sink * 0.1, 1 - sink * 0.2, 1 + sink * 0.1);
       animate(body.rig, 0, 0, time, pose, e.seed);
       if (body.sparkle) body.sparkle.rotation.y = time * 1.6;
     }
@@ -987,6 +1075,8 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
       return;
     }
     johnHolder.position.set(j.x, j.y, 0);
+    const squash = calm ? 0 : spring(now - landedAt);
+    johnHolder.scale.set(1 + squash * 0.16, 1 - squash * 0.26, 1 + squash * 0.16);
     const r = johnSpin.rotation.x;
     johnSpin.rotation.x = Math.atan2(Math.sin(r), Math.cos(r));
     if (phase === "flight" && !j.sliding) {
@@ -1012,7 +1102,10 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
   };
 
   const look = { target: new Vector3(), span: 15, background: { top: new Color(0x8cc4f2), bottom: new Color(0xfde8c9) } };
+  // reused every frame
   const local = new Vector3();
+  const over = new Vector3();
+  const sunAt = new Vector3();
   let night = 0;
   const skyColour = (x: number) => {
     // blend between zones over the last 18 m before each starts
@@ -1031,18 +1124,28 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
 
   const update = (dt: number, time: number) => {
     now += dt;
-    // the throw meter, up and down
+    // the throw meter, up and down, a little faster each throw; a tick on the way into the gold
     if (phase === "aim") {
       meterT += dt;
-      meter = 1 - Math.abs(((meterT * 1.15) % 2) - 1);
+      meter = 1 - Math.abs(((meterT * SWEEP[Math.min(round, SWEEP.length - 1)]) % 2) - 1);
+      const gold = meter > 0.9;
+      if (gold && !wasGold) sound()?.tick();
+      wasGold = gold;
     }
     if (phase === "windup" && now - phaseAt > 0.42) throwJohn();
     if (phase === "flight") {
-      if (freeze > 0) freeze -= dt;
+      // hit-stop eats whole frames; then the physics catches up in fixed steps
+      if (freeze > 0) freeze = Math.max(0, freeze - dt);
       else {
-        const steps = Math.ceil(dt / (1 / 240));
-        const h = dt / steps;
-        for (let i = 0; i < steps && phase === "flight"; i += 1) physics(h);
+        acc = Math.min(acc + dt, 0.1);
+        while (acc >= STEP && phase === "flight") {
+          physics(STEP);
+          acc -= STEP;
+          if (freeze > 0) {
+            acc = 0;
+            break;
+          }
+        }
       }
       showZone();
     }
@@ -1063,7 +1166,7 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
       }
     }
 
-    // the camera: ahead of John, up with him, out when he's high
+    // the camera: ahead of John, up with him, out when he's high, in for a moment on a hit
     const flying = phase === "flight" || phase === "landed" || phase === "results" || phase === "done";
     const fx = flying ? j.x + Math.min(4, Math.max(0, j.vx * 0.22)) : a.x + 2.2;
     const fy = flying ? Math.max(1.7, j.y * 0.62 + 0.7) : 1.9;
@@ -1072,47 +1175,56 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
     cam.y += (fy - cam.y) * k;
     const zoom = 1 + Math.min(0.55, Math.max(0, (j.y - 4.5) / 16)) * (flying ? 1 : 0);
     cam.span += (zoom - cam.span) * (1 - Math.exp(-dt * 3));
+    kick = calm ? 0 : Math.max(0, kick - dt * 3.6);
     shake = Math.max(0, shake - dt);
-    const s = shake * shake * 2.2;
-    local.set(cam.x + (Math.random() - 0.5) * s, cam.y + (Math.random() - 0.5) * s, -0.6);
-    look.target.copy(course.localToWorld(local.clone()));
+    const s = calm ? 0 : shake * shake * 2.2;
+    local.set(cam.x + (hash3(Math.floor(now * 60), 3, 1) - 0.5) * s, cam.y + (hash3(Math.floor(now * 60), 5, 2) - 0.5) * s, -0.6);
+    look.target.copy(local);
+    course.localToWorld(look.target);
 
     ensureTiles(cam.x);
     skyColour(cam.x);
     // the sun and the clouds stay in the sky; the wheel turns, a little behind
     sky.sunMesh.position.set(cam.x + 3.2, cam.y * 0.95 - 21.2, -44);
-    sky.clouds.forEach((c, n) => {
+    for (let n = 0; n < sky.clouds.length; n += 1) {
       const drift = ((((time * 0.4 + n * 9.3 - cam.x * 0.12) % 34) + 34) % 34) - 17;
-      c.position.set(cam.x + drift, cam.y * 0.9 - 19.5 + n * 0.9, -40);
-    });
+      sky.clouds[n].position.set(cam.x + drift, cam.y * 0.9 - 19.5 + n * 0.9, -40);
+    }
     wheel.group.position.x = 120 + (cam.x - 120) * 0.45;
     wheel.wheel.rotation.z = time * 0.08;
-    for (const [i, t] of live) if (t.foam) t.foam.position.z = Math.sin(time * 0.9 + i) * 0.12 + 0.05;
-    for (const g of gates) g.visible = Math.abs(g.position.x - cam.x) < 40;
+    for (let n = 0; n < foams.length; n += 1) foams[n].mesh.position.z = Math.sin(time * 0.9 + foams[n].i) * 0.12 + 0.05;
+    for (let n = 0; n < gates.length; n += 1) gates[n].visible = Math.abs(gates[n].position.x - cam.x) < 40;
 
     // light: always over the action, from in front and to the right, so the
     // sides you can see are lit and the shadows fall back toward the water
-    const over = course.localToWorld(new Vector3(cam.x, 0, 0));
-    sun.position.copy(course.localToWorld(new Vector3(cam.x + 6, 13, 9)));
+    over.set(cam.x, 0, 0);
+    course.localToWorld(over);
+    sunAt.set(cam.x + 6, 13, 9);
+    course.localToWorld(sunAt);
+    sun.position.copy(sunAt);
     sun.target.position.copy(over);
     sun.target.updateMatrixWorld();
 
     posePeople(time);
     poseBoys(time, dt);
 
-    for (let i = particles.length - 1; i >= 0; i -= 1) {
+    for (let i = 0; i < particles.length; i += 1) {
       const p = particles[i];
+      if (!p.on) continue;
       p.life += dt;
       const t = p.life / p.max;
-      const isDust = p.mesh.geometry === dustSand || p.mesh.geometry === dustStone;
-      p.v.y -= (isDust ? 9 : 2.5) * dt;
+      p.v.y -= p.gravity * dt;
       p.mesh.position.addScaledVector(p.v, dt);
+      // dust settles on the ground; hearts float off
+      if (p.gravity > 5 && p.mesh.position.y < 0.04) {
+        p.mesh.position.y = 0.04;
+        p.v.set(p.v.x * 0.6, 0, p.v.z * 0.6);
+      }
       p.mesh.rotation.y += p.spin * dt;
       p.mesh.scale.setScalar(Math.max(0.001, p.scale * (1 - t * t)));
       if (t >= 1) {
-        course.remove(p.mesh);
-        (isDust ? spareDust : spare).push(p.mesh);
-        particles.splice(i, 1);
+        p.on = false;
+        p.mesh.visible = false;
       }
     }
     while (popups.length && now - popups[0].born > 1.4) popups.shift();
@@ -1126,7 +1238,7 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
     } else if (phase === "aim") {
       power = meter > 0.9 ? "PERFECT" : meter > 0.7 ? "GOOD" : "WEAK";
       sound()?.[meter > 0.9 ? "chime" : "select"]();
-      popup(power === "PERFECT" ? "PERFECT THROW" : power === "GOOD" ? "GOOD THROW" : "…WEAK THROW", "power", new Vector3(a.x, 3.2, 0));
+      popup(power === "PERFECT" ? "PERFECT THROW" : power === "GOOD" ? "GOOD THROW" : "…WEAK THROW", "power", a.x, 3.2, 0);
       setPhase("windup");
     } else if (phase === "flight" && !j.sliding && dives > 0 && j.y > 1) {
       dives -= 1;
@@ -1147,12 +1259,21 @@ export function createWingman({ sound, onDone }: { sound: () => Sound | null; on
     update,
     press,
     look: (tall: boolean) => {
-      look.span = (tall ? 11 : 15) * cam.span;
+      // a hit punches in a few percent, and eases back out
+      look.span = (tall ? 11 : 15) * cam.span * (1 - 0.065 * kick * kick);
       return look;
     },
     night: () => night,
-    /** Where John is, how fast, how far, for the HUD. */
-    live: () => ({ distance: Math.max(0, Math.round((phase === "flight" || phase === "landed" ? j.x : origin) - origin)), meter, speed: Math.hypot(j.vx, j.vy), height: j.y, rising: j.vy > 0, popups }),
+    /** Where John is, how fast, how far, for the HUD: the same object every frame. */
+    live: () => {
+      liveView.distance = Math.max(0, Math.round((phase === "flight" || phase === "landed" ? j.x : origin) - origin));
+      liveView.meter = meter;
+      liveView.speed = phase === "flight" && !j.sliding ? Math.hypot(j.vx, j.vy) : 0;
+      liveView.height = j.y;
+      liveView.rising = j.vy > 0;
+      liveView.combo = combo;
+      return liveView;
+    },
     subscribe: (fn: () => void) => {
       listeners.add(fn);
       return () => listeners.delete(fn);

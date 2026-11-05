@@ -217,9 +217,11 @@
   color: #fff;
 }
 
-.primary:hover {
-  background: var(--blue-dark);
-  color: #fff;
+@media (hover: hover) {
+  .primary:hover {
+    background: var(--blue-dark);
+    color: #fff;
+  }
 }
 
 .primary:disabled,
@@ -234,10 +236,12 @@
   box-shadow: inset 0 0 0 1px var(--blue);
 }
 
-.secondary:hover {
-  background: #ebf4fd;
-  color: var(--blue-dark);
-  box-shadow: inset 0 0 0 2px var(--blue-dark);
+@media (hover: hover) {
+  .secondary:hover {
+    background: #ebf4fd;
+    color: var(--blue-dark);
+    box-shadow: inset 0 0 0 2px var(--blue-dark);
+  }
 }
 
 .muted {
@@ -246,11 +250,18 @@
   box-shadow: inset 0 0 0 1px var(--text-2);
 }
 
-.muted:hover,
 .muted[aria-expanded="true"] {
   background: var(--hover);
   color: var(--text);
   box-shadow: inset 0 0 0 2px var(--text);
+}
+
+@media (hover: hover) {
+  .muted:hover {
+    background: var(--hover);
+    color: var(--text);
+    box-shadow: inset 0 0 0 2px var(--text);
+  }
 }
 
 .small {
@@ -273,9 +284,11 @@
   transition: background-color 167ms var(--ease), color 167ms var(--ease);
 }
 
-.iconButton:hover {
-  background: var(--hover);
-  color: var(--text);
+@media (hover: hover) {
+  .iconButton:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
 }
 
 /* The top card */
@@ -284,37 +297,38 @@
   padding-bottom: 0;
 }
 
+/* The cover is a flat navy print: an even dot screen, and hairline rings
+   rippling out from below the right-hand corner that stop well short of the
+   photo, the kind of banner people make in a slide tool. */
 .banner {
   position: relative;
   overflow: hidden;
   aspect-ratio: 4 / 1;
   border-radius: 8px 8px 0 0;
-  background:
-    radial-gradient(70% 140% at 100% 0%, rgb(96 165 235 / 0.5) 0%, rgb(96 165 235 / 0) 60%),
-    radial-gradient(55% 120% at 0% 100%, rgb(3 16 38 / 0.7) 0%, rgb(3 16 38 / 0) 70%),
-    linear-gradient(115deg, #0a2549 0%, #0d3a72 48%, #17599f 100%);
+  background: #0c3466;
 }
 
 .banner::before {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle, rgb(255 255 255 / 0.28) 0.9px, transparent 1.3px);
+  background-image: radial-gradient(circle, rgb(255 255 255 / 0.15) 0.9px, transparent 1.25px);
   background-position: 6px 6px;
   background-size: 12px 12px;
-  -webkit-mask-image: linear-gradient(105deg, transparent 22%, #000 78%);
-  mask-image: linear-gradient(105deg, transparent 22%, #000 78%);
 }
 
+/* A circle centred half a cover below the corner; its own rounding clips the
+   rings, so they end instead of running on across the cover. */
 .banner::after {
   content: "";
   position: absolute;
-  inset: 0;
-  background:
-    repeating-radial-gradient(circle at 88% 135%, rgb(255 255 255 / 0.07) 0 1px, transparent 1.5px 26px),
-    linear-gradient(180deg, rgb(255 255 255 / 0.07), transparent 45%);
-  -webkit-mask-image: linear-gradient(90deg, transparent 35%, #000 85%);
-  mask-image: linear-gradient(90deg, transparent 35%, #000 85%);
+  bottom: -50%;
+  left: 42%;
+  width: 84%;
+  margin-bottom: -42%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, transparent 0 25px, rgb(255 255 255 / 0.1) 25px 26px);
 }
 
 .topBody {
@@ -461,6 +475,31 @@
   margin-top: 12px;
 }
 
+/* Connect and Pending share a box, so the row doesn't jump when it changes. */
+.connect {
+  min-width: 118px;
+}
+
+.pending svg {
+  color: var(--text-2);
+}
+
+.clockHand {
+  transform-box: view-box;
+  transform-origin: 8px 8px;
+  animation: clock-sweep 520ms cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+
+@keyframes clock-sweep {
+  from {
+    transform: rotate(-270deg);
+  }
+}
+
+.moreIcon {
+  display: none;
+}
+
 .moreHost {
   position: relative;
 }
@@ -501,9 +540,11 @@
   cursor: pointer;
 }
 
-.popoverItem:hover {
-  background: var(--hover);
-  color: var(--text);
+@media (hover: hover) {
+  .popoverItem:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
 }
 
 .popoverItem:focus-visible {
@@ -734,8 +775,10 @@
   transition: background-color 167ms var(--ease);
 }
 
-.topSkills:hover {
-  background: rgb(0 0 0 / 0.03);
+@media (hover: hover) {
+  .topSkills:hover {
+    background: rgb(0 0 0 / 0.03);
+  }
 }
 
 .topSkillsIcon {
@@ -783,6 +826,16 @@
   scroll-snap-align: start;
 }
 
+.track[data-dragging] {
+  scroll-snap-type: none;
+  cursor: grabbing;
+  user-select: none;
+}
+
+.track[data-dragging] > li {
+  pointer-events: none;
+}
+
 .arrow {
   position: absolute;
   top: 50%;
@@ -802,8 +855,10 @@
   transition: opacity 167ms var(--ease), background-color 167ms var(--ease);
 }
 
-.arrow:hover {
-  background: #f3f3f3;
+@media (hover: hover) {
+  .arrow:hover {
+    background: #f3f3f3;
+  }
 }
 
 .arrowPrev {
@@ -844,13 +899,15 @@
   transition: box-shadow 167ms var(--ease);
 }
 
-.featured:hover {
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
-}
+@media (hover: hover) {
+  .featured:hover {
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+  }
 
-.featured:hover .featuredTitle {
-  color: var(--blue);
-  text-decoration: underline;
+  .featured:hover .featuredTitle {
+    color: var(--blue);
+    text-decoration: underline;
+  }
 }
 
 .featuredKind {
@@ -930,10 +987,12 @@
     color 167ms var(--ease);
 }
 
-.pill:hover {
-  background: var(--hover);
-  color: var(--text);
-  box-shadow: inset 0 0 0 2px var(--text);
+@media (hover: hover) {
+  .pill:hover {
+    background: var(--hover);
+    color: var(--text);
+    box-shadow: inset 0 0 0 2px var(--text);
+  }
 }
 
 .pill[aria-selected="true"] {
@@ -942,13 +1001,25 @@
   box-shadow: none;
 }
 
-.pill[aria-selected="true"]:hover {
-  background: #004d34;
+@media (hover: hover) {
+  .pill[aria-selected="true"]:hover {
+    background: #004d34;
+  }
 }
 
 .postItem {
   display: flex;
   width: calc((100% - 8px) / 2);
+}
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.feedItem {
+  display: flex;
 }
 
 .post {
@@ -1076,7 +1147,25 @@
 }
 
 .reactionCount {
+  display: inline-block;
   margin-left: 2px;
+}
+
+.reactionCount[data-you] {
+  animation: count-in 260ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+@keyframes count-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+.postCounts {
+  margin-left: auto;
+  padding-left: 8px;
+  white-space: nowrap;
 }
 
 .postActions {
@@ -1086,9 +1175,11 @@
   border-top: 1px solid var(--line);
 }
 
+/* Each action grows from its own width, so a long reaction like
+   "Insightful" fits without squeezing its neighbours. */
 .postAction {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   align-items: center;
   justify-content: center;
   gap: 4px;
@@ -1103,14 +1194,177 @@
   transition: background-color 167ms var(--ease), color 167ms var(--ease);
 }
 
-.postAction:hover {
-  background: var(--hover);
-  color: var(--text);
+@media (hover: hover) {
+  .postAction:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
 }
 
-.postAction[data-liked],
-.postAction[data-liked]:hover {
+/* Once reacted, the button takes the reaction's icon and a darker shade of its colour. */
+.postAction[data-reaction="like"] {
   color: var(--blue);
+}
+
+.postAction[data-reaction="celebrate"] {
+  color: #44712e;
+}
+
+.postAction[data-reaction="support"] {
+  color: #7a50b8;
+}
+
+.postAction[data-reaction="love"] {
+  color: #b24020;
+}
+
+.postAction[data-reaction="insightful"] {
+  color: #915907;
+}
+
+.postAction[data-reaction="funny"] {
+  color: #1a707e;
+}
+
+.reactHost {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+}
+
+.reactHost > .postAction {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* Hidden until it has keyboard focus, as LinkedIn's is. */
+.reactTrigger {
+  position: absolute;
+  top: 50%;
+  left: -6px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-top: -12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--line), 0 2px 6px rgb(0 0 0 / 0.16);
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+}
+
+.reactTrigger:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.reactions {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: -8px;
+  z-index: 4;
+  display: flex;
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line), 0 6px 18px rgb(0 0 0 / 0.18);
+  transform-origin: 30px 100%;
+  animation: reactions-in 200ms cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+/* A bridge over the gap, so the pointer can travel from Like up to the row. */
+.reactions::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 10px;
+}
+
+@keyframes reactions-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.92);
+  }
+}
+
+.reaction {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.reaction svg {
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: reaction-in 280ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  animation-delay: calc(var(--i) * 24ms);
+}
+
+@keyframes reaction-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.5);
+  }
+}
+
+.reaction:hover svg,
+.reaction:focus-visible svg {
+  transform: translateY(-7px) scale(1.3);
+}
+
+/* The ring follows the icon as it lifts. */
+.reaction:focus-visible {
+  outline: none;
+}
+
+.reaction svg {
+  border-radius: 50%;
+}
+
+.reaction:focus-visible svg {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.reactionLabel {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgb(0 0 0 / 0.88);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  pointer-events: none;
+  transition:
+    opacity 120ms var(--ease),
+    transform 160ms var(--ease);
+}
+
+.reaction:hover .reactionLabel,
+.reaction:focus-visible .reactionLabel {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .postAction > span {
@@ -1139,7 +1393,8 @@
   }
 }
 
-@container (max-width: 330px) {
+/* A narrow card (the phone's carousel) stacks each icon over its label, as the app does. */
+@container (max-width: 360px) {
   .postAction {
     flex-direction: column;
     gap: 2px;
@@ -1201,9 +1456,11 @@
   transition: background-color 167ms var(--ease), color 167ms var(--ease);
 }
 
-.footerButton:hover {
-  background: var(--hover);
-  color: var(--text);
+@media (hover: hover) {
+  .footerButton:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
 }
 
 .footerButton:focus-visible {
@@ -1394,6 +1651,7 @@
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
+  overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -1626,10 +1884,12 @@ a.mediaRow:hover .mediaTitle {
     width: min(804px, 100% - 48px);
   }
 
+  /* The rail goes under the main column: settings and the ad side by side,
+     then the pages across the full width, two to a row. */
   .aside {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
+    align-items: stretch;
     gap: 8px;
   }
 
@@ -1637,20 +1897,45 @@ a.mediaRow:hover .mediaTitle {
     display: contents;
   }
 
+  .pagesCard,
   .footerNote {
     grid-column: 1 / -1;
+  }
+
+  .pageList {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+  }
+
+  .pageItem:nth-child(2) {
+    border-top: 0;
   }
 }
 
 @media (max-width: 767px) {
+  /* The tab bar is fixed to the bottom of a phone, so focus and the last card stop above it. */
+  :global(html):has(.root) {
+    scroll-padding-top: 64px;
+    scroll-padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+
   .page {
     width: 100%;
-    padding: 0 0 48px;
+    padding: 0 0 calc(64px + env(safe-area-inset-bottom, 0px));
     gap: 8px;
   }
 
   .aside {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pageList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pageItem:nth-child(2) {
+    border-top: 1px solid var(--line);
   }
 
   .card {
@@ -1678,44 +1963,98 @@ a.mediaRow:hover .mediaTitle {
     padding: 0 16px 16px;
   }
 
+  /* The app's profile: a shorter cover, the photo over its left end, the
+     name large, and Connect, Message and a round ⋯ across the width. */
+  .banner {
+    aspect-ratio: 3 / 1;
+  }
+
   .photoFrame {
-    width: 120px;
-    height: 120px;
-    margin-top: -66px;
-    border-width: 3px;
+    width: 112px;
+    height: 112px;
+    margin-top: -64px;
+    border-width: 4px;
+  }
+
+  .ringText {
+    font-size: 13px;
   }
 
   .intro {
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
     margin-top: 10px;
   }
 
   .name {
-    font-size: 20px;
-    line-height: 26px;
+    font-size: 24px;
+    line-height: 30px;
   }
 
   .headline {
-    font-size: 14px;
-    line-height: 20px;
+    margin-top: 4px;
+    font-size: 16px;
+    line-height: 22px;
+  }
+
+  .location {
+    margin-top: 6px;
+  }
+
+  .counts {
+    margin-top: 6px;
   }
 
   .chips {
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 8px 16px;
+    gap: 8px 20px;
     width: auto;
     padding-top: 0;
   }
 
   .chip {
-    font-size: 12px;
-    line-height: 16px;
+    gap: 8px;
+    font-size: 14px;
+    line-height: 20px;
   }
 
-  .actions > .btn {
-    flex: 1;
+  .actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    margin-top: 14px;
+  }
+
+  .connect {
+    min-width: 0;
+  }
+
+  .more {
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .actions > .btn,
+  .more {
+    min-height: 36px;
+  }
+
+  .moreLabel {
+    display: none;
+  }
+
+  .moreIcon {
+    display: block;
+    width: 20px;
+    height: 20px;
+  }
+
+  .popover {
+    right: 0;
+    left: auto;
+    transform-origin: top right;
   }
 
   .openTo {
@@ -1757,6 +2096,57 @@ a.mediaRow:hover .mediaTitle {
   }
 }
 
+/* Without hover, a press is the feedback: the same tints, while the finger is down. */
+@media (hover: none) {
+  .primary:active {
+    background: var(--blue-dark);
+  }
+
+  .secondary:active {
+    background: #ebf4fd;
+  }
+
+  .muted:active,
+  .pill:not([aria-selected="true"]):active,
+  .postAction:active,
+  .footerButton:active,
+  .iconButton:active,
+  .popoverItem:active {
+    background-color: var(--hover);
+  }
+}
+
+/* A finger needs a bigger target than the pill it can see: each control
+   reaches 44px tall without looking any different. */
+@media (pointer: coarse) {
+  .btn,
+  .pill {
+    position: relative;
+  }
+
+  .btn::after,
+  .pill::after {
+    content: "";
+    position: absolute;
+    inset: -6px 0;
+  }
+
+  .iconButton {
+    width: 44px;
+    height: 44px;
+  }
+
+  .postAction {
+    min-height: 44px;
+  }
+
+  .seeMoreButton::after {
+    content: "";
+    position: absolute;
+    inset: -12px -8px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .btn,
   .pill,
@@ -1769,8 +2159,18 @@ a.mediaRow:hover .mediaTitle {
   .postAction,
   .footerButton,
   .featured,
-  .topSkills {
+  .topSkills,
+  .clockHand,
+  .reactionCount[data-you],
+  .reactions,
+  .reaction svg,
+  .reactionLabel {
     transition: none;
     animation: none;
+  }
+
+  .reaction:hover svg,
+  .reaction:focus-visible svg {
+    transform: none;
   }
 }

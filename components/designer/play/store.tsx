@@ -261,6 +261,7 @@ export function StoreOver({
                 <svg viewBox="0 0 16 16"><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10" /></svg>
                 Install
               </span>
+              <span className={styles.actionInstalling}>Installing</span>
               <span className={styles.actionPlay}>
                 <svg viewBox="0 0 16 16"><path d="M5 3v10l8-5z" /></svg>
                 Play

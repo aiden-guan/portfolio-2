@@ -10,7 +10,7 @@ import {
   isVideo,
 } from "@/content/portfolio";
 import { Thing } from "@/components/mat/thing";
-import { bare, code128, initials, lastAmount, pad, periodParts, stampWord, statusMark } from "@/lib/mat";
+import { bare, code128, initials, lastAmount, pad, periodParts, printedWidth, stampWord, statusMark } from "@/lib/mat";
 import { imageSet } from "@/lib/media-image";
 
 // The things that lie on the mat. Each is plain HTML in reading order; the
@@ -343,7 +343,11 @@ export function Postcard({ project, index, owner }: ProjectThingProps) {
       back={
         <div className="pc-front">
           <span className="pc-greetings">Greetings from</span>
-          <span className="pc-big">{project.name}</span>
+          {/* two drums of ink, one over the other */}
+          <span className="pc-big" style={{ "--natural": Math.max(200, printedWidth(project.name)) } as CSSProperties}>
+            <span className="pc-ink pc-ink-pink">{project.name}</span>
+            <span className="pc-ink pc-ink-blue">{project.name}</span>
+          </span>
           <span className="pc-front-foot">
             <span>W·{pad(index + 1)}</span>
             <span>{project.status}</span>
@@ -562,6 +566,7 @@ export function Ticket({ project, index }: ProjectThingProps) {
 // already keeps paper. The line down the left is the state that survives
 // the handoff.
 export function ContinuitySlip({ project, index }: ProjectThingProps) {
+  const stack = stackLine(project);
   const rows: { n: string; fact: string; mark: string; state: string }[] = [
     { n: "01", fact: "Terms", mark: "held", state: "hold" },
     { n: "02", fact: "Delivery", mark: "replaced", state: "replace" },
@@ -597,6 +602,13 @@ export function ContinuitySlip({ project, index }: ProjectThingProps) {
             </li>
           ))}
         </ol>
+        {project.detail || stack.length ? (
+          <div className="th-remarks">
+            <span className="th-label">Remarks</span>
+            {project.detail ? <p className="th-detail">{project.detail}</p> : null}
+            {stack.length ? <p className="th-stack">{stack.join(" · ")}</p> : null}
+          </div>
+        ) : null}
         <footer className="th-foot">
           <span className="th-handoff">
             Agent handoff

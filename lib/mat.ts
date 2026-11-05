@@ -77,6 +77,37 @@ export function periodParts(period: string) {
   return { start: start?.trim() || period, end: end?.trim() || "" };
 }
 
+// How wide each capital is in the name printed into the mat (Archivo at
+// 66% width and its heaviest weight), in pixels at a 100 px size, measured
+// in the browser. With these the page can lay the name out at its fitted
+// size before any script runs, so it never jumps when the page wakes up;
+// components/mat/wordmark corrects it once the font is in, for the pairs
+// the font kerns and the letters this doesn't know.
+const ADVANCE: Record<string, number> = {
+  A: 55.61, B: 52.75, C: 54.09, D: 53.73, E: 48.94, F: 42.99, G: 57.35, H: 54.67, I: 27.42,
+  J: 47.55, K: 54.4, L: 45.67, M: 73.31, N: 55.12, O: 58.34, P: 51, Q: 58.34, R: 53.73,
+  S: 49.56, T: 50.1, U: 53.77, V: 52.03, W: 75.75, X: 52.93, Y: 51.23, Z: 50.1,
+  "0": 46.75, "1": 40.22, "2": 45.23, "3": 46.39, "4": 45.94, "5": 46.12, "6": 46.84, "7": 41.5,
+  "8": 45.67, "9": 46.84, "-": 24.98, ".": 23.37, "'": 21.98, "&": 60, " ": 11.73,
+};
+// the wordmark's letter-spacing (app/mat.css), at that size
+const TRACK = -2;
+
+// How wide a line of capitals is in that face, at 100 px.
+export function printedWidth(text: string) {
+  let width = 0;
+  for (const letter of text.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")) {
+    width += (ADVANCE[letter] ?? 50) + TRACK;
+  }
+  return Math.round(width * 10) / 10;
+}
+
+// The width of the longest word of a name as the mat prints it, at 100 px.
+export function wordmarkWidth(text: string) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  return Math.max(0, ...words.map(printedWidth)) || 231;
+}
+
 export function initials(name: string) {
   return name
     .split(/\s+/)

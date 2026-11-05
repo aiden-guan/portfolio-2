@@ -34,7 +34,7 @@ import {
   type Variety,
   wing,
 } from "./kit";
-import { at, BRIDGE, PADS, POND, WATER_LEVEL } from "./layout";
+import { at, BRIDGE, PADS, PATHS, POND, WATER_LEVEL } from "./layout";
 import { FLAG, uniforms, worldMaterial } from "./shared";
 import { heightAt, padHeight } from "./terrain";
 import { hash3, Voxels } from "./voxels";
@@ -567,9 +567,8 @@ export function continuityBridge(): Place {
     update: (time) => {
       const cycle = (time % 5.2) / 5.2;
       const t = ease(clamp01((cycle - 0.15) / 0.5));
-      const p = from.clone().lerp(to, t);
-      p.y += Math.sin(Math.PI * t) * 1.9;
-      flying.position.copy(p);
+      flying.position.lerpVectors(from, to, t);
+      flying.position.y += Math.sin(Math.PI * t) * 1.9;
       flying.rotation.y = 0;
       flying.visible = cycle < 0.85;
       b.position.y = bAt.y + (cycle > 0.66 && cycle < 0.74 ? 0.12 : 0);
@@ -649,7 +648,8 @@ export function seyrinDesk(): Place {
       check.visible = shown;
       const pop = clamp01((cycle - 0.58) / 0.05);
       check.scale.setScalar(shown ? 0.6 + 0.4 * pop + Math.sin(pop * Math.PI) * 0.25 : 1);
-      check.position.copy(checkAt).add(new Vector3(0, Math.sin(time * 2) * 0.05, 0));
+      check.position.copy(checkAt);
+      check.position.y += Math.sin(time * 2) * 0.05;
     },
   };
 }
@@ -740,6 +740,7 @@ export function court(): Place {
   group.add(rec);
 
   let shooter = 0;
+  const hand = new Vector3();
   return {
     object: group,
     spot: { id: "courtvision", slug: "courtvision", object: group, anchor: base.clone().add(new Vector3(0, 3.6, -1)), focus: base.clone().add(new Vector3(0, 0.8, 0)) },
@@ -748,8 +749,8 @@ export function court(): Place {
         const t = clamp01((time - p.start) / 2.6);
         p.p.position.copy(p.from).lerp(p.to, ease(t));
         p.p.position.y = base.y + (t > 0 && t < 1 ? Math.abs(Math.sin(time * 9 + p.seed)) * 0.05 : 0);
-        const d = p.to.clone().sub(p.from);
-        if (d.lengthSq() > 0.01) p.p.rotation.y = Math.atan2(d.x, d.z);
+        const dx = p.to.x - p.from.x, dz = p.to.z - p.from.z;
+        if (dx * dx + dz * dz > 0.01) p.p.rotation.y = Math.atan2(dx, dz);
         if (t >= 1 && time - p.start > 3.2 + p.seed * 0.1) {
           p.from.copy(p.to);
           p.to.copy(spots[Math.floor(Math.random() * spots.length)]);
@@ -758,16 +759,22 @@ export function court(): Place {
       }
       const cycle = (time % 4.2) / 4.2;
       if (cycle < 0.02) shooter = Math.floor(time / 4.2) % players.length;
-      const hand = players[shooter].p.position.clone().add(new Vector3(0, 1.75, 0));
+      hand.copy(players[shooter].p.position);
+      hand.y += 1.75;
       if (cycle < 0.25) {
-        ball.position.copy(hand).add(new Vector3(0.25, Math.abs(Math.sin(cycle * 40)) * -0.9, 0.1));
+        ball.position.copy(hand);
+        ball.position.x += 0.25;
+        ball.position.y -= Math.abs(Math.sin(cycle * 40)) * 0.9;
+        ball.position.z += 0.1;
       } else if (cycle < 0.6) {
         const t = (cycle - 0.25) / 0.35;
         ball.position.copy(hand).lerp(rim, t);
         ball.position.y += Math.sin(Math.PI * t) * 1.6;
       } else {
         const t = (cycle - 0.6) / 0.4;
-        ball.position.copy(rim).add(new Vector3(0, -t * 2.2 + Math.abs(Math.sin(t * 7)) * 0.4 * (1 - t), t * 0.8));
+        ball.position.copy(rim);
+        ball.position.y += -t * 2.2 + Math.abs(Math.sin(t * 7)) * 0.4 * (1 - t);
+        ball.position.z += t * 0.8;
         ball.position.y = Math.max(base.y + 0.08, ball.position.y);
       }
       rec.visible = Math.sin(time * 4) > -0.2;
@@ -1037,6 +1044,120 @@ export function clouds(): Place {
   };
 }
 
+
+// ——— people out for a walk, along the paths and back ————————————————————
+
+// which path, who, how fast (world units a second; a unit is about a metre),
+// how far along they start, and whether they carry a light after dark
+const STROLLS: Array<{ path: number; outfit: keyof typeof OUTFITS; speed: number; from: number; lantern?: boolean }> = [
+  { path: 0, outfit: "moss", speed: 0.8, from: 0.22, lantern: true },
+  { path: 1, outfit: "oat", speed: 0.66, from: 0.7 },
+  { path: 7, outfit: "brick", speed: 0.9, from: 0.45 },
+];
+/** ground covered in one step, and how far short of a path's end they turn */
+const STEP = 0.45;
+const SHORT = 0.7;
+// the frames of a walk: one foot ahead, together, the other foot ahead, together
+const WALK = [0, 1, 2, 1];
+
+export function strollers(): Place[] {
+  // asked for less motion, they stand where they are and take in the view
+  const still = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return STROLLS.map((stroll, n) => {
+    const random = rng(301 + n * 17);
+    // the path in world space, a point every quarter unit along it, each on
+    // the ground, with how far along it is
+    const corners = PATHS[stroll.path].map(([ps, pt]) => at(ps, pt));
+    const xs: number[] = [], ys: number[] = [], zs: number[] = [], ds: number[] = [];
+    let total = 0;
+    const push = (x: number, z: number, d: number) => {
+      xs.push(x);
+      ys.push(heightAt(x, z));
+      zs.push(z);
+      ds.push(d);
+    };
+    for (let i = 0; i < corners.length - 1; i += 1) {
+      const [ax, az] = corners[i];
+      const [bx, bz] = corners[i + 1];
+      const length = Math.hypot(bx - ax, bz - az);
+      const steps = Math.max(1, Math.ceil(length / 0.25));
+      for (let k = 0; k < steps; k += 1) push(ax + ((bx - ax) * k) / steps, az + ((bz - az) * k) / steps, total + (length * k) / steps);
+      total += length;
+    }
+    const [lx, lz] = corners[corners.length - 1];
+    push(lx, lz, total);
+
+    // the walk, three frames of it, all placed as the standing one is so the
+    // body stays put between them
+    const outfit = OUTFITS[stroll.outfit];
+    const frames = (["left", "stand", "right"] as const).map((pose) => mesh(person(outfit, pose)));
+    const box = frames[1].geometry.boundingBox!;
+    const body = new Group();
+    for (const frame of frames) {
+      frame.position.set(-(box.min.x + box.max.x) / 2, 0, -(box.min.z + box.max.z) / 2);
+      body.add(frame);
+    }
+    if (stroll.lantern) {
+      const light = new Voxels(V * 0.8, 0);
+      light.set(0, 0, 0, 0xffc66e);
+      const lantern = mesh(light, materials.lantern, { shadow: false });
+      lantern.position.set(0.22, 0.36, 0);
+      body.add(lantern);
+    }
+
+    let along = SHORT + (total - 2 * SHORT) * stroll.from;
+    let heading = random() < 0.5 ? 1 : -1;
+    let wait = 0;
+    // which way they face, and how far that may turn this frame (all the way,
+    // the first time)
+    let facing = 0;
+    let turning = 1;
+    let shown = -1;
+    let i = 0;
+    const place = (time: number) => {
+      // the stretch of path they're on, from where they were last frame
+      while (i < ds.length - 2 && ds[i + 1] < along) i += 1;
+      while (i > 0 && ds[i] > along) i -= 1;
+      const f = (along - ds[i]) / Math.max(1e-6, ds[i + 1] - ds[i]);
+      body.position.set(xs[i] + (xs[i + 1] - xs[i]) * f, ys[i] + (ys[i + 1] - ys[i]) * f - 0.04, zs[i] + (zs[i + 1] - zs[i]) * f);
+      // they face the way they're going, turning into it; stopped at an end,
+      // they look about before they go back
+      let want = Math.atan2((xs[i + 1] - xs[i]) * heading, (zs[i + 1] - zs[i]) * heading);
+      if (wait > 0 && !still) want += Math.sin(time * 0.9 + n * 2) * 0.5;
+      let turn = want - facing;
+      turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+      facing += turn * turning;
+      body.rotation.y = facing;
+      // a step every STEP of ground, standing between strides
+      const frame = wait > 0 ? 1 : WALK[Math.floor((along / STEP) * 2) % 4];
+      if (frame !== shown) {
+        frames.forEach((m, k) => (m.visible = k === frame));
+        shown = frame;
+      }
+    };
+    place(0);
+
+    return {
+      object: body,
+      update: (time, delta) => {
+        const dt = Math.min(0.1, delta);
+        turning = 1 - Math.exp(-dt * 7);
+        if (still) wait = 1;
+        else if (wait > 0) {
+          wait -= dt;
+          if (wait <= 0) heading = -heading;
+        } else {
+          along += heading * stroll.speed * dt;
+          if (along > total - SHORT || along < SHORT) {
+            along = Math.min(total - SHORT, Math.max(SHORT, along));
+            wait = 2.5 + random() * 4;
+          }
+        }
+        place(time);
+      },
+    };
+  });
+}
 
 // ——— night: lamps along the paths and fireflies over the water ——————————
 

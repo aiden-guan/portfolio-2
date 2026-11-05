@@ -1,4 +1,5 @@
 import { CanvasTexture, Group, Matrix4, Mesh, MeshBasicMaterial, NearestFilter, PlaneGeometry, SRGBColorSpace, Vector3, type Material, type Object3D } from "three";
+import { DIGITS } from "./glyphs";
 import { materials, mesh, V } from "./kit";
 import { PADS } from "./layout";
 import { ground, type Place } from "./places";
@@ -462,19 +463,6 @@ function through(times: number[], values: number[], t: number) {
 
 // —— the scoreboard: two numbers on a dark face, the far player's in white
 
-const GLYPHS: Record<string, string[]> = {
-  "0": ["###", "#.#", "#.#", "#.#", "###"],
-  "1": [".#.", "##.", ".#.", ".#.", "###"],
-  "2": ["###", "..#", "###", "#..", "###"],
-  "3": ["###", "..#", ".##", "..#", "###"],
-  "4": ["#.#", "#.#", "###", "..#", "..#"],
-  "5": ["###", "#..", "###", "..#", "###"],
-  "6": ["###", "#..", "###", "#.#", "###"],
-  "7": ["###", "..#", ".#.", ".#.", ".#."],
-  "8": ["###", "#.#", "###", "#.#", "###"],
-  "9": ["###", "#.#", "###", "..#", "###"],
-};
-
 function scoreboard() {
   const canvas = document.createElement("canvas");
   canvas.width = 34;
@@ -488,7 +476,7 @@ function scoreboard() {
     const width = text.length * 4 - 1;
     g.fillStyle = colour;
     [...text].forEach((ch, i) => {
-      GLYPHS[ch]?.forEach((row, y) => [...row].forEach((c, x) => c === "#" && g.fillRect(Math.round(centre - width / 2) + i * 4 + x, 3 + y, 1, 1)));
+      DIGITS[ch]?.forEach((row, y) => [...row].forEach((c, x) => c === "#" && g.fillRect(Math.round(centre - width / 2) + i * 4 + x, 3 + y, 1, 1)));
     });
   };
   const draw = (a: number, b: number, serving: 0 | 1) => {

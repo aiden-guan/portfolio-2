@@ -5,6 +5,7 @@ import type { ScreenSpec } from "../screens";
 import type { ActorSpec, Stage } from "../stage";
 import type { WingmanResult } from "../wingman";
 import type { EventId } from "../rooms/hackathon";
+import type { FeatId } from "./feats";
 
 // How a chapter is written. A chapter is a few acts (each one a place the
 // player can continue from), what each step asks of the player, and what
@@ -14,6 +15,9 @@ import type { EventId } from "../rooms/hackathon";
 export type ChapterId = "prologue" | "ch1" | "ch2" | "ch3" | "ch4";
 
 export type Line = { who: string; text: string };
+
+/** A symbol that pops over someone's head for a moment. */
+export type Emote = "!" | "?" | "heart" | "sweat" | "note" | "zzz" | "idea" | "anger" | "dots";
 
 export type SceneId = "bedroom" | "street" | "hallway" | "auditorium" | "field" | "dorm" | "hall" | "glade" | "hackathon" | "office";
 
@@ -61,6 +65,13 @@ export type Ctx = {
   /** A word over someone's head (or a point), for a moment. */
   bubble: (target: string | Vector3, text: string, ms?: number) => void;
   glint: () => void;
+  /** The camera shakes, for an impact: 0 to 1 (a bump is about 0.2, the biggest moment in a chapter 1). Hits add up and drain away.
+   * None with reduced motion, or with Screen shake off in Settings. */
+  shake: (strength?: number) => void;
+  /** Unlocks one of the game's moments (chapters/feats.ts), once per browser: a card says so the first time. */
+  feat: (id: FeatId) => void;
+  /** A symbol over someone's head (an actor id, or "aiden"), or over a thing (a spot's id: Phoebe is one), for a moment. */
+  emote: (who: string, kind: Emote) => void;
   sound: () => Sound | null;
   /** Wingman: takes over the world until it's played, then hands it back. */
   minigame: (id: "wingman") => Promise<WingmanResult>;

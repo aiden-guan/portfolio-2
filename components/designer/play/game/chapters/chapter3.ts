@@ -4,9 +4,10 @@ import { TEAM } from "../rooms/hackathon";
 import { ROWS } from "../rooms/hall";
 import type { Question } from "../screens-berkeley";
 import type { ActorSpec } from "../stage";
-import { GUESTS, JUN, junBargesIn, MILES } from "./cast";
+import { GUESTS, JUN, junBargesIn, MILES, milesJokes } from "./cast";
 import { DATA_MIDTERM_1, examHall, HALL_SEAT, hallStudents, MATH_MIDTERM_1, MATH_REVIEW, sitExam } from "./midterms";
-import { say, type Chapter, type Ctx } from "./types";
+import { again, mirror, noticing, nth } from "./notice";
+import { say, type Chapter, type Ctx, type Line } from "./types";
 
 // Berkeley, the first stretch: a fine friend group and nothing happening,
 // the group chat going quiet, two classes that don't make sense yet. Sick
@@ -29,9 +30,28 @@ const PRACTICE: Question[] = [
   { q: "Bootstrapping means resampling…", options: ["from the population, without replacement", "from your sample, with replacement", "from your sample, without replacement", "until the p-value is small"], answer: 1 },
   { q: "tbl.column('price') gives you…", options: ["a table with one column", "an array of that column’s values", "the column’s label", "the first price"], answer: 1 },
 ];
+
+// Miles, asked again and again: none of them are jokes
+const GLADE_JOKES: Line[][] = [
+  [say("miles", "I told a girl by the fountain you got a ninety-one. She said “in what.” I said “numbers.”")],
+  [say("miles", "What’s the difference between a midterm and a final?"), say("aiden", "…What?"), say("miles", "One’s in the middle.")],
+  [say("miles", "Why is the glade so green?"), say("aiden", "Don’t."), say("miles", "Grass.")],
+  [say("miles", "I’m out of jokes."), say("aiden", "You never had any."), say("miles", "And yet you’re smiling.")],
+];
+const PARTY_JOKES: Line[][] = [
+  [say("miles", "What do you call a guy with three first places?"), say("aiden", "What?"), say("miles", "Aiden. That’s just your name.")],
+  [say("miles", "How many people fit in a double?"), say("aiden", "Two."), say("miles", "Seven. Housing doesn’t need to know.")],
+  [say("miles", "Knock knock."), say("aiden", "Who’s there?"), say("miles", "Everyone I met tonight.")],
+  [say("miles", "I’m out of jokes."), say("aiden", "You never had any."), say("miles", "And yet you’re smiling.")],
+];
+
+/** Which hackathon the room is, from the step. */
+const eventOf = (step: string) => (step === "build1" || step === "demo1" ? "buildnight" : step === "build3" || step === "demo3" ? "yc" : "speedhacks");
+
 // —— act one: week one
 
 async function weekOne(ctx: Ctx) {
+  dealt = false;
   await ctx.scene({
     id: "dorm",
     night: true,
@@ -108,7 +128,7 @@ async function afterMidterms(ctx: Ctx) {
   });
   ctx.go("hang");
   // the grades land on the lawn, one class at a time
-  await ctx.wait(1800);
+  await ctx.wait(1200);
   await ctx.open({
     kind: "email",
     app: "Mail",
@@ -117,6 +137,9 @@ async function afterMidterms(ctx: Ctx) {
     lines: ["Hi all,", "Midterm 1 grades are now posted.", "Your score: 86 / 100.", "Regrade requests close next Friday."],
     tone: "good",
   });
+  // the first one is a bump; the second is the hit
+  ctx.emote("aiden", "!");
+  ctx.shake(0.2);
   await ctx.say([
     say("aiden", "An 86. In the class where my one question was “what is happening.”"),
     ...(felt.data >= 0 && felt.data < 3 ? [say("aiden", "I walked out of that room sure I’d failed it.")] : []),
@@ -130,8 +153,11 @@ async function afterMidterms(ctx: Ctx) {
     tone: "good",
   });
   ctx.stat("ready", 100, 600);
+  ctx.shake(0.9);
   await ctx.open({ kind: "impact", text: "91", sub: "Math 52 · sick twice, still a 91" });
+  ctx.feat("ninetyone");
   await ctx.say([
+    ...(felt.math >= 0 && felt.math < 3 ? [say("aiden", "A 91. I thought I’d integrated my own name.")] : []),
     say("miles", "Ninety-one. That’s a nine, then a one."),
     say("aiden", "That’s just how numbers work."),
     say("miles", "And yet you’re smiling."),
@@ -191,8 +217,9 @@ async function topOfTheWorld(ctx: Ctx) {
     actors: [MILES(new Vector3(2.0, 0, 1.0), { heading: -Math.PI * 0.6, pose: "talk" }), ...GUESTS(1700)],
     at: new Vector3(-0.8, 0, 0.6),
     heading: Math.PI * 1.1,
-    banner: { place: "Back in the dorm", time: "Saturday, 1:40 AM" },
-    day: "Sat · Week 9",
+    // the night after the third one
+    banner: { place: "Back in the dorm", time: "Sunday, 1:40 AM" },
+    day: "Sun · Week 9",
     clock: 60 + 40,
   });
   ctx.bubble("phone", "bzzt bzzt bzzt", 0);
@@ -234,6 +261,13 @@ async function sanFrancisco(ctx: Ctx) {
 let met = new Set<string>();
 /** How the two midterms felt, for when the grades come back. */
 const felt = { data: -1, math: -1 };
+/** Whether Aiden said yes to Jun's poker, week one. */
+let dealt = false;
+
+const sick = (step: string) => step === "study" || step === "study2" || step === "sleep";
+/** Still sick: the week before, and the morning of. */
+const ill = (step: string) => sick(step) || step === "pills" || step === "leave";
+const weekOneSteps = (step: string) => step === "miles" || step === "chat" || step === "window" || step === "photo";
 
 export const chapter3: Chapter = {
   id: "ch3",
@@ -325,7 +359,7 @@ export const chapter3: Chapter = {
     await ctx.say([say("aiden", "No."), say("aiden", "No no no. Not today."), say("aiden", "…Okay. Okay. One thing at a time.")]);
     ctx.go("pills");
   },
-  use: async (id, ctx) => {
+  use: noticing(async function respond(id, ctx): Promise<void> {
     const step = ctx.step();
     const stage = ctx.stage();
     switch (id) {
@@ -384,29 +418,38 @@ export const chapter3: Chapter = {
           ctx.checkpoint(8);
           return sanFrancisco(ctx);
         }
-        return ctx.say([say("aiden", step === "study" || step === "study2" ? "The group chat says “drink water.” Helpful." : "Nothing new. It’s fine.")]);
+        if (sick(step)) return ctx.say([say("aiden", "The group chat says “drink water.” Helpful.")]);
+        if (step === "pills" || step === "leave") return ctx.say([say("aiden", "No texts. Just the alarm, and the alarm’s right.")]);
+        return ctx.say(again(ctx, "phone", [[say("aiden", "Nothing new. It’s fine.")], [say("aiden", "Still nothing. It’s fine. Everything’s fine.")]]));
 
       case "window":
         if (step === "window") {
           await ctx.say([say("aiden", "The Campanile. Lit up all night, rings every hour."), say("aiden", "I’ve heard every hour this week.")]);
           return ctx.go("photo");
         }
-        if (step === "window2") return chapter3.use("founder2", ctx);
+        if (step === "window2") return respond("founder2", ctx);
         if (step === "founders") return ctx.say([say("aiden", "The Bay Bridge, lighting up. Somebody in this room is going to build something on the other side of it.")]);
-        return ctx.say([say("aiden", step === "pills" || step === "leave" ? "Too bright. Everything’s too bright." : "Still there. Still ringing.")]);
+        if (step === "pills" || step === "leave") return ctx.say([say("aiden", "Too bright. Everything’s too bright.")]);
+        if (step === "miles" || step === "chat") return ctx.say([say("aiden", "The Campanile. It’s been staring at me all week.")]);
+        // a second look, at night, and the glass gives you back
+        if (nth(ctx, "window") > 1) return mirror(ctx, [say("aiden", sick(step) ? "At night the window’s a mirror. Feverish. Still maxed." : "At night the window’s a mirror. Still maxed.")]);
+        return ctx.say([say("aiden", "Still there. Still ringing.")]);
 
       case "photo":
         if (step === "photo") {
           await ctx.say([say("note", "Phoebe, mid-yawn, in a frame from home."), say("aiden", "She’d have hated that tower. Barked at it every hour."), say("aiden", "…I miss my dog.")]);
           await ctx.wait(600);
           await junBargesIn(ctx);
-          await ctx.say([
-            say("jun", "Yo. Door was open."),
-            say("aiden", "It was closed."),
-            say("jun", "Poker. Floor lounge. Five-dollar buy-in."),
-            say("aiden", "It’s midnight."),
-            say("jun", "Best time. Everybody’s tired. Tired people call."),
+          await ctx.say([say("jun", "Yo. Door was open."), say("aiden", "It was closed.")]);
+          const pick = await ctx.choose(say("jun", "Poker. Floor lounge. Five-dollar buy-in."), [
+            { label: "It’s midnight.", who: "aiden" },
+            { label: "Deal me in.", who: "aiden" },
           ]);
+          dealt = pick === 1;
+          if (dealt) {
+            ctx.emote("jun", "!");
+            await ctx.say([say("jun", "…Nobody says yes."), say("jun", "Okay. Respect.")]);
+          } else await ctx.say([say("jun", "Best time. Everybody’s tired. Tired people call.")]);
           await ctx.open({ kind: "intro", who: "jun", name: "Jun", line: "Floormate. Plays poker. Never knocks.", colour: "#2f7a4a" });
           await ctx.say([
             say("jun", "Late-night dining hall first, though. You’re coming."),
@@ -417,7 +460,8 @@ export const chapter3: Chapter = {
           ctx.checkpoint(1);
           return lecture(ctx);
         }
-        return ctx.say([say("aiden", "Phoebe. Still the best investor I’ve ever had.")]);
+        if (ill(step)) return ctx.say([say("aiden", "Phoebe would be lying on my feet right now. Best medicine there is.")]);
+        return ctx.say(again(ctx, "photo", [[say("aiden", "Phoebe. Still the best investor I’ve ever had.")], [say("aiden", "She’d have barked at Miles. Then loved him. Then barked at him again.")]]));
 
       case "door":
         if (step === "leave") {
@@ -426,7 +470,9 @@ export const chapter3: Chapter = {
           return ctx.go("exam");
         }
         if (step === "sit" || step === "exam" || step === "exam2") return ctx.say([say("aiden", step === "sit" ? "I could leave. I’d be lost faster at home, though." : "Not until pencils are down.")]);
-        return ctx.say([say("aiden", step === "pills" ? "Not without the Tylenol." : "Hallway. Somebody’s microwaving popcorn at 1 AM.")]);
+        if (step === "pills") return ctx.say([say("aiden", "Not without the Tylenol.")]);
+        if (step === "dms") return ctx.say([say("aiden", "People keep coming in. I think the door just lives open now.")]);
+        return ctx.say(again(ctx, "door", [[say("aiden", "Hallway. Somebody’s microwaving popcorn. Somebody always is.")], [say("aiden", "Still popcorn. It’s been popcorn since move-in.")]]));
 
       case "miles":
         if (step === "miles") {
@@ -449,11 +495,13 @@ export const chapter3: Chapter = {
           ctx.sound()?.click();
           return ctx.go("chat");
         }
-        if (step === "hang" || step === "flyer") return ctx.say([say("miles", "I told a girl by the fountain you got a ninety-one. She said “in what.” I said “numbers.”")]);
-        return ctx.say([say("miles", step === "dms" ? "What do you call a guy with three first places? Aiden. That’s just your name." : "Knock knock. …It’s me. I live here.")]);
+        if (step === "hang" || step === "flyer") return milesJokes(ctx, "miles", GLADE_JOKES);
+        if (step === "dms") return milesJokes(ctx, "miles", PARTY_JOKES);
+        return ctx.say([say("miles", "Knock knock. …It’s me. I live here.")]);
       case "jun":
-        if (step === "hang") return chapter3.use("floormate2", ctx);
-        return ctx.say([say("jun", step === "flyer" ? "Hackathon’s Friday. Poker’s Thursday. Plan accordingly." : "Poker later? No? Your loss.")]);
+        if (step === "hang") return respond("floormate2", ctx);
+        if (step === "flyer") return ctx.say(again(ctx, "jun", [[say("jun", "Hackathon’s Friday. Poker’s Thursday. Plan accordingly.")], [say("jun", "Hackathons are poker with laptops. Worse odds.")]]));
+        return ctx.say([say("jun", "Poker later? No? Your loss.")]);
 
       // —— the lecture, then the problem set
       case "seat":
@@ -520,6 +568,8 @@ export const chapter3: Chapter = {
             say("jun", "Poker tonight?"),
             say("aiden", "I have a fever."),
             say("jun", "Sick people bluff better. Nobody can read a face that looks like that."),
+            // week one's answer, kept
+            ...(dealt ? [say("jun", "You said yes once. Week one. It counts forever.")] : []),
             say("aiden", "Out, Jun."),
             say("jun", "Alright, alright. Feel better."),
             say("jun", "…Fold early tonight. That’s real advice."),
@@ -535,7 +585,13 @@ export const chapter3: Chapter = {
           await ctx.say([say("aiden", "That’s all my brain has. Bed.")]);
           return ctx.go("sleep");
         }
-        return ctx.say([say("aiden", step === "pills" || step === "leave" ? "No more studying. It’s in there or it isn’t." : "Forty tabs open. Thirty-nine of them are Data C8.")]);
+        if (step === "pills" || step === "leave") return ctx.say([say("aiden", "No more studying. It’s in there or it isn’t.")]);
+        return ctx.say(
+          again(ctx, "laptop", [
+            [say("aiden", "Forty tabs open. Thirty-nine of them are Data C8.")],
+            [say("aiden", weekOneSteps(step) ? "The fortieth is the group chat. It’s quiet." : "I closed one. Another one opened. That’s how tabs work now.")],
+          ]),
+        );
 
       case "bed":
         if (step === "sleep") {
@@ -543,7 +599,7 @@ export const chapter3: Chapter = {
           ctx.checkpoint(3);
           return midtermDay(ctx);
         }
-        return ctx.say([say("aiden", "Twin XL. It’s twin, it’s not XL.")]);
+        return ctx.say(again(ctx, "bed", [[say("aiden", "Twin XL. It’s twin, it’s not XL.")], [say("aiden", "I’m six-five. My feet sleep in the hallway.")]]));
 
       case "pills":
         if (step === "pills") {
@@ -551,7 +607,7 @@ export const chapter3: Chapter = {
           await ctx.say([say("note", "Two Tylenol. A glass of water. A hoodie, hood up."), say("aiden", "Let’s go.")]);
           return ctx.go("leave");
         }
-        if (step === "study" || step === "study2" || step === "sleep") return ctx.say([say("aiden", "Tylenol. Saving them for Wednesday morning. I have a feeling.")]);
+        if (sick(step)) return ctx.say([say("aiden", "Tylenol. Saving them for Wednesday morning. I have a feeling.")]);
         return ctx.say([say("aiden", "Already took them. Waiting for them to work.")]);
 
       // —— after midterms: the floor, the glade, a flyer
@@ -571,8 +627,18 @@ export const chapter3: Chapter = {
           ]);
           return ctx.go("flyer");
         }
-        if (step === "build1") return chapter3.use("table", ctx);
-        return ctx.say([say(id, step === "demo1" ? "Go! You’re the one who barks!" : "We’re just vibing.")]);
+        if (step === "build1") return respond("table", ctx);
+        if (step === "demo1")
+          return ctx.say(
+            again(
+              ctx,
+              id,
+              id === "floormate"
+                ? [[say(id, "Go! You’re the one who barks!")], [say(id, "From the chest. Not the throat. The chest.")]]
+                : [[say(id, "I’ll hold the webcam. You hold the bark.")], [say(id, "If we lose, it was the webcam.")]],
+            ),
+          );
+        return ctx.say(again(ctx, id, [[say(id, "We’re just vibing.")], [say(id, "Boba in ten. That’s not a question.")]]));
 
       case "flyer":
         if (step === "flyer") {
@@ -580,13 +646,15 @@ export const chapter3: Chapter = {
           ctx.checkpoint(5);
           return buildNight(ctx);
         }
-        return ctx.say([say("aiden", "Club fair flyers, a lost cat, a tutoring ad. Tutoring, huh.")]);
+        return ctx.say(
+          again(ctx, "flyer", [[say("aiden", "Club fair flyers, a lost cat, a tutoring ad. Tutoring, huh.")], [say("aiden", "Every tab on the tutoring ad is torn off. Everyone needs a tutor.")]]),
+        );
       case "campanile":
-        return ctx.say([say("aiden", "It still rings every hour. I don’t hear it anymore.")]);
+        return ctx.say(again(ctx, "campanile", [[say("aiden", "It still rings every hour. I don’t hear it anymore.")], [say("aiden", "Phoebe would have barked at it. Every hour, on the hour.")]]));
       case "library":
-        return ctx.say([say("aiden", "Doe Library. Quietest place on campus. I’ve napped there four times.")]);
+        return ctx.say(again(ctx, "library", [[say("aiden", "Doe Library. Quietest place on campus. I’ve napped there four times.")], [say("aiden", "Five now.")]]));
       case "bench":
-        return ctx.say([say("aiden", "Good bench. Good view. Somebody should put a plaque on it.")]);
+        return ctx.say(again(ctx, "bench", [[say("aiden", "Good bench. Good view. Somebody should put a plaque on it.")], [say("aiden", "I’m not sitting. If I sit, I nap. See: the library.")]]));
 
       // —— three hackathons
       case "table":
@@ -656,8 +724,10 @@ export const chapter3: Chapter = {
           await ctx.say([say("aiden", "This is BarkOff. Two webcams, one question: who barks best?"), say("aiden", "I need a volunteer.")]);
           await ctx.open({ kind: "bark", rounds: 3 });
           stage.pose("cheer", 2600);
+          ctx.shake(0.5);
           await ctx.open({ kind: "impact", text: "1ST PLACE", sub: "SpaceXAI Build Night" });
           ctx.stat("wins", 1, 300);
+          ctx.feat("barkoff");
           await ctx.say([say("floormate", "WE WON? With the BARKING?"), say("aiden", "With the barking."), say("note", "The next weekend, another one.")]);
           ctx.checkpoint(6);
           return speedHacks(ctx);
@@ -668,8 +738,10 @@ export const chapter3: Chapter = {
             say("allen", "Out loud. Without giving you the answer. That part matters most. If it gives the answer away, you learn nothing."),
           ]);
           stage.pose("cheer", 2600);
+          ctx.shake(0.6);
           await ctx.open({ kind: "impact", text: "1ST PLACE", sub: "Best Use of Keewano · a16z SpeedHacks" });
           ctx.stat("wins", 2, 300);
+          ctx.feat("keewano");
           await ctx.say([
             say("note", "A winner’s check the size of a door."),
             say("allen", "We should keep building this. I made a list. It has forty-one things on it."),
@@ -683,8 +755,11 @@ export const chapter3: Chapter = {
         await ctx.say([say("samuel", "Continuity. Email memory that survives an agent handoff."), say("dylan", "The next agent makes one call instead of rereading the thread.")]);
         stage.pose("cheer", 2600);
         for (const who of ["dylan", "samuel"]) stage.actor(who)?.pose("cheer", 2600);
+        // three for three: the chapter's biggest hit
+        ctx.shake(1);
         await ctx.open({ kind: "impact", text: "1ST PLACE", sub: "Primitive.dev track · Y Combinator" });
         ctx.stat("wins", 3, 300);
+        ctx.feat("primitive");
         await ctx.say([say("note", "The team on the steps outside. The photo’s still on the clothesline.")]);
         ctx.checkpoint(8);
         met = new Set();
@@ -707,30 +782,47 @@ export const chapter3: Chapter = {
           await ctx.open({ kind: "intro", who: "allen", name: "Allen", line: "Teammate at SpeedHacks. Notices the step everyone else misses.", colour: "#ffd23f" });
           return ctx.go("build2");
         }
-        if (step === "build2") return chapter3.use("table", ctx);
-        return ctx.say([say("allen", step === "demo2" ? "Demo first. Then I’ll celebrate. I’ve scheduled it." : "I’m in the middle of something. Ask me in eleven minutes.")]);
+        if (step === "build2") return respond("table", ctx);
+        if (step === "demo2") return ctx.say(again(ctx, "allen", [[say("allen", "Demo first. Then I’ll celebrate. I’ve scheduled it.")], [say("allen", "It’s in my calendar. “Celebrate: fifteen minutes.”")]]));
+        return ctx.say(again(ctx, "allen", [[say("allen", "I’m in the middle of something. Ask me in eleven minutes.")], [say("allen", "Ten minutes now.")]]));
       case "dylan":
+        if (step === "build3") return respond("table", ctx);
+        return ctx.say(again(ctx, "dylan", [[say("dylan", "Ship it.")], [say("dylan", "The parser held. Don’t touch it. Don’t even look at it.")]]));
       case "samuel":
-        if (step === "build3") return chapter3.use("table", ctx);
-        return ctx.say([say(id, "Ship it.")]);
-      case "pizza":
-        return ctx.say([say("aiden", "Cold pizza at 3 AM. Peak performance.")]);
+        if (step === "build3") return respond("table", ctx);
+        return ctx.say(again(ctx, "samuel", [[say("samuel", "Ship it.")], [say("samuel", "Show them what the next agent gets. That’s the whole demo.")]]));
+      case "pizza": {
+        const event = eventOf(step);
+        return ctx.say(
+          again(ctx, "pizza", [
+            [say("aiden", event === "buildnight" ? "Still warm. It’s only nine. Give it six hours." : event === "speedhacks" ? "Pizza at 10 AM. That’s hackathon breakfast." : "Cold pizza before noon. Peak performance.")],
+            [say("aiden", "One slice left in every box. Nobody takes the last slice.")],
+          ]),
+        );
+      }
       case "screen":
-        return ctx.say([say("aiden", "The clock on the screen only goes one way.")]);
+        return ctx.say(again(ctx, "screen", [[say("aiden", "The clock on the screen only goes one way.")], [say("aiden", "Down. It only goes down.")]]));
       case "beanbag":
-        return ctx.say([say("aiden", "Somebody’s been asleep in that since the opening talk.")]);
+        return ctx.say(again(ctx, "beanbag", [[say("aiden", "Somebody’s been asleep in that since the opening talk.")], [say("aiden", "It still has the shape of whoever it was. Respect.")]]));
 
       // —— San Francisco
       case "founder":
       case "founder2":
       case "founder3": {
         if (step !== "founders" && step !== "window2") return;
-        const lines: Record<string, ReturnType<typeof say>[]> = {
+        const lines: Record<string, Line[]> = {
           founder: [say("founder", "You’re the BarkOff kid? Legend."), say("founder", "We’re building agents that hire other agents. Seed closed in four days.")],
           founder2: [say("founder2", "I dropped out to do this. Twice. Different schools."), say("founder2", "Stay in, though. Berkeley’s good for you. Come visit whenever.")],
           founder3: [say("founder3", "Kombucha? It’s on tap. Everything’s on tap."), say("founder3", "You should apply to things. Everything. You’d get in.")],
         };
+        // a founder you've already met says one more thing
+        const more: Record<string, Line> = {
+          founder: say("founder", "Seriously, come back. Bring the barking."),
+          founder2: say("founder2", "Stay in school. I mean it. I’m the cautionary tale."),
+          founder3: say("founder3", "It’s ginger lemon. I’m not allowed to say that’s the best part."),
+        };
         if (step === "founders") {
+          if (met.has(id)) return ctx.say([more[id]]);
           await ctx.say(lines[id]);
           met.add(id);
           if (met.size < 3) return ctx.say([say("note", `${met.size} of 3 founders met.`)]);
@@ -742,38 +834,44 @@ export const chapter3: Chapter = {
           say("aiden", "Now I’m in San Francisco, looking at the Bay Bridge, and everyone in the room is building something."),
           say("aiden", "Including me."),
         ]);
+        ctx.feat("building");
         return ctx.end();
       }
       case "whiteboard":
-        return ctx.say([say("aiden", "Boxes, arrows, and “??? → profit.” Every startup has this whiteboard.")]);
+        return ctx.say(again(ctx, "whiteboard", [[say("aiden", "Boxes, arrows, and “??? → profit.” Every startup has this whiteboard.")], [say("aiden", "“DO NOT ERASE,” from weeks ago. Nobody ever will.")]]));
       case "kombucha":
-        return ctx.say([say("aiden", "Ginger lemon. On tap. I could get used to this.")]);
+        return ctx.say(again(ctx, "kombucha", [[say("aiden", "Ginger lemon. On tap. I could get used to this.")], [say("aiden", "Second glass. I’m getting used to this.")]]));
       case "neon":
-        return ctx.say([say("aiden", "Everyone in this city is hiring. Nobody in this city is sleeping.")]);
+        return ctx.say(again(ctx, "neon", [[say("aiden", "Everyone in this city is hiring. Nobody in this city is sleeping.")], [say("aiden", "It’s pink, and it never turns off. That’s the culture.")]]));
 
       // —— the room's other things
       case "pennant":
-        return ctx.say([say("aiden", "Go Bears. Bought it at orientation. Felt like I had to.")]);
+        return ctx.say(again(ctx, "pennant", [[say("aiden", "Go Bears. Bought it at orientation. Felt like I had to.")], [say("aiden", "Go Bears. …Still feels weird to say out loud.")]]));
       case "fridge":
-        return ctx.say([say("aiden", step === "study" || step === "study2" ? "Ginger ale, soup, and a sad lemon." : "Two energy drinks and somebody else’s yogurt.")]);
+        if (ill(step)) return ctx.say(again(ctx, "fridge", [[say("aiden", "Ginger ale, soup, and a sad lemon.")], [say("aiden", "The lemon and I are going through the same thing.")]]));
+        return ctx.say(again(ctx, "fridge", [[say("aiden", "Two energy drinks and somebody else’s yogurt.")], [say("aiden", "The yogurt isn’t Miles’s. It isn’t mine. It was here before us.")]]));
       case "roommate":
-        return ctx.say([say("aiden", "Miles’s bed. Made, somehow. He’s never in it before 3 AM.")]);
+        if (step === "dms") return ctx.say([say("aiden", "Two people on Miles’s bed. He met them tonight. They seem settled.")]);
+        return ctx.say(again(ctx, "roommate", [[say("aiden", "Miles’s bed. Made, somehow. He’s never in it before 3 AM.")], [say("aiden", "A jacket on it. Always a jacket. He’s always on his way out.")]]));
       case "board":
-        if (step === "exam" || step === "exam2") return ctx.say([say("aiden", "The clock. Every time I look at it, it’s later.")]);
-        if (step === "sit") return ctx.say([say("aiden", "Tables. Arrays. Somebody’s already taking a photo of it.")]);
-        return ctx.say([say("aiden", step === "dms" ? "“3 for 3.” I wrote it on a sticky note. It’s the only sticky note now." : "Office hours, the Data C8 schedule, “call mom.”")]);
+        if (step === "exam" || step === "exam2") return ctx.say(again(ctx, "board", [[say("aiden", "The clock. Every time I look at it, it’s later.")], [say("aiden", "Still later.")]]));
+        if (step === "sit") return ctx.say(again(ctx, "board", [[say("aiden", "Tables. Arrays. Somebody’s already taking a photo of it.")], [say("aiden", "“Table has no attribute ‘wherre’.” I felt that.")]]));
+        if (step === "dms") return ctx.say([say("aiden", "“3 for 3.” I wrote it on a sticky note. It’s the only sticky note now.")]);
+        return ctx.say(again(ctx, "board", [[say("aiden", "Office hours, the Data C8 schedule, “call mom.”")], [say("aiden", "One sticky note just says “sleep.” It’s a suggestion.")]]));
       case "lectern":
-        return ctx.say([say(step === "exam" || step === "exam2" ? "proctor" : "professor", step === "exam" || step === "exam2" ? "Back to your seat, please." : "Office hours are on the syllabus.")]);
+        if (step === "exam" || step === "exam2") return ctx.say([say("proctor", "Back to your seat, please.")]);
+        return ctx.say(again(ctx, "lectern", [[say("professor", "Office hours are on the syllabus.")], [say("professor", "Nobody comes to office hours. There are cookies. Nobody comes.")]]));
       case "proctor":
-        return ctx.say([say("proctor", step === "exam" || step === "exam2" ? "Your seat’s the one with the paper on it. Eyes on your own." : "Phones away, please.")]);
+        if (step === "exam" || step === "exam2") return ctx.say(again(ctx, "proctor", [[say("proctor", "Your seat’s the one with the paper on it. Eyes on your own.")], [say("proctor", "Eyes. On. Your. Own.")]]));
+        return ctx.say([say("proctor", "Phones away, please.")]);
       case "professor":
-        return ctx.say([say("professor", "Read the textbook. It’s free. It’s online. Nobody reads it.")]);
+        return ctx.say(again(ctx, "professor", [[say("professor", "Read the textbook. It’s free. It’s online. Nobody reads it.")], [say("professor", "You read it? …You didn’t read it.")]]));
       case "phoebe":
         return;
       default:
         return ctx.say([say("aiden", "Hm.")]);
     }
-  },
+  }),
   end: {
     title: "Golden Bear",
     stats: [

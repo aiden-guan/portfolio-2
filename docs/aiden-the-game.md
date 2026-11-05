@@ -37,14 +37,15 @@ This document is the plan for the whole game. The opening (the PLAY cinematic, t
 | **It was a monitor** | The camera pulls back through the glass into a desk at night, seen from the chair: lamp, steaming mug, fairy lights, the Cal pennant, three trophies and the YC team photo on the shelf, the plushie, a voxel corgi and a voxel Aiden by the monitor's foot, the Campanile lit in the window. | `play/room.ts` |
 | **Buying it** | The person in the chair leans in. The pointer travels like a hand moves it (bowed paths, a little overshoot), and the mouse on the desk moves with it. Buy → confirm → *Thank you!* (the phone on the desk lights with the receipt) → library → Install (2.6 GB at 980 MB/s) → Play. The library holds BarkOff, Rally and StartupSim. | `play/play.tsx`, `play/store.tsx` |
 | **Booting** | The screen goes black, the room goes dark, *Aiden Guan presents*, then the title on the monitor lights the room peach. The camera goes through the screen and the title is the page. | `play/play.tsx`, `play/game/game.tsx` |
-| **Title screen** | The island from the trailer, at dawn, drifting. New game, Chapters, Sound, Back to the island. | `play/game/title.ts` |
+| **Title screen** | The island from the trailer, at dawn: clouds lit pink from below, mist on the pond, gulls going over, a slow settle and then a drift. Continue (once there's a save), New game, Chapters, Settings, Back to the island. | `play/game/title.ts`, `play/game/shell/menus.tsx` |
 | **Prologue: The Drop** | A morning in Aiden's teenage bedroom, as a voxel diorama: wake up, answer the phone (the drop is tomorrow), find the $500 in a shoebox, open the laptop and found **AGNotify**, walk out the door. Phoebe follows you around. | `play/game/rooms/bedroom.ts`, `chapters/prologue.ts` |
-| **Chapter 1: The Cook Group** | AGNotify from four members to $45,000. Copy a bigger server's alerts (*CopyRush*), get caught and banned by its owner, find your own insiders, call a restock from the line outside a sneaker shop (*The Drop*), pick the hook for Raymond's reel, set up referrals. | `chapters/chapter1.ts`, `rooms/street.ts`, `screens.tsx` |
+| **Chapter 1: The Cook Group** | AGNotify from four members to $45,000. Copy a bigger server's alerts (*CopyRush*), get caught and banned by its owner, find your own insiders, call a restock from the line outside a sneaker shop (*The Drop*), test hooks for Raymond's reel on a hundred strangers (*The Hook*), set up referrals. | `chapters/chapter1.ts`, `rooms/street.ts`, `screens.tsx` |
 | **Chapter 2: Future Business Leaders** | Meet John at lunch (he sells jeans he has never touched), then Jerry (here for the free pizza). Answer the judges as a trio at FBLA Regionals, fill the trophy case, rename the group chat, throw your caps at graduation, and split three ways. | `chapters/chapter2.ts`, `rooms/hallway.ts`, `rooms/auditorium.ts`, `rooms/field.ts` |
 | **Wingman** (Ch. 2, optional) | At graduation, John says "Name one." Pick *Get on my shoulders* and Aiden throws John down the coast, Burrito Bison-style: John bounces off every baddie he lands on and rizzes her up, and the further he goes the badder they get (the beach's 6/10s, the pier, the marina, the yacht club's 10/10s). Three throws, each starting further along the coast; a dive homes in on the nearest baddie; boyfriends kill your speed; DMs boost it. | `play/game/wingman.ts`, `wingman-hud.tsx` |
 | **Chapter 3: Golden Bear** | Berkeley, with Miles the roommate and Jun from down the hall. The group chat goes quiet, and neither Data C8 nor Math 52 makes sense. Then the flu the week before midterms, and again on the morning of both: two Tylenol, Data C8 then Math 52, an 86 and a 91. After that the floor, the glade, and three hackathons in a row (BarkOff's bark battle, alai's wrong step, Continuity's thread): three first places, a flood of DMs, and an evening in an SF startup office. | `chapters/chapter3.ts`, `rooms/dorm.ts`, `rooms/hall.ts`, `rooms/glade.ts`, `rooms/hackathon.ts`, `rooms/office.ts`, `screens-berkeley.tsx` |
 | **Chapter 4: The Tutor** | alai becomes a company. Allen moves into Miles's desk (Miles is always out), the second Data C8 and Math 52 midterms happen anyway, the a16z Alpha final round runs on a video call, and the email after it says no. Then a bench at midnight, the YC and a16z speedrun applications, a bug bash, and Jun, the first student who says "oh". It ends *to be continued*. | `chapters/chapter4.ts` |
 | **Saves and chapters** | The game saves at every act. *Continue* picks up from the last one; the Chapters screen unlocks each chapter once the one before it is done, and lists *To be continued* after the last. | `play/game/save.ts`, `chapters/index.ts` |
+| **Moments** | Seventeen of them, a few secret: the mirror, petting Phoebe three times running, using everything in a room, *I'm with Jerry*, playing at 3 AM, and each of the story's big beats. A card slides in with a stamp the first time; the pause screen and the Chapters screen's Moments tab list them, secret ones as "???" until found. | `chapters/feats.ts`, `play/game/shell/cards.tsx` |
 
 Skip with **Esc** (or the Skip button) at any point; with *reduced motion* on, PLAY goes straight to the title. Sound follows the site's own Sound setting. *Back to the island* dissolves home in the island's own pixel dither.
 
@@ -135,9 +136,9 @@ A project that isn't worked on doesn't wither; it just waits, the way side proje
 
 | | Keyboard | Mouse | Touch |
 | :--- | :--- | :--- | :--- |
-| Walk | WASD / arrows | Click the floor (walks the shortest way round furniture) | Tap the floor |
+| Walk | WASD / arrows, hold Shift to run | Click the floor (walks the shortest way round furniture; a long way, it runs) | Tap the floor |
 | Use | E / Space / Enter | Click the thing (walks to it first) | Tap the thing, or the prompt above it |
-| Talk on | E / Space / Enter (hold to run on through the lines) | Click | Tap |
+| Talk on | E / Space / Enter (hold to run on through the lines); a number key picks that answer | Click | Tap |
 | Pause | Esc | The pause button | The pause button |
 
 Gamepad support is planned for Milestone 5 (the stick walks, A uses, Start pauses).
@@ -181,7 +182,7 @@ The in-game phone (P) has the apps a day needs:
 - **Stickers**: hackathon swag, stuck on your laptop lid, visible whenever you're at a desk.
 
 ### Saving
-**Built:** a save at every act, in `localStorage` (`aiden-game-save`: the chapter, the act, the chapters finished), checked on load so a broken or old save can't stop the title screen. Continue on the title screen picks up at the start of the last act; a finished chapter moves Continue on to the next one. It only ever moves forward: replaying an earlier chapter from the Chapters screen keeps your place, and New game asks once before starting over.
+**Built:** a save at every act, in `localStorage` (`aiden-game-save`: the chapter, the act, the chapters finished), checked on load so a broken or old save can't stop the title screen. Continue on the title screen picks up at the start of the last act; a finished chapter moves Continue on to the next one. It only ever moves forward: replaying an earlier chapter from the Chapters screen keeps your place, and New game asks once before starting over. Settings (text speed, screen shake, sound) live in `aiden-game-settings`, the Moments found in `aiden-game-feats`, and each mini-game's personal best in `aiden-game-best`.
 **Planned:** three slots, and the day, time, wallet, skills, hearts, island state and collections once those systems exist.
 
 ---
@@ -279,13 +280,13 @@ A place grows through the project's stages (scaffolding at Prototype, half-built
 
 ## 9. Mini-games
 
-Every mini-game is a project's own idea, made playable. All of them are short (30–90 seconds), skippable after a first try, and none blocks the story.
+Every mini-game is a project's own idea, made playable. All of them are short (15–90 seconds), open on a one-line brief, and none blocks the story: losing still goes on. Each ends on a results card with an S–C rank, a dry reason for it and a personal best.
 
 | Mini-game | From | How it plays |
 | :--- | :--- | :--- |
 | **CopyRush** ✅ | AGNotify (Ch. 1) | Their server's alerts scroll by; paste them into yours and watch members arrive. It goes about as well as it should. |
 | **The Drop** ✅ | AGNotify (Ch. 1) | Three drops, each faster: post the alert as the marker crosses the moment it goes live. Perfect, good, early or late. |
-| **The Hook** ✅ | AGNotify (Ch. 1) | Raymond asks for the reel's first line; pick the one that stops the scroll. |
+| **The Hook** ✅ | AGNotify (Ch. 1) | Raymond asks for the reel's first line. Test each one on a hundred strangers scrolling past and watch how many stop; Raymond answers on the phone, and remembers the bad ones. |
 | **Wingman** ✅ | The summer after graduation (Ch. 2) | Throw John off your shoulders and bounce him off baddies down the coast. A timing meter for the throw, a homing dive, three throws; the beach, the pier, the marina and the yacht club get badder in that order. |
 | **Problem sets and midterms** ✅ | Berkeley (Ch. 3–4) | Multiple choice in each class's own kind of problem: tables, simulation and inference for Data C8; integration techniques, improper integrals and series for Math 52. Four midterms in all, each with its own exam hall; a midterm adds a ruled sheet and a clock. Sick, the screen sways, blurs and coughs. |
 | **Cop or Drop** | AGNotify | A market: pairs with asking prices and resale estimates; buy, hold, sell before the hype fades. |
@@ -336,7 +337,8 @@ The game is about a real person, and the people around Aiden are real too. Rules
 
 - **HUD:** day and time with the objective under it (top left), and under that the chapter's bar (revenue against $45,000 in Chapter 1, *Midterm prep* in Chapters 3–4); the chapter's counters (members, John's and Jerry's hearts, *1st places*, the *Waitlist*), HANDSOME and pause (top right); a prompt above whatever's in reach (*E · Laptop*); an orange diamond over wherever the objective is. Wingman has a HUD of its own.
 - **Dialogue:** a paper box at the bottom, portrait on the left, name tag (cobalt for Aiden, orange for Phoebe, ink for objects), text typed at ~45 characters a second with a voice blip per speaker; press to finish, press again to go on, hold to run on through a long exchange. Answers take a beat before they'll accept a press, so mashing through lines never picks one unseen, and a click beside the box never picks one at all. Esc pauses anywhere, a screen included: its clock stops and so does the music.
-- **Menus:** title (Continue, New game, Chapters, Sound, Back to the island), pause (Resume, Sound, Title screen, Back to the island).
+- **Menus:** title (Continue, New game, Chapters with a Moments tab, Settings, Back to the island), pause (Resume, Settings, Title screen, Back to the island, beside the Moments found so far). Settings are text speed, screen shake and sound.
+- **Feel:** big beats shake the camera in whole art pixels (off with reduced motion or in Settings); people get pixel emotes over their heads (!, ?, a heart, sweat, a note, zzz); a sheet of paper comes down like a blind between places, with the chapter's intro written on it.
 - **Screens:** the laptop and phone moments open over the scene as their own interfaces: a server being created, chats and DMs (*Chatter*, *Instaglam*), the drop alert, a reel, a revenue chart, problem sets and a midterm sheet, a video call, an email, application forms, alai on an iPad. A new person gets an intro card with their name and a line; a big moment gets an impact frame (*1ST PLACE*, *91*, *CO-FOUNDERS*).
 - **The phone:** slides up from the bottom; apps as big pixel tiles.
 - **Accessibility:** reduced motion (no camera drift, no shake, instant transitions), text speed and instant text, captions for sound cues ("bzzt bzzt"), every control on keyboard, tap targets at least 44 px, contrast checked on the paper panels, colour never the only signal.
@@ -348,9 +350,10 @@ The game is about a real person, and the people around Aiden are real too. Rules
 
 Everything is synthesised in WebAudio (`play/sound.ts`), no files, and it follows the site's Sound setting.
 
-- **Title theme:** a music-box melody over a soft pad, C – Am – F – G at 84 bpm.
-- **Per chapter:** Ch. 1 lo-fi beats on a laptop speaker; Ch. 2 a hallway's hum, and a marching band at graduation; Ch. 3 the Campanile's bells on the hour; Ch. 4–7 a driving hackathon loop that gets faster as the deadline closes; Ch. 8 the title theme, fuller.
-- **Effects so far:** UI press, mouse clicks (down and up), the store's chime, install ticks, the monitor's thump, the game's sting, whooshes, the room's hum, footsteps, coins, a sparkle, dialogue blips; and since Wingman and Berkeley, a rubbery bounce, a rizz arpeggio that climbs with the combo, a thud, a dive whistle, a "nope", a cough, a bark, an alarm, a notification and keyboard clicks.
+- **Title theme:** sixteen bars in C – Am – F – G at 84 bpm: a music-box tune that climbs to a high C, a bridge (Dm7, C/E, Fmaj7, G7), and a wooden flute from the second time through, over a pad and bass, played slightly loose.
+- **Per place,** all on the same theme, crossfading between places and back in on the downbeat after a pause: a slower morning version in the Prologue; lo-fi beats through a laptop speaker in the Ch. 1 bedroom, full-range on the street; a fluorescent hum with marimba in the Ch. 2 hallway, and a distant marching band at graduation; felt piano at Berkeley, in A minor at night; a hackathon loop that builds and speeds up. The Campanile strikes the hour when the HUD clock crosses one in play.
+- **Mix:** a shared reverb, gentle compression and a limiter under a ceiling nothing passes; the music dips under dialogue and stings.
+- **Effects so far:** UI press, mouse clicks (down and up), the store's chime, install ticks, the monitor's thump, the game's sting (the theme's first four notes), whooshes, the room's hum, footsteps that alternate feet and change with the floor, coins, a sparkle, dialogue babble; and since Wingman and Berkeley, a rubbery bounce, a rizz arpeggio that climbs with the combo, a thud, a dive whistle, a "nope", a cough, a bark, an alarm, a notification and keyboard clicks; and a results-card stamp, a bug splat and a "Moment found" chord.
 - **Still to make:** the phone's vibration, doors, a crowd at a demo, applause, Phoebe's own bark.
 
 ---
@@ -362,7 +365,8 @@ Everything is synthesised in WebAudio (`play/sound.ts`), no files, and it follow
 - **The cinematic** (`play/play.tsx`) runs on one clock that can pause, speed up and skip. The room is a three.js scene (`play/room.ts`); the store page, the island and the game are real DOM, *corner-pinned* onto the monitor with a `matrix3d` homography each frame (`play/pin.ts`), so the island keeps running inside the trailer and the game is already live on the monitor before the camera goes in. Shaders compile off the main thread before the camera moves.
 - **The game** (`play/game/`) draws with the island's own pipeline (`view.ts` + the post pass exported from `scene/engine.ts`) and builds scenes from the island's voxel mesher. Story state is React; the world is three.js; prompts and bubbles are DOM projected from world positions.
 - The island engine gained `look(id, zoom, pace)` (the trailer's slow cuts) and `pause(on)` (stops drawing while the game owns the shared uniforms).
-- **Scenes** are modules in `play/game/rooms/`, each a voxel diorama with its colliders, its spots (the things you can use) and its lights. `stage.ts` puts people in them, walks them round furniture with A*, and gives the cast simple behaviours: idle, watch you, wander, follow you.
+- **Scenes** are modules in `play/game/rooms/`, each a voxel diorama with its colliders, its spots (the things you can use) and its lights. `stage.ts` puts people in them, walks them round furniture with A*, and gives the cast simple behaviours: idle, watch you, wander, follow you. People are skinned meshes; `motion.ts` plants their feet, blends a walk into a run, and gives each of them idle habits, a way of talking with their hands, and a turn of the head towards whoever is speaking. Rooms' moving things (light shafts, dust, steam, clocks, birds, leaves) are in `rooms/life.ts`.
+- **The interface** (`play/game/shell/`): the HUD, dialogue, menus, cards, emotes and camera shake, around `game.tsx`.
 - **Chapters** are scripts in `play/game/chapters/`, written against a small API: say, choose, open a screen, change scene, wait, set a stat, checkpoint, play a mini-game. A chapter is a few acts (each one a place Continue can start from), the objective for each step, and what using each thing does.
 - **Wingman** (`play/game/wingman.ts`) takes the world over while it runs: its own scene, a course along screen-right built from pooled 24 m tiles (two per zone), pooled baddies, a camera that leads John and zooms out with height, a sun that follows the action, fixed-step physics with hit-stop. `ctx.minigame("wingman")` resolves with the summer's stats and hands the room back.
 

@@ -4,8 +4,10 @@ import { ImageResponse } from "next/og";
 import { getPortfolioContent } from "@/lib/portfolio-content";
 import { getSiteUrl } from "@/lib/site-url";
 
-// Both sharing cards are the top of the mat: the name printed into it, and
-// the business card lying across it, from the same edited content.
+// The student world's sharing card (app/student/opengraph-image) is the top
+// of the mat: the name printed into it, and the business card lying across
+// it, from the edited content. Each other world draws its own card beside
+// its page; app/opengraph-image is the black page's.
 
 const MAT = "#2e5946";
 const PRINT = "#386650";

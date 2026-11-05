@@ -1,14 +1,38 @@
 import { Color, DirectionalLight, Group, HemisphereLight, Mesh, PointLight, Vector3 } from "three";
 import { materials } from "../../../scene/kit";
+import { FLAG, worldMaterial } from "../../../scene/shared";
 import { hash3, mix, Voxels } from "../../../scene/voxels";
 import { S } from "../people";
-import { blocker, disposeAll, grid, indoorFloor, letters, meshOf, type Collider, type Room, type Spot } from "./common";
+import {
+  blinkGlow,
+  blocker,
+  bulbGlow,
+  calm,
+  disposeAll,
+  grid,
+  hangSway,
+  hanging,
+  indoorFloor,
+  letters,
+  meshOf,
+  nearEdge,
+  screenGlow,
+  shadeGlow,
+  textScreen,
+  viewGlow,
+  type Collider,
+  type Room,
+  type Spot,
+} from "./common";
+import { alive, clockHands, motes, shaft, steam, towards, type Life, type Opening } from "./life";
 
 // Aiden's bedroom, cut away like a diorama so it floats on the paper. The
 // prologue's morning happens here, and so does all of AGNotify: as the cook
 // group grows, the room does too (a board of sources, a ring light, a second
-// screen, LEDs, a plaque). By day the sun comes through the window; at night
-// the moon does, and the screens light the room.
+// screen, LEDs, a plaque). By day the sun comes in over the neighbours'
+// roofs and lies across the rug; at night the moon does, the lamps are on
+// and the screens light the desk. The clock over the door keeps the HUD's
+// time, the curtains breathe, and the router under the desk never sleeps.
 //
 // A grid of 0.1 m voxels, 80 × 80 inside, walls on the far two sides
 // (x = −4 and z = −4 in the world) so the camera looks in.
@@ -32,7 +56,17 @@ const SHOEBOXES: Array<[number, number]> = [
 
 export type Feature = "board" | "boardFull" | "ringlight" | "monitor" | "leds" | "plaque" | "boxes";
 
+// the LED strip: a slow wave of colour along it, never a flash
+const ledGlow = worldMaterial({
+  key: "game-leds",
+  flag: FLAG.soft,
+  cloud: false,
+  fragment:
+    "float wave = 0.5 + 0.5 * sin(uTime * 0.55 + (vWorld.x - vWorld.z) * 0.7); totalEmissiveRadiance = mix(diffuseColor.rgb, vec3(0.18, 0.32, 1.0), wave * 0.55) * (1.5 + 0.7 * wave);",
+});
+
 export function bedroom({ night = false }: { night?: boolean } = {}) {
+  calm();
   const group = new Group();
   const mesh = (v: Voxels, material = undefined as Parameters<typeof meshOf>[1], shadow = true) => {
     const m = meshOf(v, material, { shadow, origin: [ORIGIN[0], 0, ORIGIN[1]] });
@@ -40,15 +74,17 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
     return m;
   };
 
-  // —— the floor: planks, and the rug painted into them
+  // —— the floor: planks with a grain, and the rug painted into them
   const floor = new Voxels(S, 0.04);
   for (let i = -2; i < N; i += 1)
     for (let k = -2; k < N; k += 1) {
-      for (let j = -4; j <= -2; j += 1) floor.set(i, j, k, j === -4 ? 0x8a6a4c : 0xa47a52);
+      if (nearEdge(i, k, N - 1, N - 1)) for (let j = -4; j <= -2; j += 1) floor.set(i, j, k, j === -4 ? 0x8a6a4c : 0xa47a52);
       const plank = Math.floor((k + (Math.floor(i / 12) % 2) * 6) / 4);
       let color = WOOD[Math.floor(hash3(plank, Math.floor(i / 12), 3) * WOOD.length)];
       if ((k + (Math.floor(i / 12) % 2) * 6) % 4 === 0) color = mix(color, 0x6b4a32, 0.35);
       if (i % 12 === 0) color = mix(color, 0x6b4a32, 0.25);
+      // the grain runs along each plank
+      else if (hash3(Math.floor(i / 3), k, 13) > 0.88) color = mix(color, 0x7a5236, 0.16);
       // the rug: cobalt border, an orange line, one diamond in the middle
       if (i >= 22 && i <= 48 && k >= 25 && k <= 51) {
         const edge = i <= 23 || i >= 47 || k <= 26 || k >= 50;
@@ -80,28 +116,62 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
   }
   for (let i = 26; i <= 42; i += 1) walls.set(i, 20, -1, 0xfbf8f1);
   for (let j = 13; j <= 27; j += 1) walls.set(34, j, -1, 0xfbf8f1);
-  for (let j = 10; j <= 29; j += 1) {
-    for (const i of [22, 23, 24]) walls.set(i, j, 0, (i + j) % 3 === 0 ? 0xf2c46b : 0xf6d98c);
-    for (const i of [44, 45, 46]) walls.set(i, j, 0, (i + j) % 3 === 0 ? 0xf2c46b : 0xf6d98c);
-  }
+  // the curtain rod, and a socket on the skirting for the laptop's charger
   for (let i = 20; i <= 48; i += 1) walls.set(i, 30, 0, 0x8a5a3c);
+  walls.set(20, 30, 1, 0x6b4a32);
+  walls.set(48, 30, 1, 0x6b4a32);
+  walls.box(54, 1, 0, 55, 2, 0, (x, y) => (y === 1 && x === 54 ? 0x9aa0a8 : 0xe4ddd0));
   mesh(walls);
 
-  // outside: a morning sky and a tree, or the night and the moon
-  const outside = new Voxels(S, 0.02);
-  for (let i = 25; i <= 43; i += 1)
-    for (let j = 12; j <= 28; j += 1) {
-      const sky = night ? mix(0x0f1a3a, 0x24366a, Math.max(0, (24 - j) / 12)) : mix(0xbfe0f5, 0xfbe9c9, Math.max(0, (20 - j) / 9));
-      outside.set(i, j, -5, night && hash3(i, j, 9) > 0.93 && j > 18 ? 0xfff4d6 : sky);
-    }
-  if (night) {
-    outside.blob(30, 24, -4, 1.6, 1.6, 0.4, 0xfff1c8);
-    outside.blob(39, 13, -4, 4, 3, 0.6, 0x10203a, 0.9, 4);
-  } else {
-    outside.blob(39, 14, -4, 4, 3.5, 0.6, (x, y, z) => (hash3(x, y, z) > 0.5 ? 0x6fae4a : 0x5a9a3c), 0.9, 4);
-    outside.blob(30, 25, -4, 3, 1.2, 0.5, 0xffffff, 1, 7);
+  // the curtains, which breathe a little in the air from the window
+  const curtains = new Voxels(S, 0.03);
+  for (let j = 10; j <= 29; j += 1) {
+    for (const i of [22, 23, 24]) curtains.set(i, j, 0, (i + j) % 3 === 0 ? 0xf2c46b : 0xf6d98c);
+    for (const i of [44, 45, 46]) curtains.set(i, j, 0, (i + j) % 3 === 0 ? 0xf2c46b : 0xf6d98c);
   }
-  mesh(outside, materials.glow, false).receiveShadow = false;
+  group.add(hanging(curtains, hangSway("z", 0.022), 29, ORIGIN));
+
+  // outside: the roofs across the street, a tree, and a morning sky over
+  // them; or the night, the moon and one window still lit.
+  // Seen through the glass from above, what's further back shows lower down,
+  // so each layer is drawn a little below and left of where it appears.
+  const outside = new Voxels(S, 0.02);
+  const near = new Voxels(S, 0.02);
+  const skyDay = (j: number) => (j >= 19 ? mix(0xd8e9f2, 0xa9d0f0, Math.min(1, (j - 19) / 7)) : mix(0xfbe7cc, 0xd8e9f2, Math.max(0, j - 12) / 7));
+  const skyNight = (j: number) => mix(0x2a3c6e, 0x0f1a3a, Math.min(1, Math.max(0, j - 10) / 14));
+  for (let i = 20; i <= 43; i += 1)
+    for (let j = 8; j <= 28; j += 1) {
+      let c = night ? skyNight(j) : skyDay(j);
+      if (night && j > 16 && hash3(i, j, 9) > 0.972) c = mix(c, 0xb9c4ec, 0.5);
+      outside.set(i, j, -5, c);
+    }
+  if (!night) {
+    outside.box(24, 22, -5, 28, 22, -5, 0xffffff);
+    outside.box(25, 23, -5, 27, 23, -5, 0xf8fbfd);
+  }
+  // two houses' roofs, lit on the slope that faces the sun, the nearer one with a chimney
+  for (let i = 22; i <= 43; i += 1) {
+    const a = Math.round(14.6 - Math.abs(i - 28.5) * 0.6);
+    const b = Math.round(13.2 - Math.abs(i - 38) * 0.5);
+    for (let j = 9; j <= Math.max(a, b); j += 1) {
+      const front = j <= a && (i <= 34 || j > b);
+      const lit = front ? i >= 28.5 : i >= 38;
+      const roof = night ? (front ? 0x1a2238 : 0x151c30) : j === (front ? a : b) ? 0x9aa2b0 : lit ? 0x7d8698 : 0x5f6878;
+      near.set(i, j, -3, roof);
+    }
+  }
+  near.box(31, 13, -3, 31, 15, -3, night ? 0x221c2a : 0x9a5a48);
+  if (night) near.set(27, 12, -3, 0xc89a50);
+  // the tree on the corner
+  near.blob(38.5, 15.5, -3, 3.4, 4.2, 0.5, (x, y, z) => (night ? (hash3(x, y, z) > 0.6 ? 0x14203a : 0x0f1830) : hash3(x, y, z) > 0.62 ? 0x7cb954 : y > 16 ? 0x62a242 : 0x4f8f36), 0.92, 4);
+  near.box(38, 9, -3, 39, 11, -3, night ? 0x0f1424 : 0x5a3e2a);
+  mesh(outside, viewGlow, false).receiveShadow = false;
+  mesh(near, viewGlow, false).receiveShadow = false;
+  if (night) {
+    const moon = new Voxels(S, 0);
+    moon.box(34, 21, -4, 36, 23, -4, (x, y) => ((x === 34 || x === 36) && (y === 21 || y === 23) ? 0xc9c0a4 : 0xfff1c8));
+    mesh(moon, bulbGlow, false);
+  }
 
   // —— furniture
   const f = new Voxels(S, 0.04);
@@ -115,10 +185,10 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
   f.box(0, 5, 8, 11, 5, 21, (x, y, z) => (z === 11 || z === 12 ? 0xf6eedd : 0xf08a32));
   f.box(11, 2, 8, 11, 4, 21, (x, y, z) => (z === 11 || z === 12 ? 0xf6eedd : 0xe07a26));
   f.box(0, 2, 21, 11, 4, 21, 0xe07a26);
-  // the nightstand, its lamp; the phone goes on top
-  f.box(13, 0, 0, 18, 6, 5, (x, y, z) => (z === 5 && y === 4 ? dark : wood(x, y, z)));
-  f.box(13, 7, 1, 14, 7, 2, 0x3a3f4a);
-  f.box(13, 8, 1, 14, 9, 2, 0x3a3f4a);
+  // the nightstand, and the lamp on it
+  f.box(13, 0, 0, 18, 6, 5, (x, y, z) => (z === 5 && y === 4 ? dark : z === 5 && y === 2 && x === 15 ? 0xd9b878 : wood(x, y, z)));
+  f.box(16, 7, 0, 18, 7, 2, 0x3a3f4a);
+  f.box(17, 8, 1, 17, 9, 1, 0x3a3f4a);
   // a shelf of books over the bed
   f.box(0, 24, 0, 10, 24, 2, wood);
   [0x2f6be8, 0xf08a32, 0x2a2f3d, 0xd74718, 0xf6eedd, 0x5b4fd6, 0x2f6be8, 0x8fd3b6].forEach((c, n) => {
@@ -139,24 +209,32 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
     if (y <= 18) return 0x2f5c8a;
     return y >= 23 ? 0xf6c38b : 0xf3a46a;
   });
-  f.box(63, 26, 0, 66, 29, 0, (x, y) => (x === 63 || x === 66 || y === 26 || y === 29 ? 0x2a2f3d : 0xfbf8f1));
-  f.set(64, 28, 1, 0x1b1d22);
-  f.set(65, 27, 1, 0x1b1d22);
-  // the desk, under the window's right
+  // the desk, under the window's right, with a shelf underneath
   f.box(50, 7, 0, 73, 8, 9, (x, y, z) => (y === 8 ? wood(x, y, z) : dark));
   for (const [x, z] of [[50, 0], [73, 0], [50, 9], [73, 9]]) f.box(x, 0, z, x, 6, z, dark);
   f.box(51, 4, 1, 72, 4, 8, wood);
+  // the laptop, a mug, the lamp; the charger's cable down the back to the socket
   f.box(57, 9, 3, 64, 9, 7, (x, y, z) => (z >= 6 && x > 58 && x < 63 ? 0xb6bac2 : 0xd2d5db));
   f.box(57, 10, 2, 64, 15, 2, 0xc9ccd2);
   f.box(52, 9, 4, 53, 10, 5, (x, y) => (y === 10 ? 0x2f6be8 : 0xfbf8f1));
+  f.box(54, 9, 4, 54, 10, 4, 0xfbf8f1);
   f.box(68, 9, 2, 70, 9, 4, 0x2a2f3d);
   f.box(69, 10, 3, 69, 13, 3, 0x2a2f3d);
-  f.box(67, 14, 2, 71, 15, 5, 0xf08a32);
+  f.box(56, 3, 0, 56, 6, 0, 0x2a2f3d);
+  f.box(55, 2, 0, 56, 2, 0, 0x2a2f3d);
+  // a router on the shelf: it's what the server runs through
+  f.box(59, 5, 2, 63, 5, 5, (x, y, z) => (z === 5 && (x === 60 || x === 62) ? null : 0x2a2f3d));
+  f.box(62, 6, 2, 62, 7, 2, 0x2a2f3d);
+  // a notepad, a pen
   f.box(65, 9, 5, 67, 9, 7, 0xfbf8f1);
+  f.set(66, 9, 8, 0x2f6be8);
   // the chair, pulled out
   f.box(57, 4, 11, 63, 5, 16, (x, y) => (y === 5 ? 0x2f6be8 : 0x1f4fb8));
   f.box(57, 6, 16, 63, 12, 16, (x, y) => (y === 12 || x === 57 || x === 63 ? 0x1f4fb8 : 0x2f6be8));
   for (const [x, z] of [[57, 11], [63, 11], [57, 16], [63, 16]]) f.box(x, 0, z, x, 3, z, 0x2a2f3d);
+  // the backpack, dropped against the wall
+  f.box(45, 0, 1, 48, 5, 3, (x, y) => (y === 5 ? 0x2a2f3d : 0x3a3f4a));
+  f.box(46, 1, 4, 47, 3, 4, (x, y) => (y === 3 ? 0xf08a32 : 0x2f6be8));
   // the sneaker wall: three bays, boxes stacked, a few pairs out
   for (const k of [38, 53, 68]) f.box(0, 0, k, 6, 27, k, wood);
   for (const j of [0, 7, 14, 21, 27]) f.box(0, j, 38, 6, j, 68, wood);
@@ -174,7 +252,7 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
     }
   // the mirror on the near wall
   f.box(0, 8, 25, 0, 27, 33, (x, y, z) => (y === 8 || y === 27 || z === 25 || z === 33 ? 0x5e3d27 : (y - z) % 9 === 0 || (y - z) % 9 === 1 ? 0xf5fbff : 0xcfe3f0));
-  // Phoebe's bed
+  // Phoebe's bed, and her water
   for (let i = 39; i <= 51; i += 1)
     for (let k = 53; k <= 63; k += 1) {
       const d = Math.hypot((i - 45) / 6.2, (k - 58) / 5.2);
@@ -182,12 +260,21 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
       f.set(i, 0, k, d > 0.72 ? 0xc9a27a : 0xefe2cc);
       if (d > 0.72) f.set(i, 1, k, 0xb88f68);
     }
-  // the savings: an orange shoebox at the foot of the bed
-  f.box(3, 0, 23, 8, 2, 27, 0xf08a32);
-  f.box(3, 3, 23, 8, 3, 27, (x, y, z) => (x === 5 && z === 25 ? 0xd74718 : 0xfbf8f1));
+  f.box(53, 0, 59, 56, 0, 62, (x, y, z) => ((x === 53 || x === 56) && (z === 59 || z === 62) ? null : x > 53 && x < 56 && z > 59 && z < 62 ? 0x9ccff0 : 0x2f6be8));
+  // the savings: an orange shoebox at the foot of the bed, the lid on
+  f.box(4, 0, 24, 7, 2, 26, (x, y, z) => (x === 7 && y === 1 && z === 25 ? 0x1b1d22 : 0xf08a32));
+  f.box(3, 3, 23, 8, 3, 27, (x, y, z) => (x === 3 || x === 8 || z === 23 || z === 27 ? 0xf2ede2 : 0xfbf8f1));
+  f.box(8, 2, 24, 8, 2, 26, 0xf2ede2);
   // the door out, near the front
   f.box(0, 0, 69, 0, 22, 78, (x, y, z) => (z === 69 || z === 78 || y === 22 ? 0xfbf8f1 : (y === 7 || y === 15) && z > 70 && z < 77 ? 0x9a6a3e : 0xb07a4a));
   f.set(1, 10, 71, 0xe6b04a);
+  // the clock over it
+  for (let k = 71; k <= 76; k += 1)
+    for (let j = 24; j <= 29; j += 1) {
+      const d = Math.hypot(k - 73.5, j - 26.5);
+      if (d > 3) continue;
+      f.set(0, j, k, d > 2.2 ? 0x2a2f3d : 0xfbf8f1);
+    }
   // a plant in the corner, a ball on the floor, a football by the shoes
   f.box(74, 0, 1, 78, 3, 5, (x, y) => (y === 3 ? 0xa45a32 : 0xc0683a));
   f.blob(76, 7, 3, 3, 4, 3, (x, y, z) => (hash3(x, y, z) > 0.5 ? 0x4f9336 : 0x3d7d2e), 0.85, 9);
@@ -195,15 +282,28 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
   f.blob(12, 1.5, 62, 1.6, 1.6, 1.6, (x, y, z) => (hash3(x, y, z) > 0.75 ? 0x1b1d22 : 0xfbf8f1));
   mesh(f);
 
-  // what lights up: the laptop's screen, the phone's
+  // the lampshades: cloth by day, lit through at night
+  const shades = new Voxels(S, 0.03);
+  shades.box(67, 14, 2, 71, 15, 5, 0xf08a32);
+  shades.box(16, 10, 0, 18, 12, 2, (x, y) => (y === 12 ? 0xece0c6 : 0xf3e6cc));
+  mesh(shades, shadeGlow);
+
+  // what lights up: the laptop's screen (the group chats, scrolling), the phone's, the router's lights
+  const laptopBar = new Voxels(S, 0);
+  laptopBar.box(58, 14, 3, 63, 14, 3, 0x2a59cc);
+  mesh(laptopBar, screenGlow, false);
   const laptopScreen = new Voxels(S, 0);
-  laptopScreen.box(58, 11, 3, 63, 14, 3, (x, y) => (y === 14 ? 0x2a59cc : y === 13 && x < 61 ? 0x9cc0fa : 0x1b2a4a));
-  mesh(laptopScreen, materials.glow, false);
+  laptopScreen.box(58, 11, 3, 63, 13, 3, 0x16223e);
+  mesh(laptopScreen, textScreen("z", 0x9cc0fa, 0.9), false);
+  const router = new Voxels(S, 0);
+  router.set(60, 5, 5, 0x5fe08a);
+  router.set(62, 5, 5, 0xf2c46b);
+  mesh(router, blinkGlow, false);
   const phone = new Voxels(S, 0);
-  phone.box(15, 7, 2, 16, 7, 3, 0x1d1f24);
+  phone.box(14, 7, 2, 15, 7, 3, 0x1d1f24);
   const phoneMesh = mesh(phone);
   const phoneLit = new Voxels(S, 0);
-  phoneLit.box(15, 7, 2, 16, 7, 3, 0x9cc0fa);
+  phoneLit.box(14, 7, 2, 15, 7, 3, 0x9cc0fa);
   const phoneGlow = mesh(phoneLit, materials.glow, false);
   phoneGlow.position.y = 0.002;
   phoneGlow.visible = false;
@@ -246,26 +346,29 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
     for (const [x, z] of [[46, 22], [50, 22], [48, 26]]) v.box(x, 0, z, x, 1, z, 0x2a2f3d);
     v.box(48, 0, 24, 48, 15, 24, 0x2a2f3d);
     v.box(47, 2, 23, 49, 2, 25, 0x2a2f3d);
+    v.box(48, 16, 24, 48, 16, 24, 0x2a2f3d);
   });
   add("ringlight", (v) => {
     for (let a = 0; a < 28; a += 1) {
       const t = (a / 28) * Math.PI * 2;
       v.set(48, Math.round(19 + Math.sin(t) * 3.4), Math.round(24 + Math.cos(t) * 3.4), 0xfff4e0);
     }
-  }, materials.glow, false);
+  }, bulbGlow, false);
   // a second screen, with a chart that only goes up
   add("monitor", (v) => {
     v.box(50, 10, 1, 56, 15, 1, 0x1b1d22);
     v.box(53, 9, 2, 53, 9, 2, 0x1b1d22);
   });
   add("monitor", (v) => {
-    v.box(51, 11, 2, 55, 14, 2, (x, y) => (y === 11 + Math.floor((x - 51) * 0.8) ? 0x3fd17a : y === 14 ? 0x2a59cc : 0x16203a));
-  }, materials.glow, false);
+    v.box(51, 11, 2, 55, 14, 2, (x, y) => (x === 55 && y === 13 ? null : y === 11 + Math.floor((x - 51) * 0.6) ? 0x3fd17a : y === 14 ? 0x2a59cc : 0x16203a));
+  }, screenGlow, false);
+  // the newest point on it, blinking
+  add("monitor", (v) => v.set(55, 13, 2, 0x7dffa8), blinkGlow, false);
   // LEDs along the top of the walls
   add("leds", (v) => {
     for (let i = 0; i < N; i += 1) v.set(i, 34, 0, 0x8a6cff);
     for (let k = 0; k < N; k += 1) v.set(0, 34, k, 0x8a6cff);
-  }, materials.glow, false);
+  }, ledGlow, false);
   // more boxes than the shelves hold
   add("boxes", (v) => {
     for (let n = 0; n < 5; n += 1) {
@@ -275,14 +378,15 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
       if (n % 2 === 0) v.box(1, 31, z0 + 1, 4, 33, z0 + 3, (x, y) => (y === 33 ? body : lid));
     }
   });
-  // the plaque
+  // the plaque, up where the lamp can't get in front of it
   add("plaque", (v) => {
-    v.box(60, 16, 0, 78, 23, 0, (x, y) => (x === 60 || x === 78 || y === 16 || y === 23 ? 0x2a2f3d : 0x1b1d22));
-    letters(v, "$45K", 62, 21, 1, 0xf2c46b, { axis: "x" });
+    v.box(60, 18, 0, 78, 25, 0, (x, y) => (x === 60 || x === 78 || y === 18 || y === 25 ? 0x2a2f3d : 0x1b1d22));
+    letters(v, "$45K", 62, 23, 1, 0xf2c46b, { axis: "x" });
   });
 
-  // —— light: the sun through the window, or the moon, and a warm lamp
-  const sun = new DirectionalLight(night ? 0x9fb4ff : 0xffdcae, night ? 1.1 : 3.6);
+  // —— light: the sun over the roofs, or the moon; the desk lamp, the
+  // bedside lamp after dark, and the laptop's own blue on the desk
+  const sun = new DirectionalLight(night ? 0x9fb4ff : 0xffdcae, night ? 1.05 : 4.0);
   sun.position.set(-3, 8.5, -14);
   sun.target.position.set(0, 0, 0);
   sun.castShadow = true;
@@ -290,12 +394,29 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
   Object.assign(sun.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 40 });
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.02;
-  const hemi = night ? new HemisphereLight(0x5a6fb0, 0x2a2430, 1.1) : new HemisphereLight(0xe9eeff, 0xd8c3a5, 1.55);
+  const hemi = night ? new HemisphereLight(0x5a6fb0, 0x2a2430, 1.05) : new HemisphereLight(0xe9eeff, 0xd8c3a5, 1.4);
   const lamp = new PointLight(0xffc98a, night ? 3.2 : 1.2, night ? 5 : 4, 2);
   lamp.position.copy(at(69, 15, 4));
+  const bedside = new PointLight(0xffc48a, night ? 2.2 : 0, 3.4, 2);
+  bedside.position.copy(at(17, 10.5, 2.5));
+  const screenLight = new PointLight(0x7aa4f5, night ? 0.9 : 0, 2.4, 2);
+  screenLight.position.copy(at(60.5, 12, 6));
   const ring = new PointLight(0xfff1dc, 0, 4, 2);
   ring.position.copy(at(46, 19, 24));
-  group.add(sun, sun.target, hemi, lamp, ring);
+  group.add(sun, sun.target, hemi, lamp, bedside, screenLight, ring);
+
+  // —— and what moves: the window's light and the dust in it, steam off
+  // the mug, the clock
+  const opening: Opening = [at(26, 13, 0), at(43, 13, 0), at(43, 28, 0), at(26, 28, 0)];
+  const light = towards(sun.position, sun.target.position);
+  const clock = clockHands(at(1, 27, 74), "x", { minutes: night ? 21 * 60 + 40 : 7 * 60, radius: 0.24 });
+  const lives: Life[] = [
+    shaft(opening, light, night ? { color: 0x8fa6ef, strength: 0.022, panes: [2, 2] } : { color: 0xffe9c4, strength: 0.055, panes: [2, 2] }),
+    steam(at(53, 11, 5), { count: 5, rise: 0.26 }),
+    clock,
+  ];
+  if (!night) lives.push(motes(opening, light, { count: 26, seed: 2 }));
+  const life = alive(group, lives);
 
   const colliders: Collider[] = [
     block(0, 0, 11, 21), // the bed
@@ -306,10 +427,12 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
     block(3, 23, 8, 27), // the shoebox
     block(74, 1, 78, 5), // the plant
     block(29, 61, 31, 63), // the basketball
+    block(45, 1, 48, 4), // the backpack
+    block(53, 59, 56, 62), // Phoebe's water
   ];
   const tripod = block(46, 22, 50, 26);
   const spots: Spot[] = [
-    { id: "phone", label: "Phone", at: at(15.5, 8, 2.5), reach: 1.3 },
+    { id: "phone", label: "Phone", at: at(14.5, 8, 2.5), reach: 1.3 },
     { id: "shoebox", label: "Shoebox", at: at(5.5, 4, 25), reach: 1.25 },
     { id: "laptop", label: "Laptop", at: at(60.5, 12, 5), reach: 1.6 },
     { id: "mirror", label: "Mirror", at: at(1, 20, 29), reach: 1.3 },
@@ -321,7 +444,7 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
     { id: "door", label: "Door", at: at(1, 12, 73.5), reach: 1.3 },
   ];
   const boardSpot: Spot = { id: "board", label: "Sources board", at: at(1, 17, 11), reach: 2.0 };
-  const plaqueSpot: Spot = { id: "plaque", label: "Plaque", at: at(69, 19, 0), reach: 1.7 };
+  const plaqueSpot: Spot = { id: "plaque", label: "Plaque", at: at(69, 21, 0), reach: 1.7 };
 
   let buzz = 0;
   const shown = new Set<Feature>();
@@ -361,12 +484,17 @@ export function bedroom({ night = false }: { night?: boolean } = {}) {
         if (!shown.has(when) && has) spots.splice(spots.indexOf(spot), 1);
       }
     },
-    update: (time: number) => {
+    setTime: (minutes: number) => clock.set(minutes),
+    update: (time: number, dt: number) => {
       // the phone shivers while it's ringing
       phoneMesh.position.x = buzz ? Math.sin(time * 70) * 0.012 : 0;
       phoneGlow.position.x = phoneMesh.position.x;
+      life.update(time, dt);
     },
-    dispose: () => disposeAll(group),
+    dispose: () => {
+      life.dispose();
+      disposeAll(group);
+    },
   } satisfies Room & Record<string, unknown>;
   return room;
 }

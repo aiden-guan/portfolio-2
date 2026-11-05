@@ -9,6 +9,7 @@ import { SceneCaption, SceneryBackdrop } from "@/components/scenery";
 import { WorldSwitch } from "@/components/identity/world-switch";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getGitHubProjects } from "@/lib/github-projects";
+import { wordmarkWidth } from "@/lib/mat";
 import { getPortfolioContent } from "@/lib/portfolio-content";
 import type { Metadata } from "next";
 
@@ -16,6 +17,8 @@ export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Student",
+  description:
+    "Aiden Guan's work laid out on a cutting mat as printed things: receipts, tickets, postcards and time cards to pick up, turn over, cut and burn.",
   alternates: { canonical: "/student" },
 };
 
@@ -52,7 +55,12 @@ export default async function Home() {
           <Mat content={content} />
         </Table>
       </main>
-      <ProjectsFolder projects={github.projects} live={github.live} checkedAt={github.checkedAt} />
+      <ProjectsFolder
+        projects={github.projects}
+        live={github.live}
+        checkedAt={github.checkedAt}
+        nameWidth={wordmarkWidth(profile.name)}
+      />
       <PrintViewer />
     </>
   );

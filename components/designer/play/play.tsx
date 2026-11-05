@@ -7,8 +7,8 @@ import { cover as coverWith } from "@/components/identity/leave";
 import { setMuted, useMuted } from "@/lib/riffle";
 import type { Engine, Marker } from "../scene/engine";
 import { Game, type GamePhase } from "./game/game";
-import { clamp01, cover, ease, lerpQuad, pin, subQuad, unpin, type Box, type Quad } from "./pin";
-import { createRoom, type Pose, type Room } from "./room";
+import { bezier, clamp01, cover, ease, lerpQuad, pin, subQuad, unpin, type Box, type Quad } from "./pin";
+import { createRoom, makePose, type Pose, type Room } from "./room";
 import { createSound, type Sound } from "./sound";
 import { STORE, StoreOver, StorePage, type Shots, type Stage } from "./store";
 import styles from "./play.module.css";
@@ -26,34 +26,38 @@ type Props = {
   onExit: () => void;
 };
 
-// When things happen, in ms on the cinematic's clock.
+// When the opening happens, in ms on the cinematic's clock. Everything after
+// the pull back follows on from the purchase, one beat after another.
 const T = {
-  video: 250,
-  shrink: 900,
-  shrinkFor: 1250,
-  cursor: 2300,
-  pull: 2700,
-  pullFor: 2600,
-  lean: 5500,
-  leanFor: 1300,
-  back: 12750,
-  backFor: 1400,
-  dark: 12900,
-  splash: 13250,
-  title: 14950,
-  dive: 15850,
-  diveFor: 1500,
+  video: 150,
+  shrink: 1300,
+  shrinkFor: 1050,
+  cursor: 2200,
+  pull: 2800,
+  pullFor: 2450,
 };
-const END = T.dive + T.diveFor;
 
-// The trailer cuts between these while it's a video.
+// The trailer cuts between these while it's a video: a hard cut, then a slow push in.
 const SHOTS: Array<[string, number]> = [
-  ["ledgerlens-tree", 2.1],
-  ["courtvision", 2.3],
+  ["courtvision", 2.2],
   ["ledgerlens-pond", 2.5],
   ["barkoff", 2.6],
   ["rally", 2.4],
+  ["ledgerlens-tree", 2.0],
+  ["continuity", 2.3],
 ];
+const CUT_EVERY = 1250;
+
+// How the camera moves: each a dolly with weight, slow to start and slower to stop.
+const CURVES = {
+  // the pull back through the glass: it leaves gently, travels, and settles long
+  pull: bezier(0.62, 0, 0.12, 1),
+  lean: bezier(0.42, 0, 0.18, 1),
+  reframe: bezier(0.45, 0, 0.25, 1),
+  back: bezier(0.38, 0, 0.16, 1),
+  // into the screen: gathers itself, commits, and lands square on the glass
+  dive: bezier(0.72, 0, 0.26, 1),
+};
 
 type Tween = { from: number; length: number; run: (k: number) => void; done?: () => void };
 
@@ -107,18 +111,34 @@ function createClock() {
   return clock;
 }
 
-const mixPose = (a: Pose, b: Pose, k: number): Pose => ({
-  position: a.position.clone().lerp(b.position, k),
-  target: a.target.clone().lerp(b.target, k),
-  fov: a.fov + (b.fov - a.fov) * k,
-});
+const lerpBox = (a: Box, b: Box, k: number, out: Box): Box => {
+  out.x = a.x + (b.x - a.x) * k;
+  out.y = a.y + (b.y - a.y) * k;
+  out.w = a.w + (b.w - a.w) * k;
+  out.h = a.h + (b.h - a.h) * k;
+  return out;
+};
 
-const lerpBox = (a: Box, b: Box, k: number): Box => ({
-  x: a.x + (b.x - a.x) * k,
-  y: a.y + (b.y - a.y) * k,
-  w: a.w + (b.w - a.w) * k,
-  h: a.h + (b.h - a.h) * k,
-});
+const PAGE: Box = { x: 0, y: 0, w: STORE.w, h: STORE.h };
+
+const copyPose = (to: Pose, from: Pose) => {
+  to.position.copy(from.position);
+  to.target.copy(from.target);
+  to.fov = from.fov;
+  to.roll = from.roll;
+  return to;
+};
+
+/** The 16:9 box, centred on the viewport, that the viewport just fits inside:
+ * the game drawn on the monitor exactly as it will fill the page. */
+const contain = (w: number, h: number, out: Box): Box => {
+  const wide = w / h < 16 / 9;
+  out.w = wide ? (h * 16) / 9 : w;
+  out.h = wide ? h : (w * 9) / 16;
+  out.x = (w - out.w) / 2;
+  out.y = (h - out.h) / 2;
+  return out;
+};
 
 // Where an element sits in its layer, in the layer's own px: offsets don't
 // see transforms, so this holds however the layer is pinned.
@@ -135,6 +155,11 @@ function centreOf(layer: HTMLElement | null, selector: string): [number, number]
   return [x, y];
 }
 
+// A hand on a mouse: a quick reach that lands a touch long and a little to
+// the side, then a small correction onto the target. Each part follows the
+// minimum-jerk profile a practised movement has.
+const jerk = (s: number) => s * s * s * (10 + s * (-15 + s * 6));
+
 export default function Play({ root: rootRef, engine: engineRef, capture, onExit }: Props) {
   const roomCanvas = useRef<HTMLCanvasElement>(null);
   const under = useRef<HTMLDivElement>(null);
@@ -142,6 +167,7 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
   const cursor = useRef<HTMLDivElement>(null);
   const gameLayer = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLDivElement>(null);
+  const videoTime = useRef<HTMLSpanElement>(null);
   const sound = useRef<Sound | null>(null);
   const skipRef = useRef<() => void>(() => {});
   const [stage, setStage] = useState<Stage>("page");
@@ -149,7 +175,7 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
   const [videoShown, setVideoShown] = useState(false);
   const [phase, setPhase] = useState<GamePhase>("off");
   const [cinematic, setCinematic] = useState(true);
-  const [black, setBlack] = useState(false);
+  const [black, setBlack] = useState<"" | "in" | "out">("");
   const muted = useMuted();
 
   // the island's frame as it was when PLAY was pressed: the capsule art, the
@@ -202,7 +228,6 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
     const root = rootRef.current!;
     const audio = createSound();
     sound.current = audio;
-    audio.unlock();
     const clock = createClock();
     let room: Room | null = null;
     let raf = 0;
@@ -210,22 +235,29 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
     let full = false;
     let islandShown = true;
     let gameShown = false;
-    let breathing = 0;
-    const cursorAt = { x: 640, y: 480, shown: false };
+    const cursorAt = { x: 640, y: 480 };
 
     const width = () => window.innerWidth;
     const height = () => window.innerHeight;
-    const viewport = (): Quad => [0, 0, width(), 0, width(), height(), 0, height()];
+    const aspect = () => width() / height();
+    // the frame's own corners, kept in one array that's updated, not remade
+    const view: Quad = [0, 0, 0, 0, 0, 0, 0, 0];
+    const viewport = (): Quad => {
+      const w = width(), h = height();
+      view[2] = view[4] = w;
+      view[5] = view[7] = h;
+      return view;
+    };
 
-    let roomReady = false;
     if (!reduced) {
       room = createRoom(roomCanvas.current!);
       room.resize(width(), height());
-      clock.gate = T.shrink;
+      // the room builds while the trailer and the store page play; the clock
+      // only waits for it if it isn't ready by the time the camera pulls back
+      clock.gate = T.pull;
       room
-        .prepare(room.poses.cover(width() / height()))
+        .prepare(room.poses.cover(aspect()))
         .then(() => {
-          roomReady = true;
           clock.gate = Infinity;
         })
         .catch((error) => console.error(error));
@@ -237,24 +269,60 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
     const onResize = () => room?.resize(width(), height());
     window.addEventListener("resize", onResize);
 
-    const buyAt = () => centreOf(under.current, "[data-target='buy']");
-    const poseAt = (t: number): Pose | null => {
-      if (!room) return null;
-      const aspect = width() / height();
-      const { cover: coverPose, seat, lean } = room.poses;
-      const front = coverPose(aspect);
-      const chair = seat(aspect);
-      // lean in to read: the lower middle of the screen, where buying happens
-      const close = lean(aspect, 830, 560, 1240);
-      if (t < T.pull) return front;
-      if (t < T.pull + T.pullFor) return mixPose(front, chair, ease.pull((t - T.pull) / T.pullFor));
-      if (t < T.lean) return chair;
-      if (t < T.lean + T.leanFor) return mixPose(chair, close, ease.inOut((t - T.lean) / T.leanFor));
-      if (t < T.back) return close;
-      if (t < T.back + T.backFor) return mixPose(close, chair, ease.inOut((t - T.back) / T.backFor));
-      if (t < T.dive) return chair;
-      if (t < END) return mixPose(chair, front, ease.in(clamp01((t - T.dive) / T.diveFor)) * 0.6 + ease.inOut(clamp01((t - T.dive) / T.diveFor)) * 0.4);
-      return front;
+    // —— the camera: named shots, moves between them, and the operator's breath
+    const shot = {
+      cover: (out: Pose) => room!.poses.cover(aspect(), out),
+      seat: (out: Pose) => room!.poses.seat(aspect(), out),
+      // leaning in to buy: the price, the button and the dialog that follows
+      buy: (out: Pose) => room!.poses.lean(aspect(), 790, 560, aspect() < 1 ? 720 : 1540, out),
+      // the library: the art, the button and the download beside it
+      library: (out: Pose) => room!.poses.lean(aspect(), 880, 450, aspect() < 1 ? 760 : 1400, out),
+    };
+    type ShotName = keyof typeof shot;
+    const rig = { from: makePose(), to: "cover" as ShotName, at: 0, length: 0, curve: ease.inOut, arc: new Vector3() };
+    const base = makePose();
+    const goal = makePose();
+    const pose = makePose();
+    const move = (to: ShotName, length: number, curve: (t: number) => number, arc: [number, number, number] = [0, 0, 0]) => {
+      copyPose(rig.from, base);
+      rig.to = to;
+      rig.at = clock.t;
+      rig.length = length;
+      rig.curve = curve;
+      rig.arc.set(arc[0], arc[1], arc[2]);
+    };
+    const place = (t: number) => {
+      shot[rig.to](goal);
+      const k = rig.length > 0 ? clamp01((t - rig.at) / rig.length) : 1;
+      if (k >= 1) return copyPose(base, goal);
+      const e = rig.curve(k);
+      base.position.lerpVectors(rig.from.position, goal.position, e).addScaledVector(rig.arc, Math.sin(Math.PI * e));
+      // the operator keeps the frame a touch ahead of the move
+      base.target.lerpVectors(rig.from.target, goal.target, Math.min(1, e * 1.06));
+      base.fov = rig.from.fov + (goal.fov - rig.from.fov) * e;
+      base.roll = 0;
+      return base;
+    };
+    // hand-held: slow, uneven drift in where it points, a breath in its height
+    let steady = 0;
+    let steadyGoal = 0;
+    let wander = 0;
+    const forward = new Vector3(), right = new Vector3(), up = new Vector3(), lift = new Vector3(0, 1, 0);
+    const wobble = (t: number, a: number, b: number, c: number) => Math.sin(t * a) * 0.5 + Math.sin(t * b + 1.7) * 0.32 + Math.sin(t * c + 4.1) * 0.18;
+    const handheld = (dt: number, out: Pose, amount: number) => {
+      wander += dt;
+      if (amount <= 0.0005) return out;
+      forward.subVectors(out.target, out.position);
+      const distance = forward.length();
+      forward.divideScalar(distance);
+      right.crossVectors(forward, lift).normalize();
+      up.crossVectors(right, forward);
+      const yaw = wobble(wander, 0.53, 1.31, 2.9) * 0.0021 * amount;
+      const pitch = (wobble(wander + 11, 0.47, 1.17, 2.6) * 0.0017 + Math.sin(wander * 1.45) * 0.0009) * amount;
+      out.target.addScaledVector(right, yaw * distance).addScaledVector(up, pitch * distance);
+      out.position.addScaledVector(up, Math.sin(wander * 1.45) * 0.0016 * amount).addScaledVector(right, wobble(wander + 5, 0.37, 0.91, 2.2) * 0.0012 * amount);
+      out.roll = wobble(wander + 23, 0.41, 1.07, 2.3) * 0.0012 * amount;
+      return out;
     };
 
     // —— the pointer on the screen, and the mouse on the desk under the hand
@@ -265,16 +333,26 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
       room?.setMouse(((cursorAt.x - 800) / 1600) * 0.07, ((cursorAt.y - 450) / 900) * 0.045);
     };
     const moveCursor = (to: [number, number], length: number) => {
-      const from = { x: cursorAt.x, y: cursorAt.y };
-      const dx = to[0] - from.x, dy = to[1] - from.y;
-      // a hand doesn't draw straight lines: bow the path a little, and overshoot
-      const bow = { x: from.x + dx * 0.5 - dy * 0.12, y: from.y + dy * 0.5 + dx * 0.08 };
+      const fx = cursorAt.x, fy = cursorAt.y;
+      const dx = to[0] - fx, dy = to[1] - fy;
+      const distance = Math.hypot(dx, dy) || 1;
+      const nx = -dy / distance, ny = dx / distance;
+      // where the reach lands: a little long, a little to the side
+      const lx = to[0] + dx * 0.05 + nx * Math.min(14, distance * 0.03);
+      const ly = to[1] + dy * 0.05 + ny * Math.min(14, distance * 0.03);
+      const bow = Math.min(46, distance * 0.09);
+      const split = 0.74;
       return clock.tween(length, (k) => {
-        const e = ease.inOut(k);
-        const s = e + Math.sin(e * Math.PI) * 0.035;
-        const u = 1 - s;
-        cursorAt.x = u * u * from.x + 2 * u * s * bow.x + s * s * to[0];
-        cursorAt.y = u * u * from.y + 2 * u * s * bow.y + s * s * to[1];
+        if (k < split) {
+          const s = jerk(k / split);
+          const arc = Math.sin(Math.PI * s) * bow;
+          cursorAt.x = fx + (lx - fx) * s + nx * arc;
+          cursorAt.y = fy + (ly - fy) * s + ny * arc;
+        } else {
+          const s = jerk((k - split) / (1 - split));
+          cursorAt.x = lx + (to[0] - lx) * s;
+          cursorAt.y = ly + (to[1] - ly) * s;
+        }
         placeCursor();
       });
     };
@@ -290,12 +368,43 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
       audio.click();
       for (const layer of [under.current, over.current]) if (layer) layer.dataset.press = target;
       cursor.current?.setAttribute("data-down", "");
-      await clock.until(clock.t + 130);
+      await clock.until(clock.t + 120);
       for (const layer of [under.current, over.current]) if (layer) delete layer.dataset.press;
       cursor.current?.removeAttribute("data-down");
     };
 
+    // —— the trailer: hard cuts on the clock, each shot pushing in slowly
+    // the first cut waits for the player bar to land, so the page reads as
+    // the same page, playing, before it starts cutting
+    let cut = -1;
+    let nextCut = T.video + 900;
+    let drift: [string, number] | null = null;
+    const trailer = (t: number) => {
+      if (!engine || !islandShown) return;
+      if (drift) {
+        engine.look(drift[0], drift[1] * 1.12, 0.55);
+        drift = null;
+      }
+      if (t < nextCut) return;
+      cut += 1;
+      nextCut += CUT_EVERY;
+      const [id, zoom] = SHOTS[cut % SHOTS.length];
+      engine.look(id, zoom, 600);
+      drift = [id, zoom];
+      // the player keeps time with the footage: the clock and the bar move on
+      const seconds = 41 + Math.floor(t / 1000);
+      if (videoTime.current) videoTime.current.textContent = `0:${String(seconds).padStart(2, "0")} / 1:30`;
+      video.current?.style.setProperty("--progress", `${((seconds / 90) * 100).toFixed(1)}%`);
+    };
+
     // —— each frame: the camera, then everything pinned to where it lands
+    const quad: Quad = [0, 0, 0, 0, 0, 0, 0, 0];
+    const slot: Quad = [0, 0, 0, 0, 0, 0, 0, 0];
+    const at: Quad = [0, 0, 0, 0, 0, 0, 0, 0];
+    const whole: Box = { x: 0, y: 0, w: 0, h: 0 };
+    const crop: Box = { x: 0, y: 0, w: 0, h: 0 };
+    const box: Box = { x: 0, y: 0, w: 0, h: 0 };
+    const picture: Box = { x: 0, y: 0, w: 0, h: 0 };
     let last = performance.now();
     const frame = (now: number) => {
       if (!alive) return;
@@ -306,48 +415,50 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
       const t = clock.t;
       const W = width(), H = height();
       if (full) return;
+      trailer(t);
 
       let screen: Quad = viewport();
       if (room) {
-        const pose = poseAt(t)!;
-        // once it's a person in a chair, it breathes
-        breathing += dt;
-        const settle = clamp01((t - T.pull - T.pullFor * 0.7) / 1200) * (t < T.dive ? 1 : clamp01(1 - (t - T.dive) / 500));
-        pose.position.add(new Vector3(Math.sin(breathing * 0.7) * 0.004, Math.sin(breathing * 1.1) * 0.003, 0).multiplyScalar(settle));
-        pose.target.add(new Vector3(Math.sin(breathing * 0.5 + 1) * 0.003, Math.sin(breathing * 0.8) * 0.002, 0).multiplyScalar(settle));
-        room.setPose(pose);
-        if (roomReady) room.render(dt);
-        screen = room.screenQuad();
-        const page = { x: 0, y: 0, w: STORE.w, h: STORE.h };
-        if (under.current) pin(under.current, page, screen, STORE.w, STORE.h);
-        if (over.current) pin(over.current, page, screen, STORE.w, STORE.h);
+        place(t);
+        steady += (steadyGoal - steady) * (1 - Math.exp(-dt * 2.2));
+        // the push in ends square on the glass, so the hand steadies as it goes
+        const settle = rig.to === "cover" && rig.length > 0 ? (1 - clamp01((t - rig.at) / (rig.length * 0.8))) ** 2 : 1;
+        room.setPose(handheld(dt, copyPose(pose, base), steady * settle));
+        room.render(dt);
+        screen = room.screenQuad(quad);
+        if (under.current) pin(under.current, PAGE, screen, STORE.w, STORE.h);
+        if (over.current) pin(over.current, PAGE, screen, STORE.w, STORE.h);
       }
 
       if (islandShown) {
-        const whole: Box = { x: 0, y: 0, w: W, h: H };
-        const crop = cover(W, H, STORE.slot.w / STORE.slot.h);
-        const slot = subQuad({ x: 0, y: 0, w: STORE.w, h: STORE.h }, screen, STORE.slot);
+        whole.w = W;
+        whole.h = H;
+        cover(W, H, STORE.slot.w / STORE.slot.h, crop);
         const k = room ? ease.inOut(clamp01((t - T.shrink) / T.shrinkFor)) : 0;
-        const box = lerpBox(whole, crop, k);
-        const quad = k > 0 ? lerpQuad(viewport(), slot, k) : viewport();
-        pin(root, box, quad, W, H);
+        lerpBox(whole, crop, k, box);
+        if (k > 0) lerpQuad(viewport(), subQuad(PAGE, screen, STORE.slot, slot), k, at);
+        else lerpQuad(viewport(), viewport(), 0, at);
+        pin(root, box, at, W, H);
         const v = video.current;
         if (v) {
-          pin(v, box, quad, W, H);
-          const frame = v.firstElementChild as HTMLElement;
-          frame.style.left = `${box.x}px`;
-          frame.style.top = `${box.y}px`;
-          frame.style.width = `${box.w}px`;
-          frame.style.height = `${box.h}px`;
+          pin(v, box, at, W, H);
+          const inner = v.firstElementChild as HTMLElement;
+          inner.style.left = `${box.x}px`;
+          inner.style.top = `${box.y}px`;
+          inner.style.width = `${box.w}px`;
+          inner.style.height = `${box.h}px`;
         }
       }
 
-      if (gameShown && gameLayer.current) {
-        const whole: Box = { x: 0, y: 0, w: W, h: H };
-        const crop = cover(W, H, 16 / 9);
-        const k = room ? ease.inOut(clamp01((t - (T.dive + T.diveFor * 0.4)) / (T.diveFor * 0.6))) : 1;
-        if (k >= 1) unpin(gameLayer.current);
-        else pin(gameLayer.current, lerpBox(crop, whole, k), lerpQuad(screen, viewport(), k), W, H);
+      const layer = gameLayer.current;
+      if (layer && room) {
+        if (gameShown) {
+          // the game, as it will fill the page, on the monitor; the camera
+          // pushes in until the two are the same
+          contain(W, H, picture);
+          pin(layer, picture, screen, W, H);
+          layer.style.clipPath = `inset(${picture.y.toFixed(2)}px ${(W - picture.x - picture.w).toFixed(2)}px ${(H - picture.y - picture.h).toFixed(2)}px ${picture.x.toFixed(2)}px)`;
+        }
       }
     };
     raf = requestAnimationFrame(frame);
@@ -361,8 +472,11 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
       root.style.visibility = "hidden";
       if (video.current) video.current.style.visibility = "hidden";
       engine?.pause(true);
-      if (gameLayer.current) unpin(gameLayer.current);
-      room?.dispose();
+      if (gameLayer.current) {
+        unpin(gameLayer.current);
+        gameLayer.current.dataset.shown = "";
+      }
+      room?.dispose(true);
       room = null;
       setCinematic(false);
       setPhase("ready");
@@ -370,48 +484,51 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
       audio.music(true);
     };
 
+    // skipping cuts to black, swaps underneath, and comes up on the title
     const skip = () => {
       if (full || clock.aborted) return;
       clock.aborted = true;
-      setBlack(true);
+      setBlack("in");
       window.setTimeout(() => {
         finish();
-        window.setTimeout(() => setBlack(false), 80);
-      }, 380);
+        window.setTimeout(() => setBlack("out"), 120);
+      }, 190);
     };
     skipRef.current = skip;
 
-    // —— the script
+    // —— the script, with each beat noted on the clock (for timing it while working on it)
+    const beats: Array<[string, number]> = [];
+    const beat = (name: string) => {
+      if (process.env.NODE_ENV !== "production") beats.push([name, Math.round(clock.t)]);
+    };
+    const wait = (ms: number) => clock.until(clock.t + ms);
     const script = async () => {
       if (reduced) {
-        setBlack(true);
+        audio.unlock();
+        setBlack("in");
         await new Promise((resolve) => window.setTimeout(resolve, 380));
         finish();
-        setBlack(false);
+        setBlack("out");
         return;
       }
       const stop = () => clock.aborted || !alive;
       room!.setScreen(0x7d9bd6, 1, true);
+      room!.setStop(2);
+      // a frame first, so the press shows before anything waits on the sound card
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      audio.unlock();
       audio.press();
+      beat("press");
 
       await clock.until(T.video);
       if (stop()) return;
       setVideoShown(true);
-      let shot = 0;
-      const nextShot = () => {
-        const [id, zoom] = SHOTS[shot % SHOTS.length];
-        engine?.look(id, zoom, 0.9);
-        shot += 1;
-      };
-      nextShot();
-      const cuts = window.setInterval(() => {
-        if (!islandShown || stop()) window.clearInterval(cuts);
-        else nextShot();
-      }, 2400);
+      beat("trailer");
 
       await clock.until(T.shrink);
       if (stop()) return;
       audio.whoosh(1.3, false, 0.08);
+      beat("store page");
 
       await clock.until(T.cursor);
       if (stop()) return;
@@ -419,99 +536,136 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
       cursorAt.y = 520;
       placeCursor();
       cursor.current?.setAttribute("data-shown", "");
-      moveCursor([706, 498], 700);
+      void moveCursor([700, 492], 600);
 
+      // the pull back through the glass: the room comes into focus as it goes
       await clock.until(T.pull);
       if (stop()) return;
       audio.whoosh(2.2, false, 0.14);
       audio.room(true);
-
-      // the purchase
-      await clock.until(T.lean + 150);
+      move("seat", T.pullFor, CURVES.pull, [-0.025, 0.03, 0]);
+      beat("pull back");
+      steadyGoal = 1;
+      await wait(T.pullFor * 0.6);
       if (stop()) return;
-      await moveCursor(buyAt(), 900);
+      room!.setStop(3.2);
+      await clock.until(T.pull + T.pullFor + 300);
+      if (stop()) return;
+
+      // leaning in to buy it
+      move("buy", 1250, CURVES.lean);
+      beat("lean in");
+      steadyGoal = 0.45;
+      room!.setStop(2.8);
+      await wait(320);
+      if (stop()) return;
+      await moveCursor(centreOf(under.current, "[data-target='buy']"), 820);
+      if (stop()) return;
       hover("buy");
-      await clock.until(clock.t + 260);
+      await wait(150);
       if (stop()) return;
       await click("buy");
       hover(null);
       setStage("confirm");
+      beat("buy");
       room!.setScreen(0x5a6f96, 0.8);
 
-      await clock.until(clock.t + 280);
+      await wait(200);
       if (stop()) return;
-      await moveCursor(centreOf(over.current, "[data-target='purchase']"), 750);
+      await moveCursor(centreOf(over.current, "[data-target='purchase']"), 600);
+      if (stop()) return;
       hover("purchase");
-      await clock.until(clock.t + 220);
+      await wait(140);
       if (stop()) return;
       await click("purchase");
       setStage("paying");
-      await clock.until(clock.t + 560);
+      beat("purchase");
+      // the game starts up under the spinner, out of sight, so it's warm by
+      // the time the screen goes over to it
+      setPhase("splash");
+      await wait(450);
       if (stop()) return;
       setStage("paid");
+      beat("thank you");
       audio.chime();
       room!.setPhone(true);
       hover(null);
 
       // the library: install, then play
-      await clock.until(clock.t + 700);
+      await wait(480);
       if (stop()) return;
       setStage("library");
+      beat("library");
       room!.setScreen(0x8899b8, 0.9);
       islandShown = false;
       root.style.visibility = "hidden";
       if (video.current) video.current.style.visibility = "hidden";
       engine?.pause(true);
-      await clock.until(clock.t + 200);
+      move("library", 700, CURVES.reframe);
+      await wait(150);
       if (stop()) return;
-      await moveCursor(centreOf(over.current, "[data-target='action']"), 650);
+      await moveCursor(centreOf(over.current, "[data-target='action']"), 520);
+      if (stop()) return;
       hover("action");
-      await clock.until(clock.t + 200);
+      await wait(130);
       if (stop()) return;
       await click("action");
       setStage("installing");
-      for (let i = 0; i < 9; i += 1) {
-        await clock.until(clock.t + 125);
+      beat("install");
+      for (let i = 0; i < 8; i += 1) {
+        await wait(110);
         if (stop()) return;
         audio.tick();
       }
       setStage("ready");
-      room!.setPhone(false);
-      await clock.until(clock.t + 380);
+      beat("installed");
+      await wait(240);
       if (stop()) return;
       await click("action");
       setStage("launching");
+      beat("play");
       hover(null);
 
-      // the screen goes over to the game
-      await clock.until(T.dark);
+      // the screen goes over to the game, and the camera sits back to watch it start
+      await wait(320);
       if (stop()) return;
       setStage("dark");
+      beat("dark");
       cursor.current?.removeAttribute("data-shown");
       room!.setScreen(0x000000, 0.04);
       audio.launch();
+      move("seat", 1300, CURVES.back);
+      steadyGoal = 1;
+      room!.setStop(3.2);
+      room!.setPhone(false);
 
-      await clock.until(T.splash);
+      await wait(380);
       if (stop()) return;
       gameShown = true;
-      setPhase("splash");
+      if (gameLayer.current) gameLayer.current.dataset.shown = "";
+      beat("presents");
       room!.setScreen(0x1a1a22, 0.12);
-      await clock.until(T.splash + 200);
+      await wait(200);
       if (stop()) return;
       audio.sting();
 
-      await clock.until(T.title);
+      await wait(1100);
       if (stop()) return;
       setPhase("title");
+      beat("title");
       room!.setScreen(0xffc79a, 1.25);
 
-      await clock.until(T.dive);
+      // through the screen
+      await wait(800);
       if (stop()) return;
       audio.whoosh(1.5, true, 0.2);
       audio.room(false);
-
-      await clock.until(END);
+      move("cover", 1300, CURVES.dive, [0.01, 0.018, 0]);
+      beat("into the screen");
+      room!.setStop(2.2);
+      await wait(1300);
       if (stop()) return;
+      beat("game");
       finish();
     };
     script().catch((error) => console.error(error));
@@ -525,6 +679,7 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
     if (process.env.NODE_ENV !== "production") {
       (window as unknown as { __play: unknown }).__play = {
         clock,
+        beats,
         pause: () => (clock.paused = true),
         play: () => (clock.paused = false),
         speed: (s: number) => (clock.speed = s),
@@ -582,7 +737,7 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
             <div className={styles.videoRow}>
               <svg viewBox="0 0 16 16"><path d="M4.5 3h2.4v10H4.5zM9.1 3h2.4v10H9.1z" /></svg>
               <svg viewBox="0 0 16 16" className={styles.stroke}><path d="M2.5 6h2.5l3.5-3v10L5 10H2.5zM11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.8a6 6 0 0 1 0 8.4" /></svg>
-              <span className={styles.videoTime}>0:41 / 1:30</span>
+              <span ref={videoTime} className={styles.videoTime}>0:41 / 1:30</span>
               <span className={styles.videoGrow} />
               <span className={styles.videoHd}>HD</span>
               <svg viewBox="0 0 16 16" className={styles.stroke}><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" /></svg>
@@ -593,7 +748,7 @@ export default function Play({ root: rootRef, engine: engineRef, capture, onExit
       <div ref={gameLayer} className={`${styles.gameLayer} ${identityFonts}`} hidden={phase === "off"}>
         <Game phase={phase} soundRef={sound} onQuit={quit} />
       </div>
-      <div className={styles.fade} data-shown={black || undefined} />
+      <div className={styles.fade} data-state={black || undefined} />
       {cinematic ? (
         <div className={`${styles.chrome} ${identityFonts}`}>
           <button type="button" className={styles.chromeButton} onClick={() => setMuted(!muted)} aria-pressed={!muted}>

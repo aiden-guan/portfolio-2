@@ -1,0 +1,727 @@
+/* Cards and the sheet. The sheet is the page's own paper with an ink edge:
+   it comes down like a blind, lands with a little bounce, and lifts away. */
+
+.curtain,
+.intro {
+  position: absolute;
+  inset: -40px 0 0;
+  padding-top: 40px;
+  background: var(--page);
+  box-shadow: 0 6px 0 var(--ink);
+}
+
+.curtain {
+  z-index: 60;
+  pointer-events: auto;
+}
+
+.curtain[data-phase="down"] {
+  animation: lower 440ms linear both;
+}
+
+.curtain[data-phase="up"] {
+  animation: raise 500ms linear both;
+}
+
+/* down fast, a bump as it lands, settled */
+@keyframes lower {
+  0% {
+    transform: translateY(-105%);
+    animation-timing-function: cubic-bezier(0.32, 0, 0.67, 0);
+  }
+  62% {
+    transform: translateY(14px);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  82% {
+    transform: translateY(-4px);
+    animation-timing-function: cubic-bezier(0.32, 0, 0.67, 0);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* a tug down first, then up and away */
+@keyframes raise {
+  0% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  16% {
+    transform: translateY(12px);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.75, 0.15);
+  }
+  100% {
+    transform: translateY(-105%);
+  }
+}
+
+/* —— a chapter's few lines, then its card */
+
+/* it's always shown under the sheet that came down for it, so it's simply there */
+.intro {
+  z-index: 25;
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+}
+
+.intro[data-leaving] {
+  pointer-events: none;
+  animation: raise 560ms linear both;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.introLines {
+  display: grid;
+  gap: 14px;
+  padding: 0 24px;
+  text-align: center;
+  transition: opacity 500ms ease, transform 700ms var(--ease);
+}
+
+.intro[data-card] .introLines {
+  opacity: 0;
+  transform: translateY(-14px);
+}
+
+.introLines p {
+  margin: 0;
+  font-size: clamp(20px, 2.6vw, 30px);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 640ms ease, transform 820ms var(--ease);
+}
+
+.introLines p[data-shown] {
+  opacity: 1;
+  transform: none;
+}
+
+.introLines p:last-child[data-shown] {
+  color: var(--cobalt);
+}
+
+.chapterCard {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* the sheet starts 40px above the screen, for its bounce */
+  top: calc(50% + 20px);
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 0 16px;
+  translate: 0 -50%;
+  visibility: hidden;
+}
+
+.intro[data-card] .chapterCard {
+  visibility: visible;
+}
+
+.chapterCard small {
+  color: var(--muted);
+  font-size: 15px;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+}
+
+.chapterCard strong {
+  padding: 8px 26px 11px;
+  background: var(--cobalt);
+  color: var(--paper);
+  font-size: clamp(30px, 4.6vw, 54px);
+  line-height: 1.1;
+  text-align: center;
+  box-shadow: 0 0 0 3px var(--ink), 0 8px 0 3px var(--ink);
+}
+
+/* the title slams down onto the paper; the number tracks in above it */
+.intro[data-card] .chapterCard small {
+  animation: track 700ms var(--ease) both;
+}
+
+.intro[data-card] .chapterCard strong {
+  animation: slam 420ms linear both 90ms;
+}
+
+@keyframes track {
+  from {
+    opacity: 0;
+    letter-spacing: 0.9em;
+  }
+}
+
+@keyframes slam {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(1.16);
+    box-shadow: 0 0 0 3px var(--ink), 0 22px 0 3px rgba(27, 29, 34, 0);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.4);
+  }
+  45% {
+    opacity: 1;
+    transform: translateY(3px) scale(0.98);
+    box-shadow: 0 0 0 3px var(--ink), 0 5px 0 3px var(--ink);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  100% {
+    transform: none;
+    box-shadow: 0 0 0 3px var(--ink), 0 8px 0 3px var(--ink);
+  }
+}
+
+.skip {
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  animation: fade 400ms ease both 900ms;
+}
+
+.skip kbd {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 11px/1 var(--font-pixel), monospace;
+  box-shadow: 0 2px 0 var(--ink);
+}
+
+/* —— where and when, arriving */
+
+.banner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: max(88px, 12vh);
+  z-index: 13;
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.banner strong {
+  display: block;
+  max-width: 100%;
+  padding: 7px 20px 9px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: clamp(20px, 3vw, 30px);
+  letter-spacing: 0.04em;
+  text-align: center;
+  box-shadow: 0 0 0 3px var(--paper), 0 6px 0 3px var(--ink);
+  animation: wipeIn 300ms steps(8, end) both 120ms, wipeOut 260ms steps(8, end) forwards 2900ms;
+}
+
+.banner strong span {
+  display: inline-block;
+  animation: placeIn 520ms var(--ease) both 200ms;
+}
+
+.banner small {
+  padding: 3px 10px 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+  box-shadow: 0 0 0 2px var(--ink), 0 4px 0 2px var(--ink);
+  animation: timeIn 420ms var(--spring) both 360ms, out 220ms ease forwards 2960ms;
+}
+
+@keyframes wipeIn {
+  from {
+    clip-path: inset(-14px 100% -14px -14px);
+  }
+  to {
+    clip-path: inset(-14px -14px -14px -14px);
+  }
+}
+
+@keyframes wipeOut {
+  from {
+    clip-path: inset(-14px -14px -14px -14px);
+  }
+  to {
+    clip-path: inset(-14px -14px -14px 100%);
+  }
+}
+
+@keyframes placeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+@keyframes timeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* —— the end of a chapter */
+
+.end {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow: auto;
+  background: rgba(242, 239, 232, 0.72);
+  animation: fade 420ms ease both;
+}
+
+.endCard {
+  display: grid;
+  gap: 14px;
+  width: min(480px, 100%);
+  padding: 22px 24px 24px;
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 2px var(--cream), 0 5px 0 var(--ink);
+  animation: cardIn 560ms var(--spring-soft) both 120ms;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.97);
+  }
+}
+
+.endCard > * {
+  animation: rise 460ms var(--ease) both;
+}
+
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--orange-deep);
+  font-size: 14px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  animation-delay: 220ms !important;
+}
+
+.kickerCheck {
+  width: calc(var(--w) * 2px);
+  height: calc(var(--h) * 2px);
+  animation: pop 420ms var(--spring) both 380ms;
+}
+
+.endCard h2 {
+  margin: -6px 0 0;
+  font-size: 40px;
+  line-height: 1.1;
+  animation: land 420ms linear both 260ms;
+}
+
+@keyframes land {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(1.12);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.4);
+  }
+  45% {
+    opacity: 1;
+    transform: translateY(2px) scale(0.98);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.endCard dl {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 0;
+  animation: none;
+}
+
+.endCard dl div {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 8px 9px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  background: var(--cream);
+  animation: tile 440ms var(--spring) both;
+  animation-delay: calc(400ms + var(--i) * 90ms);
+}
+
+@keyframes tile {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+  }
+}
+
+.endCard dt {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.endCard dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* HANDSOME: Max. Of course */
+.endCard dl div[data-handsome] {
+  border-color: var(--orange-deep);
+  background: #fde9d3;
+}
+
+.endCard dl div[data-handsome] dd {
+  color: var(--orange-deep);
+}
+
+.next {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px 13px;
+  border-radius: 3px;
+  background: var(--cobalt);
+  color: var(--paper);
+  animation-delay: 760ms !important;
+}
+
+.next small {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.next strong {
+  font-size: 22px;
+}
+
+.next span {
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  font-size: 13.5px;
+  line-height: 1.45;
+  opacity: 0.92;
+}
+
+.endButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  animation-delay: 860ms !important;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes pop {
+  0% {
+    scale: 0.2;
+  }
+  60% {
+    scale: 1.4;
+  }
+}
+
+.primary,
+.secondary {
+  flex: 1;
+  min-height: 48px;
+  padding: 10px 16px 11px;
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35), 0 4px 0 var(--ink);
+  transition: translate 120ms var(--ease), box-shadow 120ms var(--ease), background-color 120ms ease;
+}
+
+.primary {
+  background: var(--orange);
+}
+
+.secondary {
+  background: var(--paper);
+}
+
+@media (hover: hover) {
+  .primary:hover,
+  .secondary:hover {
+    translate: 0 -1px;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35), 0 5px 0 var(--ink);
+  }
+
+  .secondary:hover {
+    background: #fff;
+  }
+}
+
+.primary:active,
+.secondary:active {
+  translate: 0 3px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35), 0 1px 0 var(--ink);
+  transition-duration: 40ms;
+}
+
+.primary:focus-visible,
+.secondary:focus-visible {
+  outline: 3px solid var(--cobalt);
+  outline-offset: 3px;
+}
+
+/* —— a moment, found */
+
+.moment {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right));
+  top: 82px;
+  z-index: 32;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: min(330px, calc(100vw - 28px));
+  padding: 11px 14px 13px 11px;
+  border: 3px solid var(--ink);
+  border-radius: 5px;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 2px var(--cream), 0 5px 0 var(--ink);
+  cursor: pointer;
+  animation: momentIn 560ms linear both;
+}
+
+@keyframes momentIn {
+  0% {
+    transform: translateX(calc(100% + 40px));
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  62% {
+    transform: translateX(-8px);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.moment[data-leaving] {
+  pointer-events: none;
+  animation: momentOut 320ms cubic-bezier(0.55, 0, 0.75, 0.2) forwards;
+}
+
+@keyframes momentOut {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-6px);
+  }
+  100% {
+    transform: translateX(calc(100% + 40px));
+  }
+}
+
+.stamp {
+  position: relative;
+  flex: none;
+  width: 39px;
+  height: 39px;
+}
+
+.stampArt {
+  display: block;
+  width: 39px;
+  height: 39px;
+  filter: drop-shadow(0 3px 0 var(--ink));
+  animation: stampIn 460ms linear both 260ms;
+}
+
+@keyframes stampIn {
+  0% {
+    opacity: 0;
+    scale: 2;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.4);
+  }
+  50% {
+    opacity: 1;
+    scale: 0.88;
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  100% {
+    scale: 1;
+  }
+}
+
+.burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  opacity: 0;
+  animation: burst 560ms var(--ease) both;
+  animation-delay: calc(470ms + var(--i) * 25ms);
+}
+
+@keyframes burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(0.4);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) scale(1);
+  }
+}
+
+.momentText {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.momentText small {
+  color: var(--orange-deep);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.momentText small b {
+  margin-left: 4px;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+
+.momentText strong {
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.momentText > span {
+  color: var(--muted);
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+@media (max-width: 640px) {
+  .banner {
+    top: max(150px, 19vh);
+  }
+
+  .endCard {
+    gap: 12px;
+    padding: 18px 16px 18px;
+  }
+
+  .endCard h2 {
+    font-size: 32px;
+  }
+
+  .endCard dl {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .moment {
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    top: max(144px, 18vh);
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .curtain[data-phase="down"] {
+    animation: fade 200ms ease both;
+  }
+
+  .curtain[data-phase="up"],
+  .intro[data-leaving] {
+    animation: out 240ms ease forwards;
+  }
+
+  .intro[data-card] .chapterCard small,
+  .intro[data-card] .chapterCard strong,
+  .endCard,
+  .endCard > *,
+  .endCard h2,
+  .endCard dl div,
+  .kickerCheck,
+  .moment,
+  .stampArt {
+    animation: fade 200ms ease both;
+  }
+
+  .moment[data-leaving] {
+    animation: out 200ms ease forwards;
+  }
+
+  .burst {
+    display: none;
+  }
+
+  .banner strong,
+  .banner small {
+    animation: fade 240ms ease both, out 240ms ease forwards 2900ms;
+  }
+
+  .banner strong span {
+    animation: none;
+  }
+
+  .introLines,
+  .introLines p {
+    transform: none !important;
+  }
+}

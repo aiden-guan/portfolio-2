@@ -7,6 +7,9 @@ import styles from "./chrome.module.css";
 // What the islands on the page share: the messaging dock, the toast, and a way
 // for anything (search, notifications, skills) to bring a project into view.
 
+/** A button on the toast, like "Undo". */
+export type ToastAction = { label: string; run: () => void };
+
 type Founder = {
   dockOpen: boolean;
   /** Bumps each time something asks the dock to focus its message box. */
@@ -15,8 +18,10 @@ type Founder = {
   openMessaging: () => void;
   revealProject: (slug: string) => void;
   registerProjects: (reveal: (slug: string) => void) => () => void;
-  toast: (text: string) => void;
+  toast: (text: string, action?: ToastAction) => void;
   copyProfileLink: () => void;
+  /** Copies a link to somewhere on this site; `what` names it in the toast, as in "Copied link to post." */
+  copyLink: (path: string, what: string) => void;
 };
 
 const FounderContext = createContext<Founder | null>(null);
@@ -67,7 +72,9 @@ async function copyText(text: string) {
 export function FounderProvider({ children }: { children: ReactNode }) {
   const [dockOpen, setDockOpen] = useState(false);
   const [dockFocus, setDockFocus] = useState(0);
-  const [toastState, setToastState] = useState<{ id: number; text: string } | null>(null);
+  const [toastState, setToastState] = useState<{ id: number; text: string; action?: ToastAction } | null>(null);
+  // A toast stays while the pointer or focus is on it, so there's time to read it and reach Undo.
+  const [toastHeld, setToastHeld] = useState(false);
   const revealer = useRef<((slug: string) => void) | null>(null);
   const toastCount = useRef(0);
 
@@ -76,9 +83,9 @@ export function FounderProvider({ children }: { children: ReactNode }) {
     setDockFocus((count) => count + 1);
   }, []);
 
-  const toast = useCallback((text: string) => {
+  const toast = useCallback((text: string, action?: ToastAction) => {
     toastCount.current += 1;
-    setToastState({ id: toastCount.current, text });
+    setToastState({ id: toastCount.current, text, action });
   }, []);
 
   const revealProject = useCallback((slug: string) => {
@@ -92,6 +99,15 @@ export function FounderProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const copyLink = useCallback(
+    (path: string, what: string) => {
+      copyText(`${window.location.origin}${path}`).then((copied) =>
+        toast(copied ? `Copied ${what}.` : `Couldn’t copy the link. It’s ${path} on this site.`),
+      );
+    },
+    [toast],
+  );
+
   const copyProfileLink = useCallback(() => {
     copyText(`${window.location.origin}/founder`).then((copied) =>
       toast(copied ? "Copied profile link." : "Couldn’t copy the link. It’s /founder on this site."),
@@ -99,25 +115,51 @@ export function FounderProvider({ children }: { children: ReactNode }) {
   }, [toast]);
 
   useEffect(() => {
-    if (!toastState) return;
-    const timer = window.setTimeout(() => setToastState(null), 4000);
+    if (!toastState || toastHeld) return;
+    const timer = window.setTimeout(() => setToastState(null), toastState.action ? 6000 : 4000);
     return () => window.clearTimeout(timer);
-  }, [toastState]);
+  }, [toastState, toastHeld]);
 
   const value = useMemo(
-    () => ({ dockOpen, dockFocus, setDockOpen, openMessaging, revealProject, registerProjects, toast, copyProfileLink }),
-    [dockOpen, dockFocus, openMessaging, revealProject, registerProjects, toast, copyProfileLink],
+    () => ({ dockOpen, dockFocus, setDockOpen, openMessaging, revealProject, registerProjects, toast, copyProfileLink, copyLink }),
+    [dockOpen, dockFocus, openMessaging, revealProject, registerProjects, toast, copyProfileLink, copyLink],
   );
+
+  const dismiss = () => {
+    setToastState(null);
+    setToastHeld(false);
+  };
 
   return (
     <FounderContext.Provider value={value}>
       {children}
       <div className={styles.toasts} role="status" aria-live="polite">
         {toastState ? (
-          <div key={toastState.id} className={styles.toast}>
+          <div
+            key={toastState.id}
+            className={styles.toast}
+            onPointerEnter={() => setToastHeld(true)}
+            onPointerLeave={() => setToastHeld(false)}
+            onFocus={() => setToastHeld(true)}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastHeld(false);
+            }}
+          >
             <CheckCircleIcon className={styles.toastIcon} />
             <p className={styles.toastText}>{toastState.text}</p>
-            <button type="button" className={styles.toastClose} aria-label="Dismiss" onClick={() => setToastState(null)}>
+            {toastState.action ? (
+              <button
+                type="button"
+                className={styles.toastAction}
+                onClick={() => {
+                  toastState.action?.run();
+                  dismiss();
+                }}
+              >
+                {toastState.action.label}
+              </button>
+            ) : null}
+            <button type="button" className={styles.toastClose} aria-label="Dismiss" onClick={dismiss}>
               <CloseIcon size={20} />
             </button>
           </div>

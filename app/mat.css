@@ -48,7 +48,16 @@
   --riso-blue: #2a46c0;
 
   --ease-turn: cubic-bezier(0.3, 1.25, 0.4, 1);
+
+  /* The light over the mat is up and to the left of it (lib/cuts lights its
+     cuts from there too), so every shadow falls down and a little right:
+     this far across for each step down. --shade-k is how dark shadows are
+     on this mat. */
+  --shade-x: 0.62;
+  --shade-k: 1;
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  /* riso ink on uncoated stock: solid, but never quite even */
+  --ink: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='i'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1.9 1.86'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23i)'/%3E%3C/svg%3E");
   /* worn rubber: specks where a stamp's ink didn't take */
   --wear: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -7 0 0 0 5.4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23w)'/%3E%3C/svg%3E");
 }
@@ -56,7 +65,7 @@
 /* At night the mat is the black one. */
 html[data-theme="dark"] {
   --mat: #161816;
-  --mat-print: #20231f;
+  --mat-print: #232622;
   --mat-line: rgb(232 240 234 / 0.06);
   --mat-line-strong: rgb(232 240 234 / 0.12);
   --mat-ink: #c3c9c2;
@@ -72,6 +81,8 @@ html[data-theme="dark"] {
   --stock-graph: #f1f1ec;
   --stock-manila: #e0d0a6;
   --stock-photo: #f1f0ec;
+  /* a shadow on black only reads if it's deep */
+  --shade-k: 2.3;
 }
 
 /* The page wears the mat whenever there is one on it (a scene brings its
@@ -98,15 +109,40 @@ html:has(.mat) body {
   font-family: var(--font-grotesk), var(--sans);
 }
 
-html[data-holding],
-html[data-holding] * {
-  cursor: grabbing !important;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
 html[data-holding] {
   overscroll-behavior: none;
+}
+
+/* How far a thing is lifted off the mat (0 lying on it, 1 held up in the
+   hand): the table writes it while a thing moves, and its shadow is cast
+   from it. Registered, so it eases, and so writing it restyles the thing
+   alone and nothing inside it. */
+@property --lift {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+/* While something is in the hand (or the knife or torch is down), the
+   pointer is that, wherever it goes: one veil over the window says so,
+   rather than every element on the page restyled as a hand closes. */
+.mat-veil {
+  position: fixed;
+  z-index: 2147483646;
+  inset: 0;
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html[data-holding] .mat-veil {
+    display: block;
+    cursor: grabbing;
+  }
+
+  html:is([data-cutting], [data-torching]) .mat-veil {
+    display: block;
+    cursor: none;
+  }
 }
 
 /* ---- the edge of the mat along the top ---------------------------------- */
@@ -295,6 +331,30 @@ html[data-holding] {
   line-height: 1;
 }
 
+/* A finger is bigger than the band's print: each control takes the band's
+   full 44 px to be pressed in, without looking any bigger. */
+@media (pointer: coarse) {
+  .masthead :is(.tool-switch button, .theme-toggle, .sound-toggle, .tidy-button) {
+    position: relative;
+  }
+
+  .masthead :is(.tool-switch button, .theme-toggle, .sound-toggle, .tidy-button)::after {
+    position: absolute;
+    top: 50%;
+    right: -0.4rem;
+    left: -0.4rem;
+    height: 44px;
+    content: "";
+    translate: 0 -50%;
+  }
+
+  /* (the knife and the torch share a pill: neither reaches into the other) */
+  .masthead .tool-switch button::after {
+    right: 0;
+    left: 0;
+  }
+}
+
 /* ---- the mat ------------------------------------------------------------ */
 
 /* Self-healing mat: a centimetre grid, heavier every five, square to the
@@ -380,10 +440,15 @@ html[data-holding] {
   }
 }
 
-/* With the torch in hand, the pointer is a torch, over things as well. */
+/* With the torch in hand, the pointer is a torch, over things as well. (The
+   mat's own cursor is inherited by all of it; only what sets one of its own
+   is named again, so picking the torch up restyles little.) */
 @media (hover: hover) and (pointer: fine) {
   html[data-tool="torch"]:not([data-scene]) .mat,
-  html[data-tool="torch"]:not([data-scene]) .mat * {
+  html[data-tool="torch"]:not([data-scene]) .thing,
+  html[data-tool="torch"]:not([data-scene]) .thing a,
+  html[data-tool="torch"]:not([data-scene]) .thing button,
+  html[data-tool="torch"]:not([data-scene]) .line-photo {
     cursor:
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 30 30'%3E%3Cg transform='translate(2 2) rotate(36)'%3E%3Cpath d='M3.2 0 L1 -1.1 L0 0 L1 1.1Z' fill='%236f8dff'/%3E%3Cpath d='M4 -0.9H10V0.9H4Z' fill='%23c99a4a' stroke='%2314221b' stroke-width='0.8'/%3E%3Cpath d='M10 -2.6H15V2.6H10Z' fill='%23232523' stroke='%2314221b' stroke-width='0.8'/%3E%3Cpath d='M15 -4.4H34V4.4H15Z' fill='%23c13a26' stroke='%2314221b' stroke-width='0.9'/%3E%3C/g%3E%3C/svg%3E")
         2 2,
@@ -391,14 +456,12 @@ html[data-holding] {
   }
 }
 
-/* while cutting or burning, the knife or torch itself is the pointer */
-html[data-cutting],
-html[data-cutting] *,
-html[data-torching],
-html[data-torching] * {
-  cursor: none !important;
-  user-select: none;
-  -webkit-user-select: none;
+/* while cutting or burning, the knife or torch itself is the pointer: the
+   veil above hides it, and so does the mat, which has the pointer captured */
+@media (hover: hover) and (pointer: fine) {
+  html:is([data-cutting], [data-torching]):not([data-scene]) .mat {
+    cursor: none;
+  }
 }
 
 /* Touch screens: holding the mat cuts it, so it never selects its print. */
@@ -1037,12 +1100,30 @@ html[data-scene] .tool-switch {
 
 /* ---- the top of the mat: the name, and the card ------------------------- */
 
+/* The name's size: its longest word spans the mat between the gutters, and
+   two lines of it are no taller than the window leaves room for. How wide
+   that word is at 100 px (--word-natural) comes with the page (lib/mat), so
+   this holds from the first frame, before any script has run; the script
+   only takes off the width of a scrollbar, where there is one (--sbw). */
 .mat-hero {
+  --word-size: min(
+    calc((100vw - var(--sbw, 0px) - var(--gutter) * 2) * 100 / var(--word-natural, 231)),
+    calc(42vh / 0.78)
+  );
   position: relative;
   display: grid;
   min-height: 100svh;
   place-items: center;
   padding: calc(var(--band) + var(--mm) * 10) var(--gutter) calc(var(--mm) * 16);
+}
+
+@supports (height: 1svh) {
+  .mat-hero {
+    --word-size: min(
+      calc((100vw - var(--sbw, 0px) - var(--gutter) * 2) * 100 / var(--word-natural, 231)),
+      calc(42svh / 0.78)
+    );
+  }
 }
 
 /* printed into the mat, a word to a line, as big as it will go */
@@ -1054,7 +1135,7 @@ html[data-scene] .tool-switch {
   margin: 0;
   color: var(--mat-print);
   font-family: var(--font-grotesk), var(--sans);
-  font-size: var(--word-size, 22vw);
+  font-size: var(--word-size);
   font-variation-settings: "wdth" 66;
   font-weight: 900;
   letter-spacing: -0.02em;
@@ -1442,26 +1523,38 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-  /* lying on the mat: a tight contact shadow and a soft one under it */
-  filter: drop-shadow(0 0.5px 0.6px rgb(0 0 0 / 0.32)) drop-shadow(0 calc(var(--u) * 1) calc(var(--u) * 1.6) rgb(0 0 0 / 0.2));
-  transition: filter 320ms var(--ease-out);
+  /* Its shadow, cast by the light up to the left of the mat. Lying on the
+     mat (--lift 0) it's a tight, dark line where the paper meets the mat
+     and a soft one just under it; lifted, the paper no longer touches, so
+     the first goes, and the second falls further down and to the right the
+     higher it's held, spreading and softening as it goes. */
+  filter:
+    drop-shadow(0 0.5px 0.6px rgb(0 0 0 / calc(0.3 * var(--shade-k) * max(0, 1 - var(--lift) * 5))))
+    drop-shadow(
+      calc(var(--u) * var(--shade-x) * (0.6 + var(--lift) * 7))
+      calc(var(--u) * (0.6 + var(--lift) * 7))
+      calc(var(--u) * (1.4 + var(--lift) * 7.5))
+      rgb(0 0 0 / calc(var(--shade-k) * (0.19 + var(--lift) * 0.07)))
+    );
+  transition: --lift 260ms var(--ease-out);
 }
 
-/* on the move: its own layers, so it travels and turns without repainting */
+/* on the move: its own layers, so it travels and turns without repainting;
+   the table moves its shadow with it, frame by frame */
 .thing.is-live,
 .thing.is-live .thing-turn {
   will-change: transform;
 }
 
-.thing:hover {
-  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.28)) drop-shadow(0 calc(var(--u) * 2) calc(var(--u) * 3) rgb(0 0 0 / 0.24));
+.thing.is-live {
+  transition: none;
 }
 
-/* in the hand: off the mat, its shadow wider and further away */
-.thing.is-held,
-.thing.is-turning {
-  filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.18)) drop-shadow(0 calc(var(--u) * 6) calc(var(--u) * 7) rgb(0 0 0 / 0.3));
-  transition-duration: 160ms;
+/* under a hand, a sheet comes up off the mat a hair, as if to be taken */
+@media (hover: hover) and (pointer: fine) {
+  .thing:hover {
+    --lift: 0.06;
+  }
 }
 
 .thing :is(a, button) {
@@ -1533,9 +1626,10 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
   transform: rotateY(180deg);
 }
 
+/* (the table lifts it too, and its shadow with it) */
 @keyframes turn-lift {
   45% {
-    scale: 1.05;
+    scale: 1.03;
   }
 }
 
@@ -2354,37 +2448,64 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
   color: var(--print-red);
 }
 
-/* the picture side: printed in two inks, a hair out of register */
+/* The picture side: a large-letter card, printed on a riso in two drums of
+   ink, pink and then blue, a hair out of register. Each ink is its own
+   layer, multiplied into the paper and into each other, so where the two
+   overlap they print the deep violet they would; and neither takes evenly,
+   the way soy ink on uncoated stock never quite does. */
 .pc-front {
   display: flex;
   height: 100%;
   flex-direction: column;
-  justify-content: center;
   padding: calc(var(--u) * 8);
   background: #f6efdd var(--grain) 0 0 / 180px;
   background-blend-mode: soft-light;
 }
 
 .pc-greetings {
+  margin-top: auto;
   color: var(--riso-pink);
   font-family: var(--font-mono), var(--mono);
   font-size: calc(var(--u) * 3);
   letter-spacing: 0.3em;
+  mix-blend-mode: multiply;
   text-transform: uppercase;
+  -webkit-mask: var(--ink) 0 0 / 140px;
+  mask: var(--ink) 0 0 / 140px;
 }
 
+/* the name as big as the card is wide, between its margins (--natural is
+   how wide the name is set at 100 px, lib/mat) */
 .pc-big {
+  display: grid;
   margin-top: calc(var(--u) * 2);
-  color: var(--riso-blue);
   font-family: var(--font-grotesk), var(--sans);
-  font-size: calc(var(--u) * 21);
+  font-size: min(calc(var(--u) * 30), calc(var(--u) * (var(--W) - 16) * 100 / var(--natural, 440)));
   font-variation-settings: "wdth" 62;
   font-weight: 900;
   letter-spacing: -0.02em;
   line-height: 0.82;
-  mix-blend-mode: multiply;
-  text-shadow: calc(var(--u) * 0.9) calc(var(--u) * 0.7) 0 rgb(255 92 154 / 0.85);
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pc-ink {
+  grid-area: 1 / 1;
+  mix-blend-mode: multiply;
+  -webkit-mask: var(--ink) 0 0 / 140px;
+  mask: var(--ink) 0 0 / 140px;
+}
+
+/* the pink drum first, laid a little down and to the right of the blue */
+.pc-ink-pink {
+  color: var(--riso-pink);
+  translate: calc(var(--u) * 0.9) calc(var(--u) * 0.7);
+  -webkit-mask-position: 37px 61px;
+  mask-position: 37px 61px;
+}
+
+.pc-ink-blue {
+  color: var(--riso-blue);
 }
 
 .pc-front-foot {
@@ -2395,7 +2516,10 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
   font-family: var(--font-mono), var(--mono);
   font-size: calc(var(--u) * 2);
   letter-spacing: 0.14em;
+  mix-blend-mode: multiply;
   text-transform: uppercase;
+  -webkit-mask: var(--ink) 0 0 / 140px;
+  mask: var(--ink) 0 0 / 140px;
 }
 
 /* ---- the drawing ---------------------------------------------------------------- */
@@ -3380,7 +3504,7 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
   }
 
   .mat-hero-card {
-    margin-top: calc(var(--word-size, 22vw) * -0.42);
+    margin-top: calc(var(--word-size) * -0.22);
   }
 
   .mat-hero-card .thing {
@@ -3466,12 +3590,21 @@ html[data-theme="dark"]:has(.mat):not([data-scene]) {
     padding-top: calc(var(--band) + 3rem);
   }
 
+  /* how to handle things, under the card: a finger needs telling */
   .mat-hint {
+    gap: 0.55rem 1.4rem;
+    margin-top: calc(var(--mm) * 9);
+    font-size: 0.56rem;
+    letter-spacing: 0.12em;
+  }
+
+  /* no room in the corner for the angles beside the mat's name */
+  .mat-angles {
     display: none;
   }
 
   .mat-hero-card {
-    margin-top: calc(var(--word-size, 22vw) * -0.3);
+    margin-top: calc(var(--word-size) * -0.22);
   }
 
   .mat-head-count {
@@ -3644,57 +3777,61 @@ html[data-revealing] .ruler-guide {
   }
 }
 
-/* the card comes down onto the mat as the page opens */
+/* The page opening, in under a second. The mat's own print comes up first
+   (the name, the card's dimensions, the rulers' numbers); then the card is
+   laid down into the place marked for it, coming down out of the light
+   with its shadow closing in under it until it lies flat; then the
+   furniture: the band's tools and the hint, and last of all the folder,
+   pushed in at the edge (components/mat/folder). */
 @media (prefers-reduced-motion: no-preference) {
+  .mat-wordmark-text,
+  .mat-hero .dim,
+  .mat-scale[data-fresh] > span {
+    animation: print-in 520ms var(--ease-out) backwards;
+  }
+
   .mat-hero-card .thing-turn {
-    animation: card-land 1100ms var(--ease-out) 120ms backwards;
+    animation: card-land 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 140ms backwards;
   }
 
   .mat-hero-card .thing {
-    animation: card-shadow 1100ms var(--ease-out) 120ms backwards;
+    animation: card-drop 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 140ms backwards;
   }
 
-  .mat-wordmark-text {
-    animation: print-in 1200ms var(--ease-out) backwards;
-  }
-
-  .masthead,
+  .masthead > :not(.ruler-guide),
   .mat-hint {
-    animation: furniture-in 900ms var(--ease-out) 700ms backwards;
+    animation: furniture-in 420ms var(--ease-out) 560ms backwards;
   }
 }
 
 @keyframes card-land {
   from {
     opacity: 0;
-    scale: 1.22;
-    rotate: -7deg;
-    translate: 0 -6vh;
+    scale: 1.07;
+    rotate: -2.5deg;
+    translate: -0.8% -2.4vh;
   }
-  55% {
+  26% {
     opacity: 1;
   }
 }
 
-@keyframes card-shadow {
+/* (its height off the mat, which its shadow is cast from) */
+@keyframes card-drop {
   from {
-    filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0)) drop-shadow(0 60px 50px rgb(0 0 0 / 0));
-  }
-  60% {
-    filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.16)) drop-shadow(0 26px 30px rgb(0 0 0 / 0.26));
+    --lift: 1.5;
   }
 }
 
 @keyframes print-in {
   from {
     opacity: 0;
-    translate: 0 1.5%;
   }
 }
 
 @keyframes furniture-in {
   from {
     opacity: 0;
-    translate: 0 -0.3rem;
+    translate: 0 -0.25rem;
   }
 }

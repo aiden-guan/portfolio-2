@@ -2,42 +2,55 @@
 
 import { useLayoutEffect, useRef } from "react";
 import { AsciiTitle } from "@/components/scenery";
+import { wordmarkWidth } from "@/lib/mat";
 
 // The name, printed into the mat the way a maker prints theirs: as big as
 // the mat allows, in the mat's own ink, a word to a line. The real heading
 // is on the business card; this is print, so it is hidden from assistive tech.
+//
+// CSS sizes it (app/mat.css) from how wide its longest word is, which the
+// page is sent with (lib/mat, on .mat-hero), so it's printed at its size
+// from the first frame. Once the font is in, the word is measured, and if
+// the font set it a little wider or narrower than that (a kerned pair, a
+// letter the table doesn't know), or a scrollbar takes some of the window,
+// the size is corrected.
 export function Wordmark({ text }: { text: string }) {
   const box = useRef<HTMLParagraphElement>(null);
   const words = text.trim().split(/\s+/).filter(Boolean);
 
   useLayoutEffect(() => {
     const node = box.current;
-    if (!node) return;
+    const hero = node?.closest<HTMLElement>(".mat-hero");
+    if (!node || !hero) return;
     const lines = [...node.querySelectorAll<HTMLElement>(".mat-wordmark-line")];
     if (!lines.length) return;
-    let width = 0;
-    const fit = () => {
-      const room = node.clientWidth;
-      if (!room) return;
-      width = room;
-      // measured at a known size, then scaled so the longest word spans the mat
-      node.style.setProperty("--word-size", "100px");
-      const natural = Math.max(...lines.map((line) => line.scrollWidth)) || 1;
-      const height = window.innerHeight;
-      // and no taller than the window leaves room for
-      const size = Math.min((room / natural) * 100, (height * 0.42) / 0.78);
-      node.style.setProperty("--word-size", `${size.toFixed(2)}px`);
+    const estimate = wordmarkWidth(text);
+    // only the real face is measured: a stand-in set while it loads is far
+    // wider, and would shrink the name for good
+    const family = getComputedStyle(node).fontFamily.split(",")[0]?.trim().replace(/^["']|["']$/g, "");
+    const fonts = document.fonts;
+    let cancelled = false;
+    const correct = () => {
+      if (cancelled || !node.clientWidth) return;
+      const bar = window.innerWidth - document.documentElement.clientWidth;
+      if (bar > 0) hero.style.setProperty("--sbw", `${bar}px`);
+      else hero.style.removeProperty("--sbw");
+      if (fonts && family && !fonts.check(`900 100px "${family}"`)) return;
+      // its width at the size it's set at says its width at 100 px (the
+      // tracking is in ems, so it scales with it)
+      const width = Math.max(...lines.map((line) => line.getBoundingClientRect().width));
+      const size = parseFloat(getComputedStyle(node).fontSize);
+      if (!width || !size) return;
+      const natural = (width * 100) / size;
+      const now = parseFloat(getComputedStyle(hero).getPropertyValue("--word-natural")) || estimate;
+      if (Math.abs(natural - now) / now > 0.003) hero.style.setProperty("--word-natural", natural.toFixed(1));
     };
-    fit();
-    document.fonts?.ready.then(fit).catch(() => {});
-    const observer = new ResizeObserver(() => {
-      if (node.clientWidth !== width) fit();
-    });
-    observer.observe(node);
-    window.addEventListener("resize", fit);
+    correct();
+    fonts?.ready.then(correct).catch(() => {});
+    fonts?.addEventListener("loadingdone", correct);
     return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", fit);
+      cancelled = true;
+      fonts?.removeEventListener("loadingdone", correct);
     };
   }, [text]);
 

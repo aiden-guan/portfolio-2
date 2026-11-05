@@ -16,6 +16,51 @@
   color: var(--ink);
 }
 
+/* —— speed lines at the edges, only when John is really moving */
+
+.lines {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 200ms linear;
+}
+
+.lines i {
+  position: absolute;
+  left: 100%;
+  width: 14vw;
+  height: 2px;
+  background: rgba(27, 29, 34, 0.5);
+  animation: streak 480ms linear infinite;
+  animation-delay: calc(var(--i) * -53ms);
+}
+
+.lines i:nth-child(1) { top: 7%; width: 18vw; }
+.lines i:nth-child(2) { top: 13%; animation-duration: 420ms; }
+.lines i:nth-child(3) { top: 21%; width: 10vw; }
+.lines i:nth-child(4) { top: 27%; animation-duration: 540ms; }
+.lines i:nth-child(5) { top: 34%; width: 8vw; animation-duration: 380ms; }
+.lines i:nth-child(6) { top: 66%; width: 9vw; animation-duration: 400ms; }
+.lines i:nth-child(7) { top: 73%; }
+.lines i:nth-child(8) { top: 80%; width: 17vw; animation-duration: 520ms; }
+.lines i:nth-child(9) { top: 87%; width: 11vw; }
+.lines i:nth-child(10) { top: 93%; animation-duration: 440ms; }
+
+@keyframes streak {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-70vw);
+  }
+}
+
 /* —— words where things happen */
 
 .popups {
@@ -162,6 +207,38 @@
   font-style: normal;
 }
 
+.card {
+  position: relative;
+}
+
+/* beside the card, in the open sky, so it never covers what the card says */
+.combo {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 12px;
+  padding: 3px 8px 4px;
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+  background: var(--pink);
+  color: #fff;
+  font-size: 18px;
+  box-shadow: 0 3px 0 var(--ink);
+  rotate: 6deg;
+  animation: comboIn 260ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.combo[data-hot] {
+  background: var(--gold);
+  color: var(--ink);
+  font-size: 21px;
+}
+
+@keyframes comboIn {
+  from {
+    transform: scale(1.6);
+  }
+}
+
 .right {
   display: flex;
   align-items: stretch;
@@ -300,38 +377,115 @@
 .track {
   position: relative;
   width: 100%;
-  height: 22px;
+  height: 24px;
   border: 3px solid var(--ink);
   border-radius: 3px;
-  background: linear-gradient(90deg, #9cc0fa 0%, #8fd3b6 45%, var(--orange) 80%, var(--orange) 90%, transparent 90%);
+  background: var(--cream);
   overflow: hidden;
 }
 
+.weak,
+.good,
 .sweet {
   position: absolute;
   top: 0;
   bottom: 0;
+}
+
+.weak {
+  left: 0;
+  width: 70%;
+  background: #cfe0fb;
+}
+
+.good {
+  left: 70%;
+  width: 20%;
+  background: #8fd3b6;
+  box-shadow: inset 2px 0 0 var(--ink);
+}
+
+.sweet {
   left: 90%;
   right: 0;
   background: var(--gold);
   box-shadow: inset 2px 0 0 var(--ink);
-  animation: shine 900ms ease-in-out infinite alternate;
 }
 
-@keyframes shine {
-  to {
-    background: #ffe39a;
-  }
+.needleLayer {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
 }
 
 .needle {
   position: absolute;
-  top: -3px;
-  bottom: -3px;
-  width: 6px;
-  margin-left: -3px;
+  left: -4px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
   border: 2px solid var(--ink);
+  border-radius: 1px;
   background: var(--paper);
+}
+
+.meterFoot {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  margin-top: -4px;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.meterFoot small {
+  position: absolute;
+  top: 0;
+}
+
+.meterFoot small:nth-child(1) {
+  left: 0;
+}
+
+.meterFoot small:nth-child(2) {
+  left: 70%;
+  margin-left: 4px;
+}
+
+.meterFoot small:nth-child(3) {
+  right: 0;
+  color: #9a6b12;
+}
+
+/* the throw is in: the needle stays where it stopped, and the zone it hit says so */
+.meter[data-locked] .needle {
+  background: var(--ink);
+}
+
+.meter[data-locked="PERFECT"] .sweet,
+.meter[data-locked="GOOD"] .good {
+  animation: hitZone 280ms steps(2) 2;
+}
+
+@keyframes hitZone {
+  50% {
+    background: var(--paper);
+  }
+}
+
+.verdict {
+  font-size: 15px;
+  animation: comboIn 260ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.verdict[data-power="PERFECT"] {
+  color: #9a6b12;
+}
+
+.verdict[data-power="WEAK"] {
+  color: var(--muted);
 }
 
 .hint,
@@ -504,6 +658,80 @@
   font: 700 11px/1 var(--font-pixel), monospace;
 }
 
+.verdictRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+}
+
+.verdictRow p {
+  margin: 4px 0 0;
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+}
+
+.rank {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  border: 3px solid var(--ink);
+  border-radius: 4px;
+  background: var(--cream);
+  font-size: 46px;
+  line-height: 1;
+  box-shadow: 0 4px 0 var(--ink);
+  rotate: -4deg;
+  animation: stamp 380ms cubic-bezier(0.3, 1.5, 0.5, 1) 260ms both;
+}
+
+.rank[data-rank="S"] {
+  background: var(--gold);
+}
+
+.rank[data-rank="A"] {
+  background: var(--cobalt);
+  color: var(--paper);
+}
+
+.rank[data-rank="C"] {
+  color: var(--muted);
+}
+
+@keyframes stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.9) rotate(-10deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.94);
+  }
+}
+
+.best {
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.best b {
+  color: var(--ink);
+}
+
+.best em {
+  display: inline-block;
+  padding: 2px 7px 3px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  background: var(--gold);
+  color: var(--ink);
+  font-style: normal;
+}
+
 .results ol {
   display: grid;
   gap: 4px;
@@ -536,7 +764,7 @@
 
 .results dl {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   width: 100%;
   margin: 4px 0 0;
@@ -559,7 +787,7 @@
 
 .results dd {
   margin: 0;
-  font-size: 22px;
+  font-size: 19px;
 }
 
 /* —— the wipe between throws */
@@ -605,6 +833,10 @@
   .title h2 {
     font-size: 40px;
   }
+
+  .results h2 {
+    font-size: 26px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -621,5 +853,15 @@
 
   .wipe[data-on] {
     animation: none;
+  }
+
+  .lines,
+  .combo,
+  .rank {
+    animation: none;
+  }
+
+  .lines {
+    display: none;
   }
 }

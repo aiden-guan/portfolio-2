@@ -491,13 +491,21 @@
   }
 }
 
-/* A phone: the compact header. */
+.headerMessaging {
+  display: none;
+}
+
+/* A phone: the app's header (the mark, search, Messaging) and its tab bar. */
 
 @media (max-width: 767px) {
+  .nav {
+    height: 56px;
+  }
+
   .inner {
     gap: 4px;
     width: 100%;
-    padding: 0 8px 0 12px;
+    padding: 0 4px 0 12px;
   }
 
   .brand {
@@ -513,13 +521,73 @@
     flex: 1 1 auto;
   }
 
-  .items > .wide {
+  .searchInput {
+    height: 36px;
+  }
+
+  .searchIcon {
+    top: 10px;
+  }
+
+  .headerMessaging {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: rgb(0 0 0 / 0.6);
+    cursor: pointer;
+  }
+
+  .headerMessaging:focus-visible {
+    outline: 2px solid #0a66c2;
+    outline-offset: -2px;
+  }
+
+  .primary {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    margin: 0;
+    padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    border-top: 1px solid rgb(0 0 0 / 0.08);
+    background: #fff;
+  }
+
+  .items {
+    height: 56px;
+  }
+
+  .items > li {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .items > .messagingItem {
     display: none;
   }
 
   .item {
-    min-width: 44px;
-    padding: 0 4px;
+    width: 100%;
+    min-width: 0;
+    padding: 0 2px;
+    gap: 2px;
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  .label {
+    display: flex;
+  }
+
+  .caret {
+    display: none;
   }
 
   .item:hover {
@@ -527,27 +595,54 @@
   }
 
   .item[data-active]::after {
-    display: none;
+    top: -1px;
+    bottom: auto;
+    left: 25%;
+    right: 25%;
+    border-radius: 0 0 2px 2px;
   }
 
+  /* Notifications and Me open as sheets over the tab bar. */
   .dropdown,
   .notifications {
     position: fixed;
-    top: 56px;
+    top: auto;
     right: 8px;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
     left: 8px;
     width: auto;
-    max-height: calc(100vh - 72px);
-    border-radius: 8px;
+    max-height: calc(100dvh - 140px);
+    border-radius: 12px;
+    transform-origin: bottom center;
+    animation-name: sheet-in;
   }
 
   .results {
     position: fixed;
-    top: 52px;
+    top: 56px;
     right: 0;
     left: 0;
     width: auto;
+    max-height: calc(100dvh - 56px - 72px);
     border-radius: 0 0 8px 8px;
+  }
+}
+
+/* Rows a finger can hit. */
+@media (pointer: coarse) {
+  .meLink {
+    padding: 12px 16px;
+  }
+
+  .meTitle {
+    padding: 8px 16px 4px;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
 }
 

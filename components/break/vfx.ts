@@ -23,7 +23,15 @@ const hash = (n: number) => {
   return k - Math.floor(k);
 };
 
-export function createVfx(ctx: CanvasRenderingContext2D) {
+// Draws light into the renderer's bloom buffer, in world coordinates.
+type Light = (
+  x: number,
+  y: number,
+  radius: number,
+  alpha: number,
+  warm: boolean,
+) => void;
+export function createVfx(ctx: CanvasRenderingContext2D, emit?: Light) {
   // Small reusable light textures avoid full-screen filters and gradient allocation per frame.
   const light = (color: string) => {
     const canvas = document.createElement("canvas");
@@ -45,6 +53,19 @@ export function createVfx(ctx: CanvasRenderingContext2D) {
     speed: 0.4 + hash(i + 110),
     size: 1 + hash(i + 160) * 2,
   }));
+  // Enemy bodies draw in a local frame; light is emitted in world space.
+  let ox = 0,
+    oy = 0,
+    oc = 1,
+    os = 0,
+    ok = 1;
+  function frame(x: number, y: number, angle: number, scale: number) {
+    ox = x;
+    oy = y;
+    ok = scale;
+    oc = Math.cos(angle) * scale;
+    os = Math.sin(angle) * scale;
+  }
   function glow(
     x: number,
     y: number,
@@ -52,6 +73,10 @@ export function createVfx(ctx: CanvasRenderingContext2D) {
     alpha: number,
     warm = false,
   ) {
+    if (emit) {
+      emit(ox + x * oc - y * os, oy + x * os + y * oc, radius * ok, alpha, warm);
+      return;
+    }
     ctx.save();
     ctx.globalCompositeOperation = "screen";
     ctx.globalAlpha = alpha;
@@ -493,19 +518,23 @@ export function createVfx(ctx: CanvasRenderingContext2D) {
   }
   const palantirHull = hull("palantir"),
     andurilHull = hull("anduril");
-  function enemy(d: Enemy, reduced: boolean, scale = 1) {
+  // `hit` (0..1) re-lights the hull silhouette for a throttled damage flash.
+  function enemy(d: Enemy, reduced: boolean, scale = 1, hit = 0) {
     const appear = clamp(d.age / 0.7),
       recoil = d.flash * 18;
     ctx.save();
     ctx.globalAlpha = appear;
     ctx.translate(d.x, d.y);
     ctx.scale(scale, scale);
+    frame(d.x, d.y, 0, scale);
     ctx.fillStyle = "#030a1280";
     ctx.beginPath();
     ctx.ellipse(2, 30, d.kind === "anduril" ? 49 : 63, 12, 0, 0, TAU);
     ctx.fill();
     if (d.kind === "palantir") {
-      ctx.rotate(reduced ? 0 : Math.sin(d.age * 0.8) * 0.09);
+      const sway = reduced ? 0 : Math.sin(d.age * 0.8) * 0.09;
+      ctx.rotate(sway);
+      frame(d.x, d.y, sway, scale);
       for (const side of [-1, 1]) {
         glow(side * 20, -15, 26, 0.24, true);
         ctx.fillStyle = "#a9dce9";
@@ -516,6 +545,7 @@ export function createVfx(ctx: CanvasRenderingContext2D) {
         ctx.fillRect(side * 20 - 1, -21, 2, 6);
       }
       ctx.drawImage(palantirHull, -80, -64, 160, 128);
+      if (hit > 0) relight(palantirHull, appear * hit, appear);
       // The optic sweeps independently from the aircraft bank.
       const sweep = reduced ? 0 : Math.sin(d.age * 1.4) * 4;
       glow(sweep, -22, 16, 0.22, true);
@@ -583,8 +613,11 @@ export function createVfx(ctx: CanvasRenderingContext2D) {
           ctx.fillRect(footX - 6, footY - 3, 11, 3);
         }
       ctx.save();
-      ctx.translate(0, reduced ? 0 : Math.sin(d.age * 11.2) * 0.7);
+      const bob = reduced ? 0 : Math.sin(d.age * 11.2) * 0.7;
+      ctx.translate(0, bob);
+      frame(d.x, d.y + bob * scale, 0, scale);
       ctx.drawImage(andurilHull, -80, -64, 160, 128);
+      if (hit > 0) relight(andurilHull, appear * hit, appear);
       const optic = reduced ? 0 : Math.sin(d.age * 1.1) * 5;
       glow(optic, -27, 20, 0.25, true);
       ctx.fillStyle = "#ffb865";
@@ -629,6 +662,14 @@ export function createVfx(ctx: CanvasRenderingContext2D) {
       ctx.stroke();
     }
     ctx.restore();
+    frame(0, 0, 0, 1);
+  }
+  function relight(hull: HTMLCanvasElement, amount: number, base: number) {
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = clamp(amount);
+    ctx.drawImage(hull, -80, -64, 160, 128);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = base;
   }
   function pulse(
     x: number,

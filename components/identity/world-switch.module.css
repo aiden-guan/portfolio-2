@@ -1,42 +1,59 @@
 .root {
   --ws-fg: #111;
-  --ws-dim: rgba(17, 17, 17, 0.5);
-  --ws-bg: rgba(255, 255, 255, 0.82);
-  --ws-line: rgba(17, 17, 17, 0.12);
-  --ws-hover: rgba(17, 17, 17, 0.06);
+  --ws-dim: rgba(17, 17, 17, 0.6);
+  --ws-bg: #fff;
+  --ws-line: rgba(17, 17, 17, 0.11);
+  --ws-hover: rgba(17, 17, 17, 0.055);
+  --ws-shadow: 0 1px 2px rgba(17, 17, 17, 0.05), 0 10px 28px -10px rgba(17, 17, 17, 0.22);
+  --ws-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --ws-h: 32px;
   position: relative;
   z-index: 40;
   display: flex;
   align-items: center;
   gap: 6px;
-  font: 500 13px/1 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  letter-spacing: -0.005em;
+  font: 500 13px/1 var(--font-geist, ui-sans-serif), system-ui, -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: -0.006em;
   color: var(--ws-fg);
+  -webkit-font-smoothing: antialiased;
 }
 
 .root[data-tone="dark"] {
-  --ws-fg: #f2f2f0;
-  --ws-dim: rgba(242, 242, 240, 0.5);
-  --ws-bg: rgba(18, 18, 18, 0.78);
-  --ws-line: rgba(255, 255, 255, 0.14);
-  --ws-hover: rgba(255, 255, 255, 0.08);
+  --ws-fg: #eef0f6;
+  --ws-dim: rgba(238, 240, 246, 0.56);
+  --ws-bg: #19203a;
+  --ws-line: rgba(238, 240, 246, 0.13);
+  --ws-hover: rgba(238, 240, 246, 0.08);
+  --ws-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 12px 30px -10px rgba(0, 0, 0, 0.55);
+}
+
+/* On the island everything is a printed plate, so the switch is printed on
+   the island's own sheet, with its edge and its hard lift, day and night. */
+:global([data-world="designer"]) .root:not([data-bare]) {
+  --ws-bg: var(--sheet, #fbfaf6);
+  --ws-line: var(--edge, rgba(27, 29, 34, 0.2));
+  --ws-lift: 0 1px 0 var(--lift, rgba(27, 29, 34, 0.12));
 }
 
 /* the way home: a round button beside the pill, its arrow pointing back */
 .home {
+  position: relative;
   display: grid;
   flex: none;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: var(--ws-h);
+  height: var(--ws-h);
   border: 1px solid var(--ws-line);
   border-radius: 999px;
   background: var(--ws-bg);
+  box-shadow: var(--ws-lift, none);
   color: inherit;
   text-decoration: none;
-  backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
-  transition: border-color 160ms ease, color 160ms ease, transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms var(--ws-ease);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .home:hover {
@@ -50,7 +67,7 @@
 .arrow {
   width: 12px;
   height: 12px;
-  transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform 220ms var(--ws-ease);
 }
 
 .home:hover .arrow {
@@ -62,76 +79,45 @@
 }
 
 .trigger {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.32em;
-  height: 32px;
-  padding: 0 12px 0 13px;
+  height: var(--ws-h);
+  margin: 0;
+  padding: 0 11px 0 13px;
   border: 1px solid var(--ws-line);
   border-radius: 999px;
   background: var(--ws-bg);
+  box-shadow: var(--ws-lift, none);
   color: inherit;
   font: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-  backdrop-filter: blur(14px) saturate(1.4);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
-  transition: border-color 160ms ease, transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.trigger:hover {
-  border-color: var(--ws-dim);
-}
-
-.root[data-bare] {
-  font: inherit;
   letter-spacing: inherit;
-  text-transform: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    transform 160ms var(--ws-ease);
+  -webkit-tap-highlight-color: transparent;
 }
 
-.root[data-bare] {
-  gap: 0.7em;
-}
-
-.root[data-bare] .home {
-  width: auto;
-  height: auto;
-  padding: 0.4rem 0;
-  border: 0;
-  background: transparent;
-  color: var(--ws-dim);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.root[data-bare] .home:hover {
-  color: var(--ws-fg);
-}
-
-.root[data-bare] .trigger {
-  height: auto;
-  padding: 0.4rem 0;
-  border: 0;
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.root[data-bare] .role {
-  font-weight: inherit;
-  color: var(--ws-fg);
+.trigger:hover,
+.root[data-open] .trigger {
+  border-color: var(--ws-dim);
 }
 
 .trigger:active {
   transform: scale(0.97);
 }
 
-.home:focus-visible,
-.trigger:focus-visible,
-.item:focus-visible,
-.back:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
+/* a finger gets 44px whatever the pill looks like */
+@media (pointer: coarse) {
+  .home::before,
+  .trigger::before {
+    content: "";
+    position: absolute;
+    inset: calc((var(--ws-h) - 44px) / 2) -3px;
+  }
 }
 
 .lead {
@@ -145,91 +131,182 @@
 .chevron {
   width: 10px;
   height: 10px;
-  margin-left: 2px;
+  margin-left: 1px;
   opacity: 0.6;
-  transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform 260ms var(--ws-ease);
 }
 
 .root[data-open] .chevron {
   transform: rotate(180deg);
 }
 
+/* (scoped twice over, so a page's own focus ring can't move these) */
+.root .home:focus-visible,
+.root .trigger:focus-visible {
+  outline: 2px solid var(--ws-fg);
+  outline-offset: 2px;
+}
+
+/* the list: the four pages, the one you are on ticked; it opens from the
+   pill, and a highlight glides from item to item under the pointer */
 .menu {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   display: grid;
-  min-width: 100%;
-  padding: 5px;
+  min-width: max(100%, 164px);
+  padding: 4px;
   border: 1px solid var(--ws-line);
-  border-radius: 14px;
+  border-radius: 13px;
   background: var(--ws-bg);
-  backdrop-filter: blur(18px) saturate(1.4);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
-  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.28);
-  transform-origin: top left;
-  animation: menu-in 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  box-shadow: var(--ws-shadow);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px) scale(0.98);
+  transform-origin: 24px 0;
+  transition:
+    opacity 120ms ease,
+    transform 160ms var(--ws-ease),
+    visibility 0s linear 160ms;
 }
 
-.menu[hidden] {
-  display: none;
+.menu[data-shown] {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity 140ms ease,
+    transform 240ms var(--ws-ease),
+    visibility 0s;
 }
 
 .root[data-align="right"] .menu {
   right: 0;
   left: auto;
-  transform-origin: top right;
+  transform-origin: calc(100% - 24px) 0;
 }
 
-@keyframes menu-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.97);
-  }
+.mark {
+  position: absolute;
+  top: 0;
+  left: 4px;
+  right: 4px;
+  height: var(--h, 34px);
+  border-radius: 9px;
+  background: var(--ws-hover);
+  opacity: 0;
+  translate: 0 var(--y, 0);
+  pointer-events: none;
+  transition: opacity 160ms ease;
 }
 
-.item,
-.back {
-  display: block;
-  padding: 9px 11px;
+.mark[data-shown] {
+  opacity: 1;
+}
+
+.mark[data-glide] {
+  transition:
+    opacity 160ms ease,
+    translate 260ms var(--ws-ease),
+    height 260ms var(--ws-ease);
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  height: 34px;
+  padding: 0 10px 0 11px;
   border-radius: 9px;
   color: inherit;
   text-decoration: none;
   white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.item:hover,
-.back:hover {
-  background: var(--ws-hover);
+.menu .item:focus-visible {
+  outline: 2px solid var(--ws-fg);
+  outline-offset: -2px;
 }
 
 .item[aria-current="page"] {
   font-weight: 600;
 }
 
-.item[aria-current="page"]::after {
-  content: "•";
-  margin-left: 0.5em;
+.check {
+  flex: none;
+  width: 12px;
+  height: 12px;
   color: var(--ws-dim);
 }
 
-.back {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 4px;
-  border-top: 1px solid var(--ws-line);
-  border-radius: 0 0 9px 9px;
+@media (pointer: coarse) {
+  .item {
+    height: 44px;
+  }
+}
+
+/* Bare: no pill, in the type and colours of where it sits (the mat's
+   masthead gives it those), but a list in the same case as its trigger. */
+.root[data-bare] {
+  gap: 0.7em;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.root[data-bare] .home {
+  width: auto;
+  height: auto;
+  padding: 0.4rem 0;
+  border: 0;
+  background: transparent;
   color: var(--ws-dim);
+}
+
+.root[data-bare] .home:hover {
+  color: var(--ws-fg);
+}
+
+.root[data-bare] .trigger {
+  height: auto;
+  padding: 0.4rem 0;
+  border: 0;
+  background: transparent;
+  letter-spacing: normal;
+}
+
+.root[data-bare] .role {
+  font-weight: inherit;
+  color: var(--ws-fg);
+}
+
+.root[data-bare] .menu {
+  top: calc(100% + 8px);
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .menu,
+  .menu[data-shown] {
+    transform: none;
+    transition:
+      opacity 120ms ease,
+      visibility 0s linear 120ms;
+  }
+
+  .menu[data-shown] {
+    transition: opacity 120ms ease;
+  }
+
+  .mark[data-glide],
   .chevron,
   .trigger,
   .home,
   .arrow {
-    animation: none;
     transition: none;
   }
 }

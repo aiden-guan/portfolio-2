@@ -2,10 +2,12 @@
   position: relative;
 }
 
+/* One column on a phone, two from 640, three from 1100 (shot.tsx's CARD
+   sizes follow these widths). */
 .grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 44px 20px;
+  gap: 40px 16px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -14,15 +16,19 @@
 @media (min-width: 640px) {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 56px 24px;
+    gap: 48px 24px;
   }
 }
 
 @media (min-width: 1100px) {
   .grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 64px 28px;
+    gap: 56px 32px;
   }
+}
+
+.item {
+  scroll-margin: 88px 0 32px;
 }
 
 /* Copies of cards on their way out (filtering). */
@@ -39,24 +45,27 @@
 
 .card {
   display: block;
+  container-type: inline-size;
   color: inherit;
   text-decoration: none;
   outline: none;
   -webkit-tap-highlight-color: transparent;
-  transition: opacity 520ms cubic-bezier(0.2, 0.8, 0.2, 1) 90ms;
 }
 
 .media {
   position: relative;
   aspect-ratio: 16 / 10;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #ebebe8;
   isolation: isolate;
+  transition:
+    transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .media[data-tone="dark"] {
-  background: #171717;
+  background: #1a1a1a;
 }
 
 /* a hairline, so pale screenshots don't melt into the page */
@@ -64,14 +73,14 @@
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 3;
   border-radius: inherit;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07);
   pointer-events: none;
 }
 
 .media[data-tone="dark"]::after {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
 .frame {
@@ -79,72 +88,81 @@
   inset: 0;
 }
 
-.shot {
-  transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+/* A build's screenshots, stacked; scrubbing shows one at a time, at once. */
+.layer {
+  position: absolute;
+  inset: 0;
 }
 
-/* What it does, on frosted glass over the bottom of the picture. */
-.about {
-  position: absolute;
-  z-index: 1;
-  right: 8px;
-  bottom: 8px;
-  left: 8px;
-  padding: 11px 13px 12px;
-  border-radius: 9px;
-  background: rgba(250, 250, 248, 0.8);
-  color: var(--ink, #111);
-  -webkit-backdrop-filter: blur(18px) saturate(1.6);
-  backdrop-filter: blur(18px) saturate(1.6);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.05),
-    0 12px 28px -14px rgba(0, 0, 0, 0.3);
+.layer:not(:first-child),
+.media[data-view] .layer:first-child {
   opacity: 0;
-  transform: translateY(12px);
-  transition:
-    opacity 200ms ease,
-    transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.media[data-view="1"] .layer:nth-child(2),
+.media[data-view="2"] .layer:nth-child(3),
+.media[data-view="3"] .layer:nth-child(4),
+.media[data-view="4"] .layer:nth-child(5),
+.media[data-view="5"] .layer:nth-child(6) {
+  opacity: 1;
+}
+
+/* where the scrub is: one tick per screenshot */
+.ticks {
+  position: absolute;
+  z-index: 2;
+  bottom: 10px;
+  left: 50%;
+  display: flex;
+  gap: 4px;
+  padding: 6px 7px;
+  border-radius: 999px;
+  background: rgba(17, 17, 17, 0.62);
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 180ms ease;
   pointer-events: none;
 }
 
-.about p {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
-  letter-spacing: -0.004em;
-  text-wrap: pretty;
+.ticks > span {
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.4);
 }
 
-.media[data-tone="dark"] .about {
-  background: rgba(26, 26, 26, 0.66);
-  color: rgba(255, 255, 255, 0.93);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.07),
-    0 12px 28px -14px rgba(0, 0, 0, 0.5);
+.media:not([data-view]) .ticks > span:first-child,
+.media[data-view="1"] .ticks > span:nth-child(2),
+.media[data-view="2"] .ticks > span:nth-child(3),
+.media[data-view="3"] .ticks > span:nth-child(4),
+.media[data-view="4"] .ticks > span:nth-child(5),
+.media[data-view="5"] .ticks > span:nth-child(6) {
+  background: #fff;
 }
 
+/* Name and status on one line, what it is under them. */
 .text {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name meta"
+    "line line";
+  align-items: baseline;
+  column-gap: 16px;
   padding-top: 14px;
 }
 
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 2px 12px;
-}
-
 .name {
+  grid-area: name;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
   margin: 0;
-  font-size: 15.5px;
+  font-size: 15px;
   font-weight: 560;
   line-height: 1.3;
-  letter-spacing: -0.016em;
+  letter-spacing: -0.014em;
 }
 
 .trophy {
@@ -153,30 +171,48 @@
 }
 
 .meta {
+  grid-area: meta;
   display: inline-flex;
-  flex: none;
   align-items: baseline;
-  gap: 7px;
+  gap: 6px;
   margin: 0;
   color: var(--dim, #6b6b6b);
   font: 400 11px/1 var(--mono, monospace);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .mark {
   align-self: center;
+  margin-right: 1px;
   transform: translateY(-0.5px);
 }
 
 .line {
+  grid-area: line;
   margin: 4px 0 0;
   color: var(--dim, #6b6b6b);
   font-size: 14px;
   line-height: 1.45;
   letter-spacing: -0.006em;
   text-wrap: pretty;
+}
+
+/* too narrow for both on one line: the status goes underneath, on every card alike */
+@container (max-width: 330px) {
+  .text {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "name"
+      "line"
+      "meta";
+  }
+
+  .meta {
+    margin-top: 9px;
+  }
 }
 
 .quiet {
@@ -189,29 +225,44 @@
 }
 
 /*
- * Waiting to be scrolled into view (grid.tsx reveals each card). Should the
- * script never run, they show anyway after a moment.
+ * The first paint is the page itself, at full strength: nothing here is ever
+ * transparent, so the grid shows even while scripts are still busy. Each card
+ * only settles the last few pixels into place in turn, and its picture
+ * settles in its frame behind it. Once played, grid.tsx sets data-calm and
+ * it's gone for good.
  */
-.item:not([data-shown]) .media {
-  clip-path: inset(100% 0 0 0 round 16px);
-  animation: unveil 0s 2.5s forwards;
-}
-
-.item:not([data-shown]) .text {
-  opacity: 0;
-  animation: unveil 0s 2.5s forwards;
-}
-
-.grid[data-ready] .item:not([data-shown]) .media,
-.grid[data-ready] .item:not([data-shown]) .text {
-  animation: none;
-}
-
-@keyframes unveil {
-  to {
-    clip-path: inset(0 0 0 0 round 16px);
-    opacity: 1;
+@media (prefers-reduced-motion: no-preference) {
+  .grid:not([data-calm]) > .item:not([data-pending]) {
+    animation: rise 720ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+    animation-delay: calc(var(--i, 0) * 36ms);
   }
+
+  .grid:not([data-calm]) > .item:not([data-pending]) .frame {
+    animation: settle 1100ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+    animation-delay: calc(var(--i, 0) * 36ms);
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(10px);
+  }
+}
+
+@keyframes settle {
+  from {
+    transform: scale(1.03);
+  }
+}
+
+/* below the fold, not yet scrolled to (grid.tsx): sitting a little low, at
+   full strength, so anything that never scrolls still shows every card */
+.item[data-pending] {
+  transform: translateY(24px);
+}
+
+.item[data-pending] .frame {
+  transform: scale(1.03);
 }
 
 /* the ring goes round the picture, not the whole card */
@@ -224,48 +275,26 @@
   outline-offset: 3px;
 }
 
-.card:focus-visible .about {
-  opacity: 1;
-  transform: none;
-}
-
 @media (hover: hover) and (pointer: fine) {
-  /* the others step back while one is looked at; they come back a beat
-     late, so crossing a gap between cards doesn't flicker */
-  .grid:has(.card:hover) .card:not(:hover) {
-    opacity: 0.68;
-    transition-delay: 0ms;
+  /* lifted a little off the page, like a print picked up by its edge */
+  .card:hover .media {
+    transform: translateY(-3px);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.05),
+      0 18px 34px -22px rgba(0, 0, 0, 0.42);
   }
 
-  .card:hover {
-    transition-delay: 0ms;
-  }
-
-  .card:hover .shot {
-    transform: scale(1.035);
-  }
-
-  .card:hover .about {
+  .card:hover .ticks {
     opacity: 1;
-    transform: none;
-    transition:
-      opacity 320ms ease 40ms,
-      transform 640ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .shot {
-    transition: none;
+  .media {
+    transition: box-shadow 200ms ease;
   }
 
-  .card:hover .shot {
+  .card:hover .media {
     transform: none;
-  }
-
-  .about,
-  .card:hover .about {
-    transform: none;
-    transition: opacity 200ms ease;
   }
 }

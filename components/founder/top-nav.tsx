@@ -106,28 +106,32 @@ export function TopNav({
           <Wordmark className={styles.wordmarkFull} />
         </a>
         <NavSearch projects={projects} onChoose={revealProject} />
+        {/* On a phone, Messaging sits in the header, as in the app; the rest go to the tab bar. */}
+        <button type="button" className={styles.headerMessaging} onClick={openMessaging} aria-label="Messaging">
+          <MessagingIcon />
+        </button>
         <nav className={styles.primary} aria-label="Primary">
           <ul className={styles.items}>
-            <li className={styles.wide}>
+            <li>
               {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a full page load, on purpose */}
               <a className={styles.item} href="/">
                 <HomeIcon className={styles.icon} />
                 <span className={styles.label}>Home</span>
               </a>
             </li>
-            <li className={styles.wide}>
+            <li>
               <a className={styles.item} href="#pages" onClick={jumpTo("pages")}>
                 <NetworkIcon className={styles.icon} />
                 <span className={styles.label}>My Network</span>
               </a>
             </li>
-            <li className={styles.wide}>
+            <li>
               <a className={styles.item} href="#experience" onClick={jumpTo("experience")}>
                 <JobsIcon className={styles.icon} />
                 <span className={styles.label}>Jobs</span>
               </a>
             </li>
-            <li>
+            <li className={styles.messagingItem}>
               <button type="button" className={styles.item} onClick={openMessaging} aria-label="Messaging">
                 <MessagingIcon className={styles.icon} />
                 <span className={styles.label} aria-hidden="true">
@@ -172,12 +176,14 @@ export function TopNav({
                         }}
                       >
                         <span className={styles.unreadDot} aria-hidden="true" />
+                        {/* Three small logos, loaded up front so the menu never opens on empty squares. */}
                         <Image
                           className={styles.notificationThumb}
                           src={`/logos/${item.project}.webp`}
                           alt=""
                           width={48}
                           height={48}
+                          loading="eager"
                         />
                         <span className={styles.notificationText}>
                           <strong>{item.lead}</strong> {item.text}

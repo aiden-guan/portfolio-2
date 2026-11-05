@@ -10,9 +10,19 @@ import { tap, turnOver, unlockSound } from "@/lib/riffle";
 // spine, and inside is a typed index of the latest projects off GitHub
 // (lib/github-projects). Shut, it lies flat; it's only posed in 3D while it
 // moves and while it's open.
+//
+// It's pushed in last as the page opens, and lies by the name at the top of
+// the mat. Once the mat moves under it, it draws back to the edge, so it
+// never lies over anything on the mat: into the margin on a wide screen,
+// where a hand over it brings it out again, and out of sight on a narrow
+// one, where there is no margin, until the top of the mat comes back.
 
 // how long it takes to come in and open, or shut and go back (ms)
 const MOVE_MS = 1150;
+// when, after the page began, it's pushed in (after the card has landed)
+const ARRIVE_AT = 900;
+// how far the mat moves under it before it draws back (px)
+const TUCK_AT = 40;
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -69,12 +79,46 @@ function Entry({ project, index, now }: { project: GitProject; index: number; no
   );
 }
 
-export function ProjectsFolder({ projects, live, checkedAt }: { projects: GitProject[]; live: boolean; checkedAt: number }) {
+export function ProjectsFolder({
+  projects,
+  live,
+  checkedAt,
+  nameWidth,
+}: {
+  projects: GitProject[];
+  live: boolean;
+  checkedAt: number;
+  // how wide the name printed into the mat is (lib/mat), which says where
+  // it lies on a narrow screen
+  nameWidth?: number;
+}) {
   const [open, setOpen] = useState(false);
   const [moving, setMoving] = useState(false);
+  const [arrived, setArrived] = useState(false);
+  const [tucked, setTucked] = useState(false);
   const handle = useRef<HTMLButtonElement>(null);
   const close = useRef<HTMLButtonElement>(null);
   const timer = useRef(0);
+
+  useEffect(() => {
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const arrive = window.setTimeout(() => setArrived(true), still ? 0 : Math.max(0, ARRIVE_AT - performance.now()));
+    let raf = 0;
+    const check = () => {
+      raf = 0;
+      setTucked(window.scrollY > TUCK_AT);
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(check);
+    };
+    check();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.clearTimeout(arrive);
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
 
   function toggle(next: boolean) {
     if (next === open) return;
@@ -127,10 +171,12 @@ export function ProjectsFolder({ projects, live, checkedAt }: { projects: GitPro
         className="pf"
         data-open={open || undefined}
         data-moving={moving || undefined}
+        data-arrived={arrived || undefined}
+        data-tucked={tucked || undefined}
         role={open ? "dialog" : undefined}
         aria-modal={open || undefined}
         aria-label={open ? "Recent projects" : undefined}
-        style={{ "--n": projects.length } as CSSProperties}
+        style={{ "--n": projects.length, "--word-natural": nameWidth } as CSSProperties}
       >
         <div className="pf-back">
           <span className="pf-tab" aria-hidden="true">

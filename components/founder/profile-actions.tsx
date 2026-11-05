@@ -1,17 +1,40 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { CloseIcon, CodeIcon, ConnectIcon, LinkIcon, MailIcon, ProfileCardIcon, WebIcon } from "./icons";
+import {
+  ClockIcon,
+  CloseIcon,
+  CodeIcon,
+  ConnectIcon,
+  EllipsisIcon,
+  ExternalIcon,
+  LinkIcon,
+  MailIcon,
+  ProfileCardIcon,
+  WebIcon,
+} from "./icons";
 import { useFounder } from "./provider";
 import styles from "./founder.module.css";
 
 /** Connect, Message and More, under the headline. */
-export function ProfileActions({ linkedin, github }: { linkedin: string; github: string }) {
-  const { openMessaging, copyProfileLink } = useFounder();
+export function ProfileActions({ name, linkedin, github }: { name: string; linkedin: string; github: string }) {
+  const { openMessaging, copyProfileLink, toast } = useFounder();
   const [open, setOpen] = useState(false);
+  // Connect sends an invitation that stays pending, as it would here; Undo or Pending takes it back.
+  const [pending, setPending] = useState(false);
   const host = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+
+  const connect = () => {
+    if (pending) {
+      setPending(false);
+      toast("Invitation withdrawn.");
+      return;
+    }
+    setPending(true);
+    toast("Your invitation to connect was sent.", { label: "Undo", run: () => setPending(false) });
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -33,10 +56,15 @@ export function ProfileActions({ linkedin, github }: { linkedin: string; github:
 
   return (
     <div className={styles.actions}>
-      <a className={`${styles.btn} ${styles.primary}`} href={linkedin} target="_blank" rel="noopener noreferrer">
-        <ConnectIcon />
-        Connect
-      </a>
+      <button
+        type="button"
+        className={`${styles.btn} ${pending ? `${styles.muted} ${styles.pending}` : styles.primary} ${styles.connect}`}
+        aria-label={pending ? "Pending, withdraw invitation" : `Invite ${name} to connect`}
+        onClick={connect}
+      >
+        {pending ? <ClockIcon handClassName={styles.clockHand} /> : <ConnectIcon />}
+        {pending ? "Pending" : "Connect"}
+      </button>
       <button type="button" className={`${styles.btn} ${styles.secondary}`} onClick={openMessaging}>
         Message
       </button>
@@ -44,14 +72,20 @@ export function ProfileActions({ linkedin, github }: { linkedin: string; github:
         <button
           ref={trigger}
           type="button"
-          className={`${styles.btn} ${styles.muted}`}
+          className={`${styles.btn} ${styles.muted} ${styles.more}`}
+          aria-label="More actions"
           aria-expanded={open}
           aria-controls={menuId}
           onClick={() => setOpen((value) => !value)}
         >
-          More
+          <span className={styles.moreLabel}>More</span>
+          <EllipsisIcon className={styles.moreIcon} />
         </button>
         <div id={menuId} className={styles.popover} hidden={!open}>
+          <a className={styles.popoverItem} href={linkedin} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}>
+            <ExternalIcon size={24} strokeWidth={1.1} />
+            View on LinkedIn
+          </a>
           <a className={styles.popoverItem} href={github} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}>
             <CodeIcon />
             Visit GitHub
@@ -64,7 +98,7 @@ export function ProfileActions({ linkedin, github }: { linkedin: string; github:
               copyProfileLink();
             }}
           >
-            <LinkIcon size={24} strokeWidth={1.2} />
+            <LinkIcon size={24} strokeWidth={1.1} />
             Copy profile link
           </button>
         </div>
