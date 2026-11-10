@@ -24,30 +24,6 @@ const ORG_LIST = {
 export type OrgId = keyof typeof ORG_LIST;
 export const ORGS: Record<OrgId, Org> = ORG_LIST;
 
-export const PROFILE = {
-  name: PERSON.name,
-  first: PERSON.first,
-  photo: PERSON.photo,
-  headline: "Building alai · 3× 1st place at hackathons · Business + Data Science @ UC Berkeley",
-  location: "Berkeley, California, United States",
-  email: PERSON.email,
-  github: PERSON.github,
-  linkedin: PERSON.linkedin,
-  site: "https://aidenguan.com",
-  /** What the "Public profile & URL" card shows. */
-  publicUrl: "lockedin.com/in/aidenguan",
-  language: "English",
-  /** The logo chips to the right of the name, and the section each one jumps to. */
-  chips: [
-    { org: "alai", target: "experience" },
-    { org: "berkeley", target: "education" },
-  ] as { org: OrgId; target: string }[],
-  about:
-    "Business student at UC Berkeley. I learn by building software, marketplaces and games.\n\n" +
-    "Right now that’s alai, a voice-first AI tutor for STEM homework: students work by hand on an iPad, and when they pause after a wrong step, alai underlines it and nudges them out loud.\n\n" +
-    "On the side: Rally, table tennis with your phone as the paddle, and PigeonBox, an AI inbox that runs on your own computer.",
-};
-
 /** The open-to-work box under the buttons. */
 export const BUILDING = {
   title: "Building",
@@ -134,12 +110,21 @@ export type Honor = {
   org: OrgId;
   /** "2026-10", or just "2026". */
   date: string;
-  /** The project it was for. */
-  project: string;
+  /** The project slug, if it has a Projects entry. */
+  project?: string;
   note?: string;
+  announcement?: string;
 };
 
 export const HONORS: Honor[] = [
+  {
+    title: "1st Place, Monid Track · 2nd Place Overall",
+    issuer: "Y Combinator × Naïve Autonomous Company Hackathon",
+    org: "yc",
+    date: "2026-11",
+    note: "Built Nomen, an AI agency that researches what’s trending, makes and publishes short videos for brands, and uses performance data to guide the next batch. The team won $3,000 for the Monid track and a Mac mini and AirPods for second overall.",
+    announcement: "https://www.linkedin.com/feed/update/urn:li:activity:7525362850190569472/",
+  },
   {
     title: "1st Place, Primitive.dev track",
     issuer: "Y Combinator, Make Something Agents Want",
@@ -165,6 +150,30 @@ export const HONORS: Honor[] = [
 ];
 
 const firstPlaces = HONORS.filter((honor) => honor.title.startsWith("1st Place")).length;
+
+export const PROFILE = {
+  name: PERSON.name,
+  first: PERSON.first,
+  photo: PERSON.photo,
+  headline: `Building alai · ${firstPlaces}× 1st place at hackathons · Business + Data Science @ UC Berkeley`,
+  location: "Berkeley, California, United States",
+  email: PERSON.email,
+  github: PERSON.github,
+  linkedin: PERSON.linkedin,
+  site: "https://aidenguan.com",
+  /** What the "Public profile & URL" card shows. */
+  publicUrl: "lockedin.com/in/aidenguan",
+  language: "English",
+  /** The logo chips to the right of the name, and the section each one jumps to. */
+  chips: [
+    { org: "alai", target: "experience" },
+    { org: "berkeley", target: "education" },
+  ] as { org: OrgId; target: string }[],
+  about:
+    "Business student at UC Berkeley. I learn by building software, marketplaces and games.\n\n" +
+    "Right now that’s alai, a voice-first AI tutor for STEM homework: students work by hand on an iPad, and when they pause after a wrong step, alai underlines it and nudges them out loud.\n\n" +
+    "On the side: Rally, table tennis with your phone as the paddle, and PigeonBox, an AI inbox that runs on your own computer.",
+};
 
 /** The three numbers in the "Analytics" card, each linking to where it comes from. */
 export const ANALYTICS = [

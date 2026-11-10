@@ -39,6 +39,7 @@ import {
   CodeIcon,
   DiamondIcon,
   EllipsisIcon,
+  ExternalIcon,
   EyeIcon,
   LayersIcon,
   ShieldIcon,
@@ -474,7 +475,8 @@ function HonorsCard() {
       </div>
       <ul className={styles.list}>
         {HONORS.map((honor) => {
-          const item = project(honor.project);
+          const item = honor.project ? project(honor.project) : undefined;
+          const description = [item?.line, honor.note].filter(Boolean).join(" ");
           return (
             <li key={honor.issuer} className={styles.entry}>
               <OrgLogo org={ORGS[honor.org]} className={styles.entryLogo} />
@@ -483,19 +485,26 @@ function HonorsCard() {
                 <p className={styles.entryMeta}>
                   Issued by {honor.issuer} · {monthLabel(honor.date)}
                 </p>
-                <p className={styles.associated}>
-                  <ProjectLogo project={item} size={16} />
-                  <span>
-                    Associated with{" "}
-                    <ProjectLink slug={item.slug} className={styles.quietLink}>
-                      {item.name}
-                    </ProjectLink>
-                  </span>
-                </p>
-                <p className={styles.entryText}>
-                  {item.line}
-                  {honor.note ? ` ${honor.note}` : null}
-                </p>
+                {item ? (
+                  <p className={styles.associated}>
+                    <ProjectLogo project={item} size={16} />
+                    <span>
+                      Associated with{" "}
+                      <ProjectLink slug={item.slug} className={styles.quietLink}>
+                        {item.name}
+                      </ProjectLink>
+                    </span>
+                  </p>
+                ) : null}
+                {description ? <p className={styles.entryText}>{description}</p> : null}
+                {honor.announcement ? (
+                  <div className={styles.entryButtons}>
+                    <a className={`${styles.btn} ${styles.muted}`} href={honor.announcement} target="_blank" rel="noopener noreferrer">
+                      View LinkedIn announcement
+                      <ExternalIcon />
+                    </a>
+                  </div>
+                ) : null}
               </div>
             </li>
           );

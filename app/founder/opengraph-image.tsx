@@ -7,7 +7,7 @@ import { COUNTS, ORGS, PROFILE } from "@/content/founder";
 // banner, the photo in its #BUILDING frame, the name, the headline and the
 // two logos beside them. Everything it says comes from content/founder.ts.
 
-export const alt = "Aiden Guan’s LockedIn profile: building alai, 3× 1st place at hackathons, Business + Data Science at UC Berkeley.";
+export const alt = `Aiden Guan’s LockedIn profile: building alai, ${COUNTS.firstPlaces}× 1st place at hackathons, Business + Data Science at UC Berkeley.`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
