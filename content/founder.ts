@@ -1,6 +1,6 @@
 // LockedIn, the LinkedIn-style profile at /founder: this is the file to edit. The page reads everything it says from here and from content/worlds.ts.
 
-import { MOMENTS, PERSON, PROJECTS } from "./worlds";
+import { MOMENTS, NOMEN, PERSON, PROJECTS } from "./worlds";
 
 /** A company, school or event. Its logo is a square image in public/logos; without one it gets LinkedIn's grey building. */
 export type Org = {
@@ -122,8 +122,9 @@ export const HONORS: Honor[] = [
     issuer: "Y Combinator × Naïve Autonomous Company Hackathon",
     org: "yc",
     date: "2026-11",
-    note: "Built Nomen, an AI agency that researches what’s trending, makes and publishes short videos for brands, and uses performance data to guide the next batch. The team won $3,000 for the Monid track and a Mac mini and AirPods for second overall.",
-    announcement: "https://www.linkedin.com/feed/update/urn:li:activity:7525362850190569472/",
+    project: NOMEN.slug,
+    note: "The team won $3,000 for the Monid track and a Mac mini and AirPods for second overall.",
+    announcement: NOMEN.announcement,
   },
   {
     title: "1st Place, Primitive.dev track",

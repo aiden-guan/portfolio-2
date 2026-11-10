@@ -34,6 +34,7 @@ export const PADS: Record<string, Pad> = {
   dovecote: { s: 25, t: -15, hx: 1.6, hz: 1.6, round: true, falloff: 2 },
   tree: { s: -2, t: -24, hx: 2.4, hz: 2.4, round: true, falloff: 3 },
   aiden: { s: 6, t: -2, hx: 1, hz: 1, round: true, falloff: 2 },
+  nomen: { s: -23, t: -8, hx: 2.8, hz: 2.8, round: true, falloff: 2 },
 };
 
 // The koi pond: an ellipse in world space, and the stream that leaves it for
@@ -62,6 +63,7 @@ export const PATHS: Array<Array<[number, number]>> = [
   [[17.5, 4.5], [16, -1], [14, -6.5]],
   [[16, -11.5], [19.5, -14], [23, -14.5]],
   [[10, -11.5], [5, -15], [0.5, -18.5]],
+  [[-29, 2], [-27.5, -1.8], [-25.5, -3.2], [-24.4, -5.4]],
 ];
 
 // Where the yellow field (image two's) and the blue wildflowers (image

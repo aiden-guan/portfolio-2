@@ -26,6 +26,7 @@ const SPOTS: Array<{ id: string; slug: string; image?: string; caption?: string 
   { id: "alai", slug: "alai", caption: "The chalkboard" },
   { id: "barkoff", slug: "barkoff", caption: "The corgis" },
   { id: "aiden", slug: "about", caption: "Me" },
+  { id: "nomen", slug: "nomen", caption: "The Trojan horse" },
 ];
 
 const firsts = PROJECTS.filter((project) => project.award?.startsWith("1st")).length;
@@ -464,7 +465,15 @@ export function Designer() {
             <ol>
               {SPOTS.map((s, i) => (
                 <li key={s.id}>
-                  <button type="button" className={styles.indexItem} onClick={() => open(s.id)} aria-current={selected === s.id || undefined}>
+                  <button
+                    type="button"
+                    className={styles.indexItem}
+                    onClick={() => {
+                      indexButton.current?.focus({ preventScroll: true });
+                      open(s.id);
+                    }}
+                    aria-current={selected === s.id || undefined}
+                  >
                     <TagFace n={i + 1} small />
                     <span className={styles.indexName}>{label.get(s.id)?.name}</span>
                     <span className={styles.indexCaption}>{s.caption}</span>
@@ -589,13 +598,34 @@ function TagFace({ n, small = false }: { n: number; small?: boolean }) {
 }
 
 function ProjectBody({ project, image }: { project: WorldProject; image: string }) {
+  const awardPrint = project.announcement && project.award;
+  const links = project.live || project.source || project.announcement ? (
+    <div className={styles.links}>
+      {project.announcement ? (
+        <a className={styles.primary} href={project.announcement} target="_blank" rel="noreferrer">
+          Demo on LinkedIn <span aria-hidden="true">↗</span>
+        </a>
+      ) : null}
+      {project.live ? (
+        <a className={project.announcement ? styles.secondary : styles.primary} href={project.live} target="_blank" rel="noreferrer">
+          Visit {linkLabel(project.live)} <span aria-hidden="true">↗</span>
+        </a>
+      ) : null}
+      {project.source ? (
+        <a className={project.live || project.announcement ? styles.secondary : styles.primary} href={project.source} target="_blank" rel="noreferrer">
+          Source <span aria-hidden="true">↗</span>
+        </a>
+      ) : null}
+    </div>
+  ) : null;
+
   return (
     <>
       <figure className={styles.print}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={projectImage(image, "sm")}
-          alt={`${project.name}, as it looks`}
+          alt={project.slug === "nomen" ? "Nomen’s wooden Trojan horse with its doors open and ramp down" : `${project.name}, as it looks`}
           width={800}
           height={500}
           decoding="async"
@@ -606,6 +636,13 @@ function ProjectBody({ project, image }: { project: WorldProject; image: string 
         {project.name}
       </h2>
       <p className={styles.line}>{project.line}</p>
+      {awardPrint ? (
+        <div className={styles.awardPrint} style={{ "--accent": project.accent } as React.CSSProperties}>
+          <strong>{project.award}</strong>
+          {project.event ? <span>{project.event}</span> : null}
+        </div>
+      ) : null}
+      {project.announcement ? links : null}
       <p className={styles.about}>{project.about}</p>
       <dl className={styles.spec}>
         <div>
@@ -616,7 +653,7 @@ function ProjectBody({ project, image }: { project: WorldProject; image: string 
           <dt>When</dt>
           <dd>{formatMonth(project.date)}</dd>
         </div>
-        {project.award || project.event ? (
+        {!awardPrint && (project.award || project.event) ? (
           <div>
             <dt>{project.award ? "Won" : "Made for"}</dt>
             <dd>{[project.award, project.event].filter(Boolean).join(", ")}</dd>
@@ -627,20 +664,7 @@ function ProjectBody({ project, image }: { project: WorldProject; image: string 
           <dd>{project.stack.join(", ")}</dd>
         </div>
       </dl>
-      {project.live || project.source ? (
-        <div className={styles.links}>
-          {project.live ? (
-            <a className={styles.primary} href={project.live} target="_blank" rel="noreferrer">
-              Visit {linkLabel(project.live)} <span aria-hidden="true">↗</span>
-            </a>
-          ) : null}
-          {project.source ? (
-            <a className={project.live ? styles.secondary : styles.primary} href={project.source} target="_blank" rel="noreferrer">
-              Source <span aria-hidden="true">↗</span>
-            </a>
-          ) : null}
-        </div>
-      ) : null}
+      {project.announcement ? null : links}
     </>
   );
 }

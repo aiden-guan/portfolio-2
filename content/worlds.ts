@@ -23,6 +23,7 @@ export type WorldProject = {
   stack: string[];
   live?: string;
   source?: string;
+  announcement?: string;
   /** Brand colour, for small accents. */
   accent: string;
   /** Whether the thumbnail is mostly dark, so text over it can adapt. */
@@ -31,7 +32,24 @@ export type WorldProject = {
   gallery?: string[];
 };
 
+export const NOMEN = {
+  slug: "nomen",
+  name: "Nomen",
+  line: "An AI studio for short-form video.",
+  about: "In Nomen’s Trojan camp, scouts find breakout videos, the workshop makes original clips, and you review them in the screening room. Nomen publishes approved clips and uses their results to plan the next campaign.",
+  date: "2026-11",
+  status: "Prototype",
+  award: "1st place, Monid track · 2nd place overall",
+  event: "YC × Naïve Autonomous Company Hackathon",
+  stack: ["Naïve", "Monid", "Mobilerun", "Next.js"],
+  source: "https://github.com/aiden-guan/Nomen",
+  announcement: "https://www.linkedin.com/feed/update/urn:li:activity:7525362850190569472/",
+  accent: "#b78236",
+  tone: "light",
+} satisfies WorldProject;
+
 export const PROJECTS: WorldProject[] = [
+  NOMEN,
   {
     slug: "ledgerlens",
     name: "LedgerLens",
@@ -231,6 +249,7 @@ export function projectImage(slug: string, size: "lg" | "sm" = "lg") {
 // heroes are 2:1 with the title on the left, so they keep their left edge.
 export const IMAGE_FOCUS: Record<string, string> = {
   continuity: "0% 50%",
+  nomen: "50% 65%",
   courtvision: "0% 50%",
   "courtvision-shots": "0% 50%",
   agenthub: "0% 50%",

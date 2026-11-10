@@ -378,6 +378,9 @@
   top: calc(100% + 8px);
   right: 0;
   width: 272px;
+  max-height: calc(100dvh - 72px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   box-sizing: border-box;
   padding: 6px;
   border: 1px solid var(--edge);
@@ -661,6 +664,30 @@
   margin: 14px 0 0;
   font-size: 14.5px;
   line-height: 1.55;
+}
+
+.awardPrint {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 9px 10px;
+  border-left: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--sheet));
+}
+
+.awardPrint strong {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.awardPrint span {
+  color: var(--muted);
+  font: 400 10.5px/1.4 var(--font-geist-mono), monospace;
+}
+
+.awardPrint + .links {
+  margin-top: 12px;
 }
 
 /* the facts, ruled like the back of a print */

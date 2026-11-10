@@ -946,6 +946,111 @@ export function chalkboard(): Place {
   };
 }
 
+// ——— Nomen: the camp's wooden horse, with the scouts' gangway down —————
+
+export function trojanHorse(): Place {
+  const pad = PADS.nomen;
+  const base = ground(pad.s, pad.t);
+  base.y = padHeight("nomen");
+  const group = new Group();
+  group.position.copy(base);
+
+  const block = 0.14;
+  const horse = new Voxels(block, 0.025);
+  const walnut = 0x68452f, oak = 0xbb8349, brass = 0xe7b667, iron = 0x536775;
+  const planks = (x: number, y: number, z: number) => {
+    if (x === -9 || x === 7) return iron;
+    if (y % 3 === 0) return 0x9b683e;
+    return hash3(x, y, z) > 0.45 ? oak : 0xc99054;
+  };
+
+  // A deck with four iron-rimmed wheels and visible wooden spokes.
+  horse.box(-17, 5, -7, 16, 6, 7, walnut);
+  horse.box(-17, 7, -7, 16, 7, 7, (x, y, z) => (z % 3 === 0 ? oak : brass));
+  for (const axle of [-12, 11]) {
+    horse.box(axle, 3, -7, axle, 3, 7, walnut);
+    for (const side of [-8, 8]) {
+      horse.box(axle - 3, 0, side, axle + 3, 6, side, (x, y) => {
+        const dx = x - axle, dy = y - 3;
+        const distance = Math.hypot(dx, dy);
+        if (distance > 3.45) return null;
+        if (distance > 2.1) return iron;
+        return dx === 0 || dy === 0 ? brass : null;
+      });
+    }
+  }
+
+  for (const x of [-11, 8]) {
+    for (const z of [-5, 2]) {
+      horse.box(x, 8, z, x + 3, 17, z + 3, (_, y) => (y === 12 ? iron : y < 10 ? walnut : oak));
+    }
+  }
+  horse.box(-13, 17, -5, 12, 24, 5, (x, y, z) =>
+    x >= -6 && x <= 1 && y <= 23 && z >= 1 ? null : planks(x, y, z),
+  );
+  horse.box(-12, 25, -4, 11, 25, 4, planks);
+  horse.box(-11, 26, -3, 10, 26, 3, planks);
+  horse.box(-14, 18, -3, -14, 23, 3, oak);
+  horse.limb(-14, 23, 0, -17, 15, 0, 1, 0.6, walnut);
+
+  // The raised neck, cropped mane, and brass strap over the muzzle.
+  for (let y = 23; y <= 34; y += 1) {
+    const x = 8 + Math.floor((y - 23) / 2.5);
+    horse.box(x - 3, y, -3, x + 3, y, 3, y % 3 === 0 ? 0x9b683e : oak);
+    horse.box(x - 4, y, -1, x - 4, y, 1, walnut);
+  }
+  horse.box(11, 31, -3, 18, 35, 3, oak);
+  horse.box(16, 29, -2, 21, 33, 2, (x, y) => (x === 18 ? brass : y === 29 ? walnut : oak));
+  for (const z of [-2, 2]) horse.box(12, 35, z, 13, 37, z, walnut);
+  horse.set(15, 34, 3, 0x352820);
+  horse.set(15, 34, -3, 0x352820);
+
+  // The open doors and stepped ramp from the lit doorway to the path.
+  horse.box(-7, 17, 5, -7, 23, 8, (x, y) => (y === 19 || y === 22 ? iron : walnut));
+  horse.box(2, 17, 5, 2, 23, 8, (x, y) => (y === 19 || y === 22 ? iron : walnut));
+  for (let z = 5; z <= 20; z += 1) {
+    const y = Math.max(0, Math.round((20 - z) * (17 / 15)));
+    horse.box(-6, y - 1, z, 1, y, z, (x) => (x === -6 || x === 1 ? walnut : z % 2 === 0 ? brass : oak));
+  }
+  group.add(mesh(horse));
+  const lantern = new Voxels(block, 0);
+  lantern.box(-6, 20, 3, -6, 23, 3, 0xffbd65);
+  lantern.box(1, 20, 4, 1, 23, 4, 0xffbd65);
+  group.add(mesh(lantern, materials.glow, { shadow: false, receive: false }));
+  const torch = new PointLight(0xffb35c, 0, 5.2, 1.6);
+  torch.position.set(-0.28, 3.1, 1.2);
+  group.add(torch);
+
+  // Two little scouts give the horse its scale, one at the hatch and one on the path.
+  for (const [x, y, z, tunic] of [[-2, 16, 7, 0xab4936], [-5, 0, 21, 0x3c6581]]) {
+    const scout = new Voxels(block, 0.02);
+    scout.box(x, y, z, x + 1, y + 2, z + 1, walnut);
+    scout.box(x, y + 2, z, x + 1, y + 4, z + 1, tunic);
+    scout.box(x, y + 5, z, x + 1, y + 5, z + 1, 0xe1ab7a);
+    scout.box(x, y + 6, z, x + 1, y + 6, z + 1, brass);
+    scout.set(x, y + 7, z + 1, 0xb64b36);
+    scout.box(x - 1, y + 2, z + 1, x - 1, y + 4, z + 2, tunic);
+    scout.set(x - 1, y + 3, z + 2, brass);
+    scout.box(x + 2, y + 1, z + 1, x + 2, y + 7, z + 1, walnut);
+    scout.set(x + 2, y + 8, z + 1, iron);
+    group.add(mesh(scout));
+  }
+
+  return {
+    object: group,
+    spot: {
+      id: "nomen",
+      slug: "nomen",
+      object: group,
+      anchor: base.clone().add(new Vector3(1, 5.5, 0)),
+      focus: base.clone().add(new Vector3(0, 2.15, 0.45)),
+    },
+    update: () => {
+      torch.intensity = uniforms.uNight.value * 9;
+    },
+  };
+}
+
 // ——— Aiden, standing in the yellow field ————————————————————————————
 
 export function aiden(): Place {
@@ -971,7 +1076,7 @@ export function aiden(): Place {
 export function scenery(): Place[] {
   const places: Place[] = [];
   const trees: Array<[number, number, number]> = [
-    [-14, -28, 1.1], [8, -30, 1.25], [17, -27, 0.95], [-22, -18, 1], [-30, -5, 1.15], [-28, 15, 0.9],
+    [-14, -28, 1.1], [8, -30, 1.25], [17, -27, 0.95], [-16.5, -18, 1], [-30, -5, 1.15], [-28, 15, 0.9],
     [29, -5, 1], [31, 7, 0.85], [21, 24, 1.05], [-21, 25, 0.8], [-8, -31, 0.85], [24, -24, 0.75],
     [-31, 4, 0.75], [33, -12, 0.7],
   ];

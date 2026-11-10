@@ -13,6 +13,7 @@ import {
   scenery,
   seyrinDesk,
   strollers,
+  trojanHorse,
   type Place,
   type Spot,
 } from "./places";
@@ -47,6 +48,7 @@ export function buildWorld() {
     corgis(),
     chalkboard(),
     aiden(),
+    trojanHorse(),
     clouds(),
     ...scenery(),
     ...strollers(),
