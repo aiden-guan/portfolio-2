@@ -1,6 +1,6 @@
 import { Vector3 } from "three";
 import { LOOKS, someone } from "../people";
-import { TEAM } from "../rooms/hackathon";
+import { TEAM, type EventId } from "../rooms/hackathon";
 import { ROWS } from "../rooms/hall";
 import type { Question } from "../screens-berkeley";
 import type { ActorSpec } from "../stage";
@@ -167,7 +167,8 @@ async function afterMidterms(ctx: Ctx) {
   ]);
 }
 
-async function hackathonScene(ctx: Ctx, event: "buildnight" | "speedhacks" | "yc", team: ActorSpec[], banner: { place: string; time: string }, day: string, clock: number) {
+/** A hackathon floor: the team at their table, everyone else hunched over laptops (Chapter 5 has one too). */
+export async function hackathonScene(ctx: Ctx, event: EventId, team: ActorSpec[], banner: { place: string; time: string }, day: string, clock: number) {
   const crowd: ActorSpec[] = [];
   [-3.6, -2.0, -0.4].forEach((z, r) =>
     [-5.0, -4.2, -3.4, -2.6, -1.8, 1.0, 1.8, 2.6, 3.4, 4.2].forEach((x, i) => {
@@ -178,7 +179,7 @@ async function hackathonScene(ctx: Ctx, event: "buildnight" | "speedhacks" | "yc
   await ctx.scene({ id: "hackathon", event, actors: [...team, ...crowd], at: new Vector3(5.6, 0, 3.6), heading: -Math.PI * 0.75, banner, day, clock });
 }
 
-const AT_TABLE = (i: number, id: string, look: ActorSpec["look"], label: string): ActorSpec => ({ id, look, at: new Vector3(TEAM.xs[i], 0, TEAM.far), heading: 0, pose: "type", seat: 0.45, label, behaviour: "idle", solid: false });
+export const AT_TABLE = (i: number, id: string, look: ActorSpec["look"], label: string): ActorSpec => ({ id, look, at: new Vector3(TEAM.xs[i], 0, TEAM.far), heading: 0, pose: "type", seat: 0.45, label, behaviour: "idle", solid: false });
 
 async function buildNight(ctx: Ctx) {
   await hackathonScene(

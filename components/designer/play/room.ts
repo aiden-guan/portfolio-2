@@ -1065,7 +1065,7 @@ export function createRoom(canvas: HTMLCanvasElement) {
     });
   }
 
-  // —— the shelf: three first places, the team on the steps at YC, the plushie
+  // —— the shelf: four first places, the team on the steps at YC, the plushie
   const shelfY = 1.24;
   add(new BoxGeometry(0.6, 0.022, 0.17), deskMaterial, -0.57, shelfY, WALL + 0.085);
   const gold = physical({ color: 0xe0ad52, metalness: 1, roughness: 0.24, clearcoat: 0.3, clearcoatRoughness: 0.2 });
@@ -1089,11 +1089,12 @@ export function createRoom(canvas: HTMLCanvasElement) {
     add(cup, gold, x, shelfY + 0.011, WALL + 0.09);
     add(new BoxGeometry(0.05 * scale, 0.022, 0.05 * scale), plinth, x, shelfY + 0.011, WALL + 0.09).scale.y = 0.6;
   };
-  trophy(-0.79, 1.15);
-  trophy(-0.71, 0.95);
-  trophy(-0.645, 0.85);
+  trophy(-0.82, 1.1);
+  trophy(-0.735, 0.95);
+  trophy(-0.664, 0.85);
+  trophy(-0.6, 0.75);
   const frame = new Group();
-  frame.position.set(-0.52, shelfY + 0.011, WALL + 0.07);
+  frame.position.set(-0.51, shelfY + 0.011, WALL + 0.07);
   frame.rotation.set(-0.1, 0.12, 0);
   scene.add(frame);
   add(new BoxGeometry(0.15, 0.11, 0.01), standard({ color: 0x1b1714, roughness: 0.5 }), 0, 0.055, 0, frame);

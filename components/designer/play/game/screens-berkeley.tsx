@@ -10,7 +10,8 @@ import styles from "./screens-berkeley.module.css";
 // The screens of Berkeley and after: problem sets and a midterm (sick or
 // not), the three hackathons' own games (BarkOff's bark battle, alai's
 // wrong step, Continuity's thread), and alai becoming a company: a video
-// call, an email, two applications, and a bug bash.
+// call, an email, two applications, and a bug bash. Then Nomen's scouts,
+// at the fourth hackathon.
 
 export type Question = { q: string; options: string[]; answer: number };
 
@@ -29,7 +30,9 @@ export type BerkeleySpec =
       outro: string;
     }
   | { kind: "form"; title: string; fields: Array<{ label: string; answer: string }>; submit: string; done: string; accent?: string }
-  | { kind: "bugs"; bugs: string[]; seconds: number };
+  | { kind: "bugs"; bugs: string[]; seconds: number }
+  /** Nomen's scouts bring back a row of videos at a time: find the outlier, the one with the most views for its followers. Resolves with how many were found first try. */
+  | { kind: "outliers"; rounds: Array<Array<{ title: string; views: number; followers: number }>> };
 
 export function BerkeleyScreen(props: Props<BerkeleySpec> & { photo?: string }) {
   const { spec } = props;
@@ -50,6 +53,8 @@ export function BerkeleyScreen(props: Props<BerkeleySpec> & { photo?: string }) 
       return <Form {...props} spec={spec} />;
     case "bugs":
       return <Bugs {...props} spec={spec} />;
+    case "outliers":
+      return <Outliers {...props} spec={spec} />;
   }
 }
 
@@ -1504,3 +1509,173 @@ function Bugs({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec, { k
   );
 }
 
+
+// —— Nomen's scouts: a row of short videos at a time, and one of them is the
+// outlier, the video that got far more views than its account has
+// followers. The biggest number on the row isn't always it.
+
+const CLIP_INKS = ["#f2c46b", "#8fd3b6", "#9cc0fa", "#f3a98a", "#c9b6f2", "#e6c79a"];
+const compact = (n: number) => (n >= 1e6 ? `${+(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(n >= 1e5 ? 0 : 1)}K` : String(n));
+const times = (r: number) => `×${r >= 10 ? Math.round(r).toLocaleString("en-US") : r >= 1 ? r.toFixed(1) : r.toFixed(2)}`;
+const OUTLIER_REASONS: Record<Rank, string> = {
+  S: "Every outlier, at first look. The planner had nothing to add.",
+  A: "One got past you. The scouts flagged it anyway.",
+  B: "Big numbers fooled you. Views alone don’t make an outlier.",
+  C: "Look at the followers, not just the views.",
+};
+
+function Outliers({ spec, soundRef, onDone, touch }: Props<Extract<BerkeleySpec, { kind: "outliers" }>>) {
+  const [phase, setPhaseState] = useState<"brief" | "pick" | "reveal" | "done">("brief");
+  const [at, setAt] = useState(0);
+  const [selected, setSelected] = useState(0);
+  const [picked, setPicked] = useState(-1);
+  const [marks, setMarks] = useState<boolean[]>([]);
+  const phaseRef = useRef(phase);
+  const timer = useRef(0);
+  const cards = useRef<Array<HTMLElement | null>>([]);
+  const ready = useSince(phase === "done");
+  const total = spec.rounds.length;
+  const row = spec.rounds[Math.min(at, total - 1)];
+  const ratios = row.map((c) => c.views / c.followers);
+  const right = ratios.indexOf(Math.max(...ratios));
+  const score = marks.filter(Boolean).length;
+  let streak = 0;
+  for (let i = marks.length - 1; i >= 0 && marks[i]; i -= 1) streak += 1;
+  const go = (next: typeof phase) => {
+    phaseRef.current = next;
+    setPhaseState(next);
+  };
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  const advance = () => {
+    window.clearTimeout(timer.current);
+    if (phaseRef.current !== "reveal") return;
+    if (at + 1 >= total) {
+      soundRef.current?.sting();
+      return go("done");
+    }
+    setAt(at + 1);
+    setSelected(0);
+    setPicked(-1);
+    go("pick");
+  };
+  const pick = (i: number) => {
+    const now = phaseRef.current;
+    if (now === "brief") {
+      soundRef.current?.confirm();
+      return go("pick");
+    }
+    if (now === "done") return ready() && onDone(score);
+    if (now === "reveal") return advance();
+    setSelected(i);
+    setPicked(i);
+    const hit = i === right;
+    setMarks((m) => [...m, hit]);
+    if (hit) {
+      soundRef.current?.coin();
+      punch(cards.current[i], 0.05);
+    } else {
+      soundRef.current?.nope();
+      jolt(cards.current[i], 0.4);
+    }
+    go("reveal");
+    // long enough to read the numbers; a press moves on sooner
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => !screensPaused() && advance(), hit ? 1500 : 2300);
+  };
+  usePress(() => pick(selected));
+  useArrows((step) => {
+    if (phaseRef.current !== "pick") return;
+    setSelected((s) => (s + step + row.length) % row.length);
+    soundRef.current?.select();
+  });
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (screensPaused() || event.repeat || phaseRef.current !== "pick") return;
+      const n = Number(event.key);
+      if (n >= 1 && n <= row.length) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        pick(n - 1);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  });
+
+  const rank = rankOf(score / total, [1, 0.75, 0.5]);
+  return (
+    <div className={kit.scrim} data-over={phase === "done" || undefined} onClick={() => phase !== "pick" && pick(selected)}>
+      <Window title="Nomen · the scouts’ tent" wide>
+        <div className={styles.outliers}>
+          {phase === "brief" ? (
+            <Brief touch={touch} text="The scouts brought back a hundred videos. In each row, find the outlier: the most views for the followers its account has." />
+          ) : (
+            <>
+              <div className={styles.qHead}>
+                <span>Scouts</span>
+                <span>
+                  Row {Math.min(at + 1, total)} of {total}
+                </span>
+                {streak >= 2 ? (
+                  <em className={styles.streak} key={streak}>
+                    {streak} in a row
+                  </em>
+                ) : null}
+              </div>
+              <div className={styles.clips} role="listbox" key={at}>
+                {row.map((c, i) => (
+                  <button
+                    key={c.title}
+                    ref={(el) => {
+                      cards.current[i] = el;
+                    }}
+                    type="button"
+                    role="option"
+                    aria-selected={selected === i}
+                    className={styles.clip}
+                    data-on={(phase === "pick" && selected === i) || undefined}
+                    data-right={(phase !== "pick" && i === right) || undefined}
+                    data-wrong={(phase !== "pick" && i === picked && i !== right) || undefined}
+                    style={{ "--clip": CLIP_INKS[(at * 2 + i) % CLIP_INKS.length], "--i": i } as React.CSSProperties}
+                    onPointerEnter={() => phase === "pick" && setSelected(i)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      pick(i);
+                    }}
+                  >
+                    <span className={styles.thumb}>
+                      {touch ? null : <kbd>{i + 1}</kbd>}
+                      <i className={styles.play} aria-hidden="true" />
+                      <small>{c.title}</small>
+                      {phase !== "pick" ? <b className={styles.ratio}>{times(ratios[i])}</b> : null}
+                    </span>
+                    <span className={styles.numbers}>
+                      <b>▶ {compact(c.views)}</b>
+                      <span>{compact(c.followers)} followers</span>
+                    </span>
+                    {phase !== "pick" && i === right ? <Mark kind="tick" /> : null}
+                    {phase !== "pick" && i === picked && i !== right ? <Mark kind="cross" /> : null}
+                  </button>
+                ))}
+              </div>
+              <div className={styles.dots}>
+                {spec.rounds.map((_, i) => (
+                  <i key={i} data-right={marks[i] === true || undefined} data-wrong={marks[i] === false || undefined} data-now={(i === at && phase !== "done") || undefined} />
+                ))}
+              </div>
+              {phase === "done" ? null : (
+                <span className={kit.hint}>
+                  {phase === "reveal" ? (touch ? "Tap for the next row" : <><kbd>E</kbd> next row</>) : touch ? "Tap the outlier" : <>arrows or 1–{row.length} · <kbd>E</kbd> pick it</>}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      </Window>
+      {phase === "done" ? (
+        <Results game="outliers" kicker="Nomen · scouts" rank={rank} score={score} label={`${score} / ${total} outliers`} reason={OUTLIER_REASONS[rank]} touch={touch} soundRef={soundRef} />
+      ) : null}
+    </div>
+  );
+}

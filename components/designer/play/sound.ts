@@ -1026,8 +1026,8 @@ function bedOf(chapter: string | null, place = "", night = false): Bed {
   if (chapter === "prologue") return "morning";
   if (chapter === "ch1") return place === "street" ? "lofi" : "laptop";
   if (chapter === "ch2") return place === "field" ? "band" : place === "auditorium" ? "auditorium" : "hallway";
-  if (chapter === "ch3" || chapter === "ch4") {
-    if (place === "hackathon" || (chapter === "ch4" && place === "dorm")) return "hack";
+  if (chapter === "ch3" || chapter === "ch4" || chapter === "ch5") {
+    if (place === "hackathon" || (chapter !== "ch3" && place === "dorm")) return "hack";
     if (place === "office") return "city";
     return night ? "night" : "campus";
   }
@@ -2053,7 +2053,7 @@ export function createSound() {
      */
     scene: (chapter: string | null, place?: string, night?: boolean) => {
       surface = SURFACE[place ?? ""] ?? "soft";
-      bells = (chapter === "ch3" || chapter === "ch4") && (place === "dorm" || place === "hall" || place === "glade");
+      bells = (chapter === "ch3" || chapter === "ch4" || chapter === "ch5") && (place === "dorm" || place === "hall" || place === "glade");
       minute = -1;
       const id = bedOf(chapter, place, night);
       if (id !== want) {

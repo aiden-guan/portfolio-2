@@ -2,7 +2,7 @@
 
 **The game behind the PLAY button on `/designer`.** A cozy life sim, drawn the way the island is, about the real moments of Aiden's life so far: a $500 sneaker group chat, two best friends and a shelf of FBLA trophies, a hard first semester at Berkeley, three hackathon wins in a row, and alai.
 
-This document is the plan for the whole game. The opening (the PLAY cinematic, the boot, the title screen), the Prologue and Chapters 1 to 4 are built and playable, with an optional mini-game, *Wingman*, in Chapter 2. Chapter 4 ends where Aiden's life is right now, *to be continued*: new chapters get written as it happens.
+This document is the plan for the whole game. The opening (the PLAY cinematic, the boot, the title screen), the Prologue and Chapters 1 to 5 are built and playable, with an optional mini-game, *Wingman*, in Chapter 2. Chapter 5 ends where Aiden's life is right now, *to be continued*: new chapters get written as it happens.
 
 ---
 
@@ -34,7 +34,7 @@ This document is the plan for the whole game. The opening (the PLAY cinematic, t
 | **PLAY** | A cobalt pixel button at the top right of `/designer`, shown once the island has arrived. | `components/designer/designer.tsx` |
 | **It was a trailer** | The island's UI slips away and a video player bar slides up over it ("0:41 / 1:30"). The island keeps cutting between its places like trailer footage. | `play/play.tsx` |
 | **It was a store page** | The footage shrinks into the trailer slot of a game store, *esteem* (the way `/founder` is LockedIn). Capsule art, screenshots and the page's backdrop are cut from the island's own frame at the moment PLAY was pressed. "Overwhelmingly Handsome (318)". -90%, $45.00 → $4.50. | `play/store.tsx` |
-| **It was a monitor** | The camera pulls back through the glass into a desk at night, seen from the chair: lamp, steaming mug, fairy lights, the Cal pennant, three trophies and the YC team photo on the shelf, the plushie, a voxel corgi and a voxel Aiden by the monitor's foot, the Campanile lit in the window. | `play/room.ts` |
+| **It was a monitor** | The camera pulls back through the glass into a desk at night, seen from the chair: lamp, steaming mug, fairy lights, the Cal pennant, four trophies and the YC team photo on the shelf, the plushie, a voxel corgi and a voxel Aiden by the monitor's foot, the Campanile lit in the window. | `play/room.ts` |
 | **Buying it** | The person in the chair leans in. The pointer travels like a hand moves it (bowed paths, a little overshoot), and the mouse on the desk moves with it. Buy → confirm → *Thank you!* (the phone on the desk lights with the receipt) → library → Install (2.6 GB at 980 MB/s) → Play. The library holds BarkOff, Rally and StartupSim. | `play/play.tsx`, `play/store.tsx` |
 | **Booting** | The screen goes black, the room goes dark, *Aiden Guan presents*, then the title on the monitor lights the room peach. The camera goes through the screen and the title is the page. | `play/play.tsx`, `play/game/game.tsx` |
 | **Title screen** | The island from the trailer, at dawn: clouds lit pink from below, mist on the pond, gulls going over, a slow settle and then a drift. Continue (once there's a save), New game, Chapters, Settings, Back to the island. | `play/game/title.ts`, `play/game/shell/menus.tsx` |
@@ -43,9 +43,10 @@ This document is the plan for the whole game. The opening (the PLAY cinematic, t
 | **Chapter 2: Future Business Leaders** | Meet John at lunch (he sells jeans he has never touched), then Jerry (here for the free pizza). Answer the judges as a trio at FBLA Regionals, fill the trophy case, rename the group chat, throw your caps at graduation, and split three ways. | `chapters/chapter2.ts`, `rooms/hallway.ts`, `rooms/auditorium.ts`, `rooms/field.ts` |
 | **Wingman** (Ch. 2, optional) | At graduation, John says "Name one." Pick *Get on my shoulders* and Aiden throws John down the coast, Burrito Bison-style: John bounces off every baddie he lands on and rizzes her up, and the further he goes the badder they get (the beach's 6/10s, the pier, the marina, the yacht club's 10/10s). Three throws, each starting further along the coast; a dive homes in on the nearest baddie; boyfriends kill your speed; DMs boost it. | `play/game/wingman.ts`, `wingman-hud.tsx` |
 | **Chapter 3: Golden Bear** | Berkeley, with Miles the roommate and Jun from down the hall. The group chat goes quiet, and neither Data C8 nor Math 52 makes sense. Then the flu the week before midterms, and again on the morning of both: two Tylenol, Data C8 then Math 52, an 86 and a 91. After that the floor, the glade, and three hackathons in a row (BarkOff's bark battle, alai's wrong step, Continuity's thread): three first places, a flood of DMs, and an evening in an SF startup office. | `chapters/chapter3.ts`, `rooms/dorm.ts`, `rooms/hall.ts`, `rooms/glade.ts`, `rooms/hackathon.ts`, `rooms/office.ts`, `screens-berkeley.tsx` |
-| **Chapter 4: The Tutor** | alai becomes a company. Allen moves into Miles's desk (Miles is always out), the second Data C8 and Math 52 midterms happen anyway, the a16z Alpha final round runs on a video call, and the email after it says no. Then a bench at midnight, the YC and a16z speedrun applications, a bug bash, and Jun, the first student who says "oh". It ends *to be continued*. | `chapters/chapter4.ts` |
+| **Chapter 4: The Tutor** | alai becomes a company. Allen moves into Miles's desk (Miles is always out), the second Data C8 and Math 52 midterms happen anyway, the a16z Alpha final round runs on a video call, and the email after it says no. Then a bench at midnight, the YC and a16z speedrun applications, a bug bash, and Jun, the first student who says "oh". | `chapters/chapter4.ts` |
+| **Chapter 5: It's Chill** | A fourth first place: Nomen with Dylan at YC × Naïve, where the scouts' tent is a mini-game (*Outliers*: find the video with the most views for its followers; the outliers are real ones from Nomen's recorded run). Then the second midterm grades land on the same lawn as the 86 and 91: a **55** and a **20**, not sick this time, and it's chill. Then alai's first video (Chapter 1's *The Hook*, with Allen editing), the reel takes off and Allen stops counting, and one thing is left on the launch checklist. It ends *to be continued*. | `chapters/chapter5.ts`, `screens-berkeley.tsx` (Outliers) |
 | **Saves and chapters** | The game saves at every act. *Continue* picks up from the last one; the Chapters screen unlocks each chapter once the one before it is done, and lists *To be continued* after the last. | `play/game/save.ts`, `chapters/index.ts` |
-| **Moments** | Seventeen of them, a few secret: the mirror, petting Phoebe three times running, using everything in a room, *I'm with Jerry*, playing at 3 AM, and each of the story's big beats. A card slides in with a stamp the first time; the pause screen and the Chapters screen's Moments tab list them, secret ones as "???" until found. | `chapters/feats.ts`, `play/game/shell/cards.tsx` |
+| **Moments** | Twenty of them, a few secret: the mirror, petting Phoebe three times running, using everything in a room, *I'm with Jerry*, playing at 3 AM, and each of the story's big beats. A card slides in with a stamp the first time; the pause screen and the Chapters screen's Moments tab list them, secret ones as "???" until found. | `chapters/feats.ts`, `play/game/shell/cards.tsx` |
 
 Skip with **Esc** (or the Skip button) at any point; with *reduced motion* on, PLAY goes straight to the title. Sound follows the site's own Sound setting. *Back to the island* dissolves home in the island's own pixel dither.
 
@@ -176,7 +177,7 @@ The in-game phone (P) has the apps a day needs:
 - **Map**: where you are, where you can go.
 
 ### Collections
-- **The trophy shelf**: one cup per first place (three so far), the same shelf as the desk in the cinematic.
+- **The trophy shelf**: one cup per first place (four so far), the same shelf as the desk in the cinematic.
 - **The sneaker wall**: pairs you kept (Chapter 1).
 - **The clothesline**: photos of the moments, pegged up like the clothesline on `/student`. The YC steps and the a16z check are the first two.
 - **Stickers**: hackathon swag, stuck on your laptop lid, visible whenever you're at a desk.
@@ -242,11 +243,21 @@ Each chapter is its own diorama (or a few), its own season, a handful of people,
 - *Round two.* Allen at Miles's desk (Miles is out from eleven to three; Allen tracked it), **CO-FOUNDERS**, studying and building in the same night, the waitlist at exactly 480, Miles home at 1:40 AM with seven new friends, then **Data C8 Midterm 2** and **Math 52 Midterm 2** (not sick this time).
 - *The final round.* The a16z Alpha final round as a video call: three questions, each answered by Aiden or Allen. Friday's email: not this time. A bench under the Campanile at midnight: "We make it so good the next one can't say no."
 - *Building.* The YC and a16z speedrun applications, typed into the forms; a bug bash on the iPad; Jun through the door with a calc set due at nine, alai catching his wrong step, and "…Oh. OH." ("It's alright, I guess.")
-**Ending:** coffee, two desks, a lot of bugs to go. *To be continued.*
+**Ending:** coffee, two desks, a lot of bugs to go. The grades come back next week.
 **Length:** 10–15 minutes.
 
-### Chapter 5 · To be continued
-Whatever happens next: the YC and speedrun decisions, alai's launch, the next semester. It gets written when it's true.
+### Chapter 5 · It's Chill ✅ built
+**When:** November 2026, now. **Where:** a hackathon floor (YC × Naïve), Memorial Glade, the dorm at night.
+**New systems:** none; the *1st places* counter comes back and goes to four.
+**Beats, in three acts:**
+- *YC × Naïve.* "Midterms: done. Grades come back next week. Next week's problem." **Dylan** at the table: a company with nobody in it, so a video studio that runs itself, drawn as a camp with a Trojan horse ("Everyone else is building a dashboard."). The scouts come back with a hundred videos (*Outliers*); "Views over followers. That's Data C8." "…I'm aware." The demo: **1st place, Monid track**, and 2nd overall ($3,000; a Mac mini for the agents, AirPods for Dylan).
+- *The grades.* The same lawn, the same people, the same two emails: Data C8 Midterm 2, **55**; Math 52 Midterm 2, **20**, on the 91's impact frame ("not sick this time"). Miles: "Twenty. That's a two, then a zero." Jun would fold. Allen does the percentage, says it isn't good, and notes Aiden co-founded a calculus tutor and got a twenty in calculus. Then he asks if Aiden's okay, and Aiden explains why it's chill, with numbers.
+- *The first video.* alai catches a wrong step on purpose while Allen films; the hook (*The Hook* again, Allen editing: "I got a 20 on my calc midterm" keeps them for the twenty and loses them before the tutor); the reel goes up and the counts never settle ("Allen stopped counting"); the DMs all ask when. Allen's launch checklist has one box left.
+**Ending:** "It's chill." "It's chill." *To be continued.*
+**Length:** 10–15 minutes.
+
+### Chapter 6 · To be continued
+Whatever happens next: alai's launch, the YC and speedrun decisions, the Math 52 final. It gets written when it's true.
 
 ### Later, maybe
 - **Hackathon Season**, as side stories you can play from the Chapters screen: Cal Hacks 13.0 (**LedgerLens**), Kane CLI Hack Day SF (**Seyrin**), and the side projects (Rally, CourtVision, PigeonBox, StartupSim, agenthub, AntiAgent, Inroad, OpenScreen).
@@ -310,7 +321,7 @@ Every mini-game is a project's own idea, made playable. All of them are short (1
 
 The game is about a real person, and the people around Aiden are real too. Rules:
 
-- **Aiden** and **Phoebe** are in it as themselves, and so are the people Aiden named: **John Wang**, **Jerry** and **Raymond Wang** (Chapters 1–2), **Miles**, **Jun**, **Allen**, **Dylan Nguyen** and **Samuel Choi** (Chapters 3–4). Their looks are guesses until there are photos; their heights are real.
+- **Aiden** and **Phoebe** are in it as themselves, and so are the people Aiden named: **John Wang**, **Jerry** and **Raymond Wang** (Chapters 1–2), **Miles**, **Jun**, **Allen**, **Dylan Nguyen** and **Samuel Choi** (Chapters 3–5). Their looks are guesses until there are photos; their heights are real.
 - Anyone else real appears **only with Aiden's say-so and their own consent**. Until then they're roles, written as composites: *the co-founder*, *the teammate who carries the demo*, *the roommate*, *the judge*.
 - No real public figures as characters. (The arcade on `/student` uses some; this game shouldn't.)
 
@@ -326,7 +337,7 @@ The game is about a real person, and the people around Aiden are real too. Rules
 | Allen | Ch. 3–4 | Won a16z SpeedHacks with Aiden; alai's co-founder. Written the way Allen thinks: direct, literal, exact with numbers, honest without padding, and always right about the detail. The jokes are never at his expense. |
 | Miles | Ch. 3–4 | The roommate. His jokes aren't funny, which is the joke. Can talk to anyone, and brings half the party home. His (strange) friend group stays out of the story. |
 | Jun | Ch. 3–4 | The floormate. Plays poker, never knocks, comes through the door mid-work. Alright, I guess. alai's first tester. |
-| Dylan Nguyen, Samuel Choi | Ch. 3 | The Make Something Agents Want team behind Continuity. |
+| Dylan Nguyen, Samuel Choi | Ch. 3, 5 | The Make Something Agents Want team behind Continuity; Dylan is back for Nomen at YC × Naïve. |
 | The other floormates | Ch. 3 | Two composites, unnamed: the BarkOff team at Build Night. |
 | Family | Prologue on | Only if Aiden wants them in it, and how Aiden wants them. |
 | Judges, professors, proctors, partners, founders | Ch. 2–4 | Generic characters, never named after real people. |
@@ -385,7 +396,8 @@ Everything is synthesised in WebAudio (`play/sound.ts`), no files, and it follow
 | **M0 · The opening** ✅ | PLAY cinematic, store, desk, boot, title, Prologue, this plan | done |
 | **M1 · Chapters 1 and 2** ✅ | Story runner, saves and Continue, the Chapters screen, four new dioramas (street, hallway, auditorium, field) and the bedroom by night, the cast, CopyRush, The Drop, The Hook, the judges | done |
 | **M2 · Berkeley and alai** ✅ | Wingman, Chapters 3 and 4, five dioramas (dorm, lecture hall, Memorial Glade, a hackathon venue in three colours, an SF office), eight new screens, the new cast | done |
-| **M3 · Chapter 5** | Whatever happens next | when it happens |
+| **M3 · Chapter 5** ✅ | It's Chill: the YC × Naïve venue, the fourth cup (dorm sill and the desk in the cinematic), *Outliers*, and *The Hook* and the reel opened up to other editors and comments | done |
+| **M3½ · Chapter 6** | Whatever happens next | when it happens |
 | **M4 · Systems** | The phone, time and energy, wallet, skills, settings | 1–2 weeks |
 | **M5 · Side stories** | Hackathon Season: LedgerLens, Seyrin, the side projects, their mini-games | 2–3 weeks |
 | **M6 · The island** | Walkable island, places by stage, the ending, credits | 2–3 weeks |
@@ -420,7 +432,8 @@ The game is only as good as its true details. Before each chapter is built:
 
 **Chapter 4**
 - What a16z Alpha is, in your words, and anything true from the final round.
-- Your second-midterm scores, if you want them in. (Round two shows no grades for now.)
+- Who else was on the Nomen team, if anyone besides Dylan (Chapter 5 has just the two of them).
+- The real numbers behind alai's videos, if you want them in. (For now the reel never settles and Allen stops counting.)
 - Photos of Allen, Dylan, Samuel, Miles and Jun, and that they're happy to be in it (Allen especially, with his voice written the way it is).
 - Chapter 5, when it happens: the YC and speedrun decisions, alai's launch.
 

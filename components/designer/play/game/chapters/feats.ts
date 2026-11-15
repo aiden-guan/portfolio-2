@@ -22,6 +22,9 @@ export const FEATS = {
   keewano: { title: "Best Use of Keewano", line: "alai took 1st at a16z SpeedHacks." },
   primitive: { title: "3 for 3", line: "Continuity took 1st on YC’s Primitive.dev track." },
   building: { title: "Including me", line: "Everyone in the room was building something." },
+  monid: { title: "Four cups", line: "Nomen took 1st on the Monid track, and 2nd overall." },
+  twenty: { title: "20", line: "Not sick this time. A 55, then a 20." },
+  uncounted: { title: "Uncounted", line: "alai’s video went up. Allen stopped counting." },
   tbc: { title: "To be continued", line: "Caught up with the present. The rest is still happening." },
   threeam: { title: "3 AM", line: "Played at 3 AM. Very hackathon of you.", secret: true },
 } satisfies Record<string, Feat>;

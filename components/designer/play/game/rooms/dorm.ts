@@ -41,7 +41,7 @@ const ORIGIN: [number, number] = [W / 2, D / 2];
 const at = grid(ORIGIN);
 const block = blocker(ORIGIN);
 
-export type DormFeature = "sick" | "boxes" | "trophies" | "ipad" | "monitor" | "late";
+export type DormFeature = "sick" | "boxes" | "trophies" | "fourth" | "ipad" | "monitor" | "late";
 
 export function dorm({ night = false }: { night?: boolean } = {}) {
   calm();
@@ -260,16 +260,18 @@ export function dorm({ night = false }: { night?: boolean } = {}) {
     v.box(62, 7, 41, 67, 11, 46, (x, y) => (y === 11 ? 0xc9a27a : 0xb8834f));
     v.box(64, 7, 41, 64, 11, 46, 0xd9c49b);
   });
-  // three cups on the windowsill, where the light hits them
+  // three cups on the windowsill, where the light hits them, and later a fourth
+  const cup = (v: Voxels, x: number, gold: number) => {
+    v.box(x, 12, 1, x + 2, 12, 2, 0x2a2f3d);
+    v.box(x + 1, 13, 1, x + 1, 14, 2, gold);
+    v.box(x, 15, 1, x + 2, 17, 2, gold);
+    v.set(x - 1, 16, 1, gold);
+    v.set(x + 3, 16, 1, gold);
+  };
   add("trophies", (v) => {
-    [[34, 0xf2c46b], [39, 0xe6b04a], [44, 0xf2c46b]].forEach(([x, gold]) => {
-      v.box(x, 12, 1, x + 2, 12, 2, 0x2a2f3d);
-      v.box(x + 1, 13, 1, x + 1, 14, 2, gold);
-      v.box(x, 15, 1, x + 2, 17, 2, gold);
-      v.set(x - 1, 16, 1, gold);
-      v.set(x + 3, 16, 1, gold);
-    });
+    for (const [x, gold] of [[34, 0xf2c46b], [39, 0xe6b04a], [44, 0xf2c46b]]) cup(v, x, gold);
   });
+  add("fourth", (v) => cup(v, 49, 0xe6b04a));
   // an iPad and its pencil, for alai
   add("ipad", (v) => {
     v.box(19, 9, 5, 24, 9, 7, 0x2a2f3d);

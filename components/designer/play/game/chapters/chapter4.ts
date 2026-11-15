@@ -9,8 +9,8 @@ import { say, type Chapter, type Ctx, type Line } from "./types";
 
 // alai, for real: Allen at the roommate's desk, midterms again, a final
 // round at a16z Alpha that ends in a no, a bench at midnight, two
-// applications, a bug bash, and the first student who says "oh". Then the
-// story catches up with the present, and stops.
+// applications, a bug bash, and the first student who says "oh". The
+// grades from those midterms come back in Chapter 5.
 
 const ALLEN_AT_DESK: ActorSpec = { id: "allen", look: LOOKS.allen, at: new Vector3(2.15, 0, -2.05), heading: Math.PI, pose: "type", seat: 0.45, label: "Allen", behaviour: "idle", solid: false };
 
@@ -340,11 +340,10 @@ export const chapter4: Chapter = {
             say("aiden", "Soon."),
             say("allen", "Coffee? Same order as always. It’s one less decision."),
             say("aiden", "Coffee."),
-            say("note", "That’s where the story is, right now."),
+            say("note", "The midterm grades would be back in a week. That was next week’s problem."),
           ]);
           stage.actor("allen")?.pose("type");
           stage.pose("sit", 0, 0.45);
-          ctx.feat("tbc");
           return ctx.end();
         }
         if (step === "tester") return ctx.say([say("aiden", "Not now. Jun’s here, and he has a calc set.")]);
@@ -502,13 +501,12 @@ export const chapter4: Chapter = {
   }),
   end: {
     title: "The Tutor",
-    tbc: true,
     stats: [
       ["Co-founders", "2"],
       ["Final rounds", "1"],
       ["Applications", "2, sent"],
       ["Handsome", "Max"],
     ],
-    next: { number: "Chapter 5", title: "To be continued", line: "This is where life is, right now. The next chapter is still happening." },
+    next: { number: "Chapter 5", title: "It’s Chill", line: "A fourth first place, two midterm grades, and alai’s videos take off.", chapter: "ch5" },
   },
 };

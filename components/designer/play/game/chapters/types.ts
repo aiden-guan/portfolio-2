@@ -12,7 +12,7 @@ import type { FeatId } from "./feats";
 // using things does. It talks to the game through a Ctx, and most of what
 // it does reads as a script: say this, open that, walk there, wait.
 
-export type ChapterId = "prologue" | "ch1" | "ch2" | "ch3" | "ch4";
+export type ChapterId = "prologue" | "ch1" | "ch2" | "ch3" | "ch4" | "ch5";
 
 export type Line = { who: string; text: string };
 

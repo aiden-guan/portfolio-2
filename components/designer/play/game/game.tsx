@@ -1208,7 +1208,7 @@ export function Game({ phase, soundRef, onQuit }: { phase: GamePhase; soundRef: 
           <Logo size="xl" className={styles.titleLogo} />
           <TitleMenu items={menuItems} menu={menu} shown={phase === "ready"} leaving={leaving} save={save} confirmNew={confirmNew} onHover={setMenu} onChoose={choose} />
           <p className={styles.version} data-shown={phase === "ready" || undefined}>
-            v1.2 · Life, so far
+            v1.3 · Life, so far
           </p>
           <ChaptersPanel open={panel === "chapters"} done={done} found={found} onClose={() => setPanel(null)} onPlay={(id) => leaveTitle(() => startChapter(id, 0))} />
           <SettingsPanel open={panel === "settings"} settings={settings} muted={muted} onSettings={updateSettings} onMuted={setMuted} onClose={() => setPanel(null)} />

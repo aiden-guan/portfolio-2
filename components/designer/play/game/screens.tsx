@@ -32,9 +32,10 @@ export type ScreenSpec =
     }
   | { kind: "copy" }
   | { kind: "drop"; rounds: Array<{ name: string; time: string }> }
-  | { kind: "reel"; caption: string; image?: string }
-  /** The reel's first line: pick one, a test audience watches the first second, Raymond says what he thinks. Resolves with the tries it took. */
-  | { kind: "hook"; hooks: Array<{ text: string; reply: string }>; right: number }
+  /** A posted reel and the counts climbing under it. `comments` replaces the cook group's; with `lost`, the counts never settle and the views line says so instead. */
+  | { kind: "reel"; caption: string; image?: string; comments?: string[]; lost?: string }
+  /** The reel's first line: pick one, a test audience watches the first second, the editor (Raymond, unless it's someone else) says what they think. Resolves with the tries it took. */
+  | { kind: "hook"; hooks: Array<{ text: string; reply: string }>; right: number; editor?: { name: string; face: string; sub: string }; game?: string }
   | { kind: "growth"; from: number; to: number }
   | { kind: "intro"; who: string; name: string; line: string; colour: string }
   | { kind: "impact"; text: string; sub?: string }
@@ -885,9 +886,10 @@ const REEL = 5.2;
 const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}K` : String(Math.round(n)));
 
 function Reel({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kind: "reel" }>>) {
+  const comments = spec.comments ?? COMMENTS;
   const [shown, setShown] = useState(0);
   const [over, setOver] = useState(false);
-  const live = useRef({ t: 0, shown: 0 });
+  const live = useRef({ t: 0, shown: 0, roll: 0 });
   const bar = useRef<HTMLElement>(null);
   const likes = useRef<HTMLElement>(null);
   const notes = useRef<HTMLElement>(null);
@@ -900,22 +902,39 @@ function Reel({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kin
   useFrame(
     (dt) => {
       const s = live.current;
+      if (spec.lost && s.t >= REEL) {
+        // past counting: the numbers keep rolling, too fast to read
+        if (s.shown !== comments.length) {
+          // skipped to the end: everything the climb would have shown
+          s.shown = comments.length;
+          setShown(s.shown);
+          setOver(true);
+          if (bar.current) bar.current.style.transform = "scaleX(1)";
+          if (views.current) views.current.textContent = spec.lost;
+        }
+        s.roll += dt;
+        if (s.roll < 0.07) return;
+        s.roll = 0;
+        for (const [el, top] of [[likes, 9e5], [notes, 9e4], [shares, 3e5]] as const) if (el.current) el.current.textContent = fmt(top * (0.2 + Math.random() * 0.8));
+        return;
+      }
       s.t = Math.min(REEL, s.t + dt);
       const t = s.t / REEL;
-      const e = 1 - (1 - t) ** 3;
+      // the cook group's climb settles; a reel that's taking off only speeds up
+      const e = spec.lost ? (Math.exp(t * 4) - 1) / (Math.exp(4) - 1) : 1 - (1 - t) ** 3;
       if (bar.current) bar.current.style.transform = `scaleX(${t.toFixed(4)})`;
       if (likes.current) likes.current.textContent = fmt(18200 * e);
       if (notes.current) notes.current.textContent = fmt(1240 * e);
       if (shares.current) shares.current.textContent = fmt(3900 * e);
-      if (views.current) views.current.textContent = `▶ ${fmt(214000 * e)} views`;
-      const step = Math.floor(t * COMMENTS.length);
+      if (views.current) views.current.textContent = spec.lost && t >= 1 ? spec.lost : `▶ ${fmt(214000 * e)} views`;
+      const step = Math.floor(t * comments.length);
       if (step !== s.shown) {
         s.shown = step;
         setShown(step);
       }
       if (t >= 1) setOver(true);
     },
-    !over,
+    !over || Boolean(spec.lost),
   );
   const skip = () => {
     if (over) return onDone();
@@ -955,7 +974,7 @@ function Reel({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kin
           </span>
         </div>
         <div className={styles.comments}>
-          {COMMENTS.slice(0, shown).map((c) => (
+          {comments.slice(0, shown).map((c) => (
             <p key={c}>{c}</p>
           ))}
         </div>
@@ -972,6 +991,7 @@ function Reel({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kin
 // ones who scroll away go; the ones who stop stay lit.
 
 const AUDIENCE = 100;
+const RAYMOND = { name: "Raymond", face: "editor", sub: "Raymond · the first second decides everything" };
 // how many stop for each hook, the right one and the rest
 const KEPT_RIGHT = 72;
 const KEPT_WRONG = [8, 3, 5];
@@ -991,6 +1011,7 @@ function Hook({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kin
     setPhaseState(next);
   };
   const keptOf = (i: number) => (i === spec.right ? KEPT_RIGHT : KEPT_WRONG[(i + (i > spec.right ? 2 : 0)) % KEPT_WRONG.length]);
+  const editor = spec.editor ?? RAYMOND;
 
   // the test: the strangers who don't care leave in a rush; the count follows
   useFrame(
@@ -1057,10 +1078,10 @@ function Hook({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kin
           <span className={styles.notch} />
         </div>
         <header className={styles.thread}>
-          {face("editor") ? <img src={face("editor")} alt="" /> : <i />}
+          {face(editor.face) ? <img src={face(editor.face)} alt="" /> : <i />}
           <div>
             <b>Edit reel</b>
-            <small>Raymond · the first second decides everything</small>
+            <small>{editor.sub}</small>
           </div>
         </header>
         <div className={styles.preview}>
@@ -1084,7 +1105,7 @@ function Hook({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kin
         </div>
         {phase === "reply" || phase === "done" ? (
           <p className={styles.bubble} data-raymond="">
-            <b>Raymond</b>
+            <b>{editor.name}</b>
             {spec.hooks[current].reply}
           </p>
         ) : (
@@ -1116,7 +1137,16 @@ function Hook({ spec, soundRef, onDone, touch }: Props<Extract<ScreenSpec, { kin
         </footer>
       </div>
       {phase === "done" ? (
-        <Results game="hook" kicker="The hook" rank={rank} score={10 - tried.length} label={tried.length === 1 ? "First try" : `${tried.length} tries`} reason={rank === "S" ? "Stopped the scroll on the first go." : rank === "A" ? "Second time lucky. Raymond noticed." : "Got there. Raymond has notes."} touch={touch} soundRef={soundRef} />
+        <Results
+          game={spec.game ?? "hook"}
+          kicker="The hook"
+          rank={rank}
+          score={10 - tried.length}
+          label={tried.length === 1 ? "First try" : `${tried.length} tries`}
+          reason={rank === "S" ? "Stopped the scroll on the first go." : rank === "A" ? `Second time lucky. ${editor.name} noticed.` : `Got there. ${editor.name} has notes.`}
+          touch={touch}
+          soundRef={soundRef}
+        />
       ) : null}
     </div>
   );

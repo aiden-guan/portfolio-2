@@ -23,12 +23,13 @@ const block = blocker(ORIGIN);
 const STAGE_K = 18;
 const STAGE_H = 3;
 
-export type EventId = "buildnight" | "speedhacks" | "yc";
+export type EventId = "buildnight" | "speedhacks" | "yc" | "naive";
 
 const EVENTS: Record<EventId, { lines: [string, string]; accent: number; second: number; wall: number }> = {
   buildnight: { lines: ["SPACEXAI", "BUILD NIGHT"], accent: 0x6b4de6, second: 0x9cc0fa, wall: 0x1c1a2e },
   speedhacks: { lines: ["A16Z", "SPEEDHACKS"], accent: 0xffd23f, second: 0xf08a32, wall: 0x1e1c1a },
   yc: { lines: ["MAKE SOMETHING", "AGENTS WANT"], accent: 0xf26522, second: 0xfbf8f1, wall: 0x22201e },
+  naive: { lines: ["YC X NAIVE", "AUTONOMOUS COMPANY"], accent: 0x8fd3b6, second: 0xf26522, wall: 0x1a1e22 },
 };
 
 /** The team's table, middle row on the right: chair x positions along it,

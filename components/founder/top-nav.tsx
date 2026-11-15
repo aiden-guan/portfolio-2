@@ -166,7 +166,7 @@ export function TopNav({
                 <h2 className={styles.dropTitle}>Notifications</h2>
                 <ul className={styles.notificationList}>
                   {notifications.map((item) => (
-                    <li key={item.project}>
+                    <li key={`${item.project}:${item.text}`}>
                       <button
                         type="button"
                         className={styles.notification}

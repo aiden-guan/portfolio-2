@@ -63,7 +63,7 @@ export const EXPERIENCE: Experience[] = [
     current: true,
     location: "Berkeley, California, United States",
     description:
-      "A voice-first AI tutor for STEM homework on iPad. Students work by hand; when they pause after a wrong step, alai underlines it and nudges them out loud.\nWon 1st place, Best Use of Keewano at a16z SpeedHacks.",
+      "A voice-first AI tutor for STEM homework on iPad. Students work by hand; when they pause after a wrong step, alai underlines it and nudges them out loud.\nWon 1st place, Best Use of Keewano at a16z SpeedHacks.\nAlmost ready to launch, and the short-form videos we’ve started posting for it are taking off.",
     media: ["alai"],
   },
   {
@@ -156,7 +156,7 @@ export const PROFILE = {
   name: PERSON.name,
   first: PERSON.first,
   photo: PERSON.photo,
-  headline: `Building alai · ${firstPlaces}× 1st place at hackathons · Business + Data Science @ UC Berkeley`,
+  headline: `Building alai, launching soon · ${firstPlaces}× 1st place at hackathons · Business + Data Science @ UC Berkeley`,
   location: "Berkeley, California, United States",
   email: PERSON.email,
   github: PERSON.github,
@@ -172,7 +172,7 @@ export const PROFILE = {
   ] as { org: OrgId; target: string }[],
   about:
     "Business student at UC Berkeley. I learn by building software, marketplaces and games.\n\n" +
-    "Right now that’s alai, a voice-first AI tutor for STEM homework: students work by hand on an iPad, and when they pause after a wrong step, alai underlines it and nudges them out loud.\n\n" +
+    "Right now that’s alai, a voice-first AI tutor for STEM homework: students work by hand on an iPad, and when they pause after a wrong step, alai underlines it and nudges them out loud. We’re close to launch, and the videos we’ve started posting for it are taking off.\n\n" +
     "On the side: Rally, table tennis with your phone as the paddle, and PigeonBox, an AI inbox that runs on your own computer.",
 };
 
@@ -268,6 +268,13 @@ export const IMAGES = [MOMENTS.yc, MOMENTS.a16z];
 
 /** The bell. `when` is relative, as the dropdown shows it. */
 export const NOTIFICATIONS = [
+  { project: "alai", lead: "alai", text: "is close to launch. Its first videos are taking off.", when: "1d" },
+  {
+    project: NOMEN.slug,
+    lead: "Nomen",
+    text: "took 1st place on the Monid track and 2nd overall at the YC × Naïve Autonomous Company Hackathon.",
+    when: "1w",
+  },
   { project: "ledgerlens", lead: "LedgerLens", text: "was submitted to Cal Hacks 13.0.", when: "1w" },
   {
     project: "continuity",
